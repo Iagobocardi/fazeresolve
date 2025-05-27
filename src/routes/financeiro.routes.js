@@ -1,0 +1,13 @@
+const express = require('express');
+const router = express.Router();
+const financeiroController = require('../controllers/financeiro.controller');
+const { financeiroValidationRules } = require('../controllers/financeiro.controller');
+const { validate } = require('../middlewares/validation.middleware');
+
+router.get('/', financeiroController.getAllFinanceiro);
+router.get('/:id', financeiroController.getFinanceiroById);
+router.post('/', financeiroValidationRules, validate, financeiroController.createFinanceiro);
+router.put('/:id', financeiroValidationRules, validate, financeiroController.updateFinanceiro);
+router.delete('/:id', financeiroController.deleteFinanceiro);
+
+module.exports = router;
