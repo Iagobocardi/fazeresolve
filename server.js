@@ -16,7 +16,7 @@ const whatsappRoutes = require('./src/routes/whatsapp.routes.js'); // Rota do Wh
 const errorMiddleware = require('./src/middlewares/error.middleware');
 
 // Conectar ao MongoDB
-// connectDB(); // Descomente se estiver usando MongoDB e o arquivo database.js
+connectDB();  // Descomente se estiver usando MongoDB e o arquivo database.js
 
 // Middlewares
 app.use(express.json()); // Para parsear JSON no corpo das requisições

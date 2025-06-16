@@ -1,14 +1,28 @@
 const Servico = require('../models/servico.model');
 const Cliente = require('../models/cliente.model');
-const { validationResult, body } = require('express-validator');
+// IMPORTAÇÃO CORRETA do 'body' e 'validationResult' de 'express-validator'
+const { body, validationResult } = require('express-validator');
 
 // Regras de validação para o serviço
 const servicoValidationRules = [
-    body('tipoServico').notEmpty().withMessage('Tipo de serviço é obrigatório').trim(),
-    body('valorServico').notEmpty().withMessage('Valor do serviço é obrigatório').isNumeric().withMessage('Valor deve ser numérico').isInt({ min: 0 }).withMessage('Valor deve ser maior ou igual a zero'),
-    body('status').optional().isIn(['Aberto', 'Em Progresso', 'Concluído']).withMessage('Status inválido').trim(),
-    body('cliente').notEmpty().withMessage('Cliente é obrigatório').isMongoId().withMessage('ID de cliente inválido'),
-    body('dataConclusao').optional().isISO8601().withMessage('Data de conclusão inválida'),
+    body('tipoServico')
+        .notEmpty().withMessage('Tipo de serviço é obrigatório').trim(),
+
+    // CORREÇÃO: Usando isFloat para aceitar valores decimais (ex: 250.50)
+    body('valorServico')
+        .notEmpty().withMessage('Valor do serviço é obrigatório')
+        .isFloat({ min: 0 }).withMessage('Valor deve ser um número maior ou igual a zero'),
+
+    body('status')
+        .optional().isIn(['Aberto', 'Em Progresso', 'Concluído']).withMessage('Status inválido').trim(),
+
+    // CORREÇÃO: isMongoId para validar o ID do cliente
+    body('cliente')
+        .notEmpty().withMessage('Cliente é obrigatório')
+        .isMongoId().withMessage('ID de cliente inválido'),
+
+    body('dataConclusao')
+        .optional().isISO8601().withMessage('Data de conclusão inválida'),
 ];
 
 // Obtém todos os serviços
@@ -36,13 +50,13 @@ const getServicoById = async (req, res) => {
 
 // Cria um novo serviço
 const createServico = async (req, res) => {
+    // A validação agora será aplicada pela rota antes de chamar este controller
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
 
     try {
-        // Verifica se o cliente existe
         const cliente = await Cliente.findById(req.body.cliente);
         if (!cliente) {
             return res.status(400).json({ error: 'Cliente não encontrado.' });
@@ -50,8 +64,8 @@ const createServico = async (req, res) => {
 
         const novoServico = new Servico(req.body);
         const servicoSalvo = await novoServico.save();
-
-         // Atualiza o histórico de serviços do cliente
+        
+        // Atualiza o histórico de serviços do cliente
         cliente.historicoServicos.push(servicoSalvo._id);
         await cliente.save();
 
@@ -72,6 +86,7 @@ const updateServico = async (req, res) => {
             new: true,
             runValidators: true
         }).populate('cliente');
+
         if (!servicoAtualizado) {
             return res.status(404).json({ error: 'Serviço não encontrado.' });
         }

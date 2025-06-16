@@ -1,8 +1,4 @@
 // Arquivo: src/controllers/whatsapp.controller.js
-
-// REMOVA ESTA LINHA (ou a linha que está causando o erro, provavelmente a primeira importação de express-validator)
-// const  body} = require('express-validator'); // LINHA INCORRETA E DUPLICADA
-
 const whatsappService = require('../services/whatsapp.service');
 const { validationResult, body } = require('express-validator'); // MANTENHA APENAS ESTA LINHA PARA IMPORTAR validationResult e body
 
