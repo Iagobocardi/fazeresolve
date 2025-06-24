@@ -11,7 +11,7 @@ router.post(
     '/whatsapp-hook',
     whatsappController.whatsappMessageValidationRules, // Use as regras do controller
     validate,                                     // Aplique o middleware de validação
-    whatsappController.receiveMessage                 // Chame a função do controller
+    whatsappController.handleWhatsAppWebhook               // Chame a função do controller
 );
 
 module.exports = router;

@@ -28,6 +28,11 @@ app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/orcamentos', orcamentoRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/servicos', servicoRoutes);
+// ROTA DE TESTE PARA DEBUG
+app.post('/api/whatsapp/webhook', (req, res) => {
+  console.log('!!! ROTA DE TESTE NO SERVER.JS FOI ACIONADA !!!');
+  res.status(200).send('<Response><Message>Teste recebido com sucesso!</Message></Response>');
+});
 app.use('/api/whatsapp', whatsappRoutes); // Monta as rotas do WhatsApp sob /api/whatsapp
 
 // <<< --- ADICIONE ESTA ROTA PARA A RAIZ --- >>>
