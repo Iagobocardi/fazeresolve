@@ -1,104 +1,88 @@
-// whatsapp.service.js - Versão Refatorada
-
+// Arquivo: src/services/whatsapp.service.js
 const Cliente = require('../models/cliente.model');
-const Orcamento = require('../models/orcamento.model'); // Exemplo: para salvar a solicitação final
-const { Client } = require('@googlemaps/google-maps-services-js');
-const dotenv = require('dotenv');
-dotenv.config();
+const Orcamento = require('../models/orcamento.model');
 
-const googleMapsClient = new Client({}); // A inicialização pode ser feita aqui
-
-// A função sendWhatsAppMessage continua a mesma, está ótima.
+// Função que envia a resposta via Twilio
 const sendWhatsAppMessage = async (phoneNumber, message) => {
-    // ... seu código para enviar mensagem via Twilio ...
-};
-
-// A função getClientLocationFromText também pode ser mantida e usada no momento certo.
-const getClientLocationFromText = async (text) => {
-    // ... seu código para geocodificação ...
-};
-
-/**
- * Função principal que orquestra a conversa com o cliente.
- * Esta função substitui a necessidade de 'extractClientInfo' e 'handleClientCadastro' separados.
- * @param {object} senderInfo - Objeto com { name, phone } do remetente.
- * @param {string} messageBody - O corpo da mensagem recebida.
- */
-const handleIncomingMessage = async (senderInfo, messageBody) => {
-    // 1. Encontra ou cria o cliente para saber o estado da conversa
-    let cliente = await Cliente.findOne({ telefone: senderInfo.phone });
-
-    if (!cliente) {
-        cliente = await Cliente.create({
-            nome: senderInfo.name, // O nome do perfil do WhatsApp já é um bom começo
-            telefone: senderInfo.phone,
-            conversationState: 'AWAITING_SERVICE_TYPE' // Inicia o fluxo
+    try {
+        const client = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+        await client.messages.create({
+            body: message,
+            from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+            to: `whatsapp:${phoneNumber}`,
         });
-
-        const welcomeMessage = `Olá, ${senderInfo.name}! Bem-vindo(a) ao Faz&Resolve. Sou seu assistente virtual. Para começar, por favor, descreva o serviço que você precisa (ex: 'reforma de um sofá', 'orçamento para pintura').`;
-        await sendWhatsAppMessage(cliente.telefone, welcomeMessage);
-        return; // Aguarda a próxima mensagem do cliente
+        console.log(`[SERVICE] Mensagem de resposta enviada com sucesso para ${phoneNumber}.`);
+    } catch (error) {
+        console.error("[SERVICE] ERRO AO ENVIAR MENSAGEM VIA TWILIO:", error);
     }
+};
 
-    // 2. Processa a mensagem com base no estado atual da conversa
-    switch (cliente.conversationState) {
-        case 'AWAITING_SERVICE_TYPE':
-            cliente.currentDemand = { description: messageBody }; // Salva a descrição
-            cliente.conversationState = 'AWAITING_ADDRESS';
-            await cliente.save();
-            await sendWhatsAppMessage(cliente.telefone, "Entendido! Agora, por favor, me informe o seu endereço completo para a visita ou coleta.");
-            break;
+// Função principal que processa a mensagem e a lógica do bot
+const handleIncomingMessage = async (senderInfo, messageBody) => {
+    console.log(`[SERVICE] A processar mensagem de ${senderInfo.phone}`);
+    try {
+        let cliente = await Cliente.findOne({ telefone: senderInfo.phone });
 
-        case 'AWAITING_ADDRESS':
-            // Usa sua função de geocodificação aqui!
-            const location = await getClientLocationFromText(`endereço: ${messageBody}`);
-            
-            cliente.currentDemand.address = messageBody; // Salva o endereço textual
-            if (location) {
-                cliente.localizacao = { // Atualiza a localização principal do cliente
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    enderecoCompleto: messageBody
-                };
-            }
-            cliente.conversationState = 'AWAITING_AVAILABILITY';
-            await cliente.save();
-            await sendWhatsAppMessage(cliente.telefone, "Endereço anotado! E qual seria o melhor período para o agendamento? (ex: 'qualquer dia de manhã', 'terças ou quintas à tarde').");
-            break;
-
-        case 'AWAITING_AVAILABILITY':
-            cliente.currentDemand.availability = messageBody; // Salva a disponibilidade
-            
-            // --- PASSO FINAL: Criação do registro e finalização ---
-            const finalMessage = `Perfeito! Sua solicitação foi registrada e enviada para nossa equipe.\n\n*Resumo:*\n- *Serviço:* ${cliente.currentDemand.description}\n- *Endereço:* ${cliente.currentDemand.address}\n- *Disponibilidade:* ${cliente.currentDemand.availability}\n\nEm breve entraremos em contato.`;
-            await sendWhatsAppMessage(cliente.telefone, finalMessage);
-
-            // Opcional mas recomendado: Crie um registro formal (Orçamento, Agendamento etc.)
-            await Orcamento.create({
-                cliente: cliente._id,
-                // Assumindo que você tem um campo para a descrição no modelo Orcamento
-                descricaoServico: cliente.currentDemand.description, 
-                status: 'Pendente', // Status inicial
-                // Preencha outros campos relevantes...
+        if (!cliente) {
+            console.log(`[SERVICE] Cliente novo. A criar...`);
+            const clienteNome = senderInfo.name || `Cliente ${senderInfo.phone.slice(-4)}`;
+            cliente = await Cliente.create({
+                nome: clienteNome,
+                telefone: senderInfo.phone,
+                conversationState: 'AWAITING_SERVICE_TYPE'
             });
+            await sendWhatsAppMessage(cliente.telefone, `Olá! Bem-vindo(a) ao Faz&Resolve. Para começar, por favor, descreva o serviço que precisa.`);
+            return;
+        }
 
-            // Reseta o estado da conversa para que o cliente possa fazer novos pedidos no futuro
-            cliente.conversationState = 'NONE';
-            cliente.currentDemand = {}; // Limpa a demanda atual
-            await cliente.save();
-            break;
+        console.log(`[SERVICE] Cliente existente. Estado da conversa: ${cliente.conversationState}`);
+        
+        switch (cliente.conversationState) {
+            case 'AWAITING_SERVICE_TYPE':
+                cliente.currentDemand = { description: messageBody };
+                cliente.conversationState = 'AWAITING_ADDRESS';
+                await cliente.save();
+                await sendWhatsAppMessage(cliente.telefone, "Entendido! Agora, por favor, informe o seu endereço completo para a visita ou coleta.");
+                break;
 
-        default: // 'NONE' ou 'COMPLETED'
-            // Reinicia o fluxo se o cliente mandar uma nova mensagem
-            cliente.conversationState = 'AWAITING_SERVICE_TYPE';
-            await cliente.save();
-            await sendWhatsAppMessage(cliente.telefone, `Olá, ${cliente.nome}! Como posso te ajudar hoje? Por favor, descreva o serviço que você precisa.`);
-            break;
+            case 'AWAITING_ADDRESS':
+                cliente.currentDemand.address = messageBody;
+                cliente.conversationState = 'AWAITING_AVAILABILITY';
+                await cliente.save();
+                await sendWhatsAppMessage(cliente.telefone, "Endereço anotado! E qual seria o melhor período para o agendamento? (ex: 'qualquer dia de manhã').");
+                break;
+
+            case 'AWAITING_AVAILABILITY':
+                cliente.currentDemand.availability = messageBody;
+                
+                const finalMessage = `Perfeito! A sua solicitação foi registada com sucesso e enviada para a nossa equipa.\n\n*Resumo:*\n- *Serviço:* ${cliente.currentDemand.description}\n- *Endereço:* ${cliente.currentDemand.address}\n- *Disponibilidade:* ${cliente.currentDemand.availability}\n\nEm breve entraremos em contacto.`;
+                await sendWhatsAppMessage(cliente.telefone, finalMessage);
+
+                // Cria o registo de Orçamento no final
+                await Orcamento.create({
+                    cliente: cliente._id,
+                    descricao: `Solicitação via WhatsApp: ${cliente.currentDemand.description}`,
+                    status: 'Pendente'
+                });
+
+                // Reseta a conversa
+                cliente.conversationState = 'NONE';
+                cliente.currentDemand = {};
+                await cliente.save();
+                break;
+
+            default: // 'NONE' ou estado inesperado
+                cliente.conversationState = 'AWAITING_SERVICE_TYPE';
+                await cliente.save();
+                await sendWhatsAppMessage(cliente.telefone, `Olá, ${cliente.nome}! Como posso ajudar hoje? Por favor, descreva o serviço que precisa.`);
+                break;
+        }
+
+    } catch (error) {
+        console.error("[SERVICE] ERRO CRÍTICO na lógica do serviço:", error);
     }
 };
 
 module.exports = {
-    handleIncomingMessage, // Exporte a nova função principal
-    sendWhatsAppMessage,
-    // getClientLocationFromText, // Pode ser exportada ou usada apenas internamente
+    handleIncomingMessage
 };

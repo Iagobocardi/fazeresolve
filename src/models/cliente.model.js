@@ -3,7 +3,8 @@
 const mongoose = require('mongoose');
 
 const clienteSchema = new mongoose.Schema({
-    nome: { type: String, required: true, trim: true },
+    // O nome agora não é mais obrigatório na criação
+nome: { type: String, trim: true },
     telefone: { type: String, required: true, unique: true, trim: true },
     historicoServicos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Servico' }],
     localizacao: {
