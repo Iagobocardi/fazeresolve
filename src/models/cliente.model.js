@@ -1,4 +1,6 @@
-// Arquivo: src/models/cliente.model.js (VERSÃO LIMPA E FINAL)
+// Arquivo: src/models/cliente.model.js
+// Adicionado o campo activeContext para guardar o pedido em foco pelo prestador.
+
 const mongoose = require('mongoose');
 
 const clienteSchema = new mongoose.Schema({
@@ -29,6 +31,14 @@ const clienteSchema = new mongoose.Schema({
         address: String,
         availability: String,
         mediaUrls: [String]
+    },
+    // --- NOVO CAMPO ADICIONADO ---
+    // Guarda o ID do orçamento que o prestador está a visualizar,
+    // criando um "contexto" para os comandos seguintes.
+    activeContext: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Orcamento',
+        default: null
     }
 }, {
     timestamps: true

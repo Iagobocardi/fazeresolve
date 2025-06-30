@@ -71,9 +71,16 @@ const handleIncomingMessage = async (senderInfo, messageBody, mediaUrls = []) =>
         }
 
         // --- LÓGICA PARA UTILIZADORES EXISTENTES ---
-        if (user.role === 'PRESTADOR') {
-            console.log('[SERVICE] A executar lógica de comando para PRESTADOR...');
-            await sendWhatsAppMessage(user.telefone, `Comando "${messageBody}" recebido para processamento.`);
+        if(user.role === 'PRESTADOR') {
+            // =================================    ==============================
+            // MODIFICAÇÃO APLICADA AQUI
+            // Passamos a função 'sendWhatsAppMessage' como um terceiro argumento
+            // para que o parser possa usá-la para enviar notificações.
+            // ===============================================================
+            console.log(`[SERVICE] Executando comando para PRESTADOR: "${messageBody}"`);
+            const responseMessage = await commandParser.parseAndExecute(messageBody, user, sendWhatsAppMessage);
+            await sendWhatsAppMessage(user.telefone, responseMessage);
+            
         } else { // Role: 'CLIENTE_FINAL'
             console.log(`[SERVICE] A processar cliente. Estado atual: ${user.conversationState}`);
 
