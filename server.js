@@ -1,11 +1,31 @@
+// Arquivo: server.js (ou o seu ficheiro de entrada principal)
+
+// PASSO 1: Carrega as variáveis de ambiente do ficheiro .env
+// Esta deve ser a PRIMEIRA linha de código a ser executada.
+require('dotenv').config();
+
+// PASSO 2: Bloco de verificação para sabermos se as variáveis foram carregadas
+console.log('====================================');
+console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
+console.log('Número do Prestador carregado:', process.env.PRESTADOR_TELEFONE);
+console.log('====================================');
+
+// PASSO 3: Importações principais da aplicação
 const express = require('express');
-require('dotenv').config(); // Garante que as variáveis de ambiente são carregadas primeiro
+const connectDB = require('./src/config/database'); // Assumindo que este ficheiro existe
 
+// PASSO 4: Inicialização da aplicação Express
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Importações
-const connectDB = require('./src/config/database');
+// PASSO 5: Conectar à Base de Dados
+connectDB();
+
+// PASSO 6: Middlewares essenciais (ANTES DAS ROTAS)
+// Permitem que o servidor leia JSON e dados de formulários.
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// PASSO 7: Importação das Rotas
 const agendamentoRoutes = require('./src/routes/agendamentos.routes');
 const clienteRoutes = require('./src/routes/clientes.routes');
 const financeiroRoutes = require('./src/routes/financeiro.routes');
@@ -15,14 +35,7 @@ const servicoRoutes = require('./src/routes/servicos.routes');
 const whatsappRoutes = require('./src/routes/whatsapp.routes.js');
 const errorMiddleware = require('./src/middlewares/error.middleware');
 
-// Conectar ao MongoDB
-connectDB();
-
-// Middlewares (ANTES DAS ROTAS)
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Rotas da API
+// PASSO 8: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/financeiro', financeiroRoutes);
@@ -31,13 +44,16 @@ app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/servicos', servicoRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
+// Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {
   res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');
 });
 
-// Middleware de Erro (SEMPRE POR ÚLTIMO)
+// PASSO 9: Middleware de Erro (SEMPRE POR ÚLTIMO)
 app.use(errorMiddleware);
 
+// PASSO 10: Iniciar o Servidor
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
 });
