@@ -1,11 +1,10 @@
 // Arquivo: src/services/whatsapp.service.js
-// Versão completa, restaurando todas as funcionalidades e adicionando a notificação proativa.
+// Versão completa com a sintaxe corrigida e a lógica de pesquisa de satisfação integrada.
 
 const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const commandParser = require('./commandParser.js');
 
-// A função sendWhatsAppMessage permanece a mesma
 const sendWhatsAppMessage = async (phoneNumber, message = '', mediaUrls = []) => {
     if (!phoneNumber) {
         console.error("[SERVICE] ERRO FATAL: Tentativa de enviar mensagem para um número indefinido. Verifique se a variável de ambiente PRESTADOR_TELEFONE está configurada.");
@@ -24,9 +23,6 @@ const sendWhatsAppMessage = async (phoneNumber, message = '', mediaUrls = []) =>
     }
 };
 
-// ===============================================================
-// FUNÇÃO RESTAURADA: Lógica para o cliente verificar o estado do pedido
-// ===============================================================
 const handleCheckOrderStatus = async (user) => {
     const activeOrders = await Orcamento.find({ cliente: user._id, status: { $nin: ['Finalizado', 'Rejeitado'] } }).sort({ data: -1 });
     if (activeOrders.length === 0) {
@@ -197,6 +193,35 @@ const handleIncomingMessage = async (senderInfo, messageBody, mediaUrls = []) =>
                                                   `Para ver todos os detalhes, envie: \`ver ${newOrcamento.shortId}\``;
                     await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
                     break;
+                
+                // CORREÇÃO: O novo case foi movido para dentro do switch
+                case 'AWAITING_SATISFACTION_RATING':
+                    const rating = parseInt(messageBody.trim());
+                    if (rating >= 1 && rating <= 5) {
+                        const lastFinishedOrder = await Orcamento.findOne({
+                            cliente: user._id,
+                            status: 'Finalizado',
+                            pesquisaEnviada: true,
+                            notaSatisfacao: { $exists: false }
+                        }).sort({ dataFinalizacao: -1 });
+
+                        if (lastFinishedOrder) {
+                            lastFinishedOrder.notaSatisfacao = rating;
+                            if (!lastFinishedOrder.dataFinalizacao) {
+                                lastFinishedOrder.dataFinalizacao = new Date();
+                            }
+                            await lastFinishedOrder.save();
+                            await sendWhatsAppMessage(user.telefone, "Obrigado pelo seu feedback! A sua opinião é muito importante para nós.");
+                        } else {
+                            await sendWhatsAppMessage(user.telefone, "Obrigado! Não encontrei um pedido recente para associar a sua nota, mas o seu feedback foi registado.");
+                        }
+                    } else {
+                        await sendWhatsAppMessage(user.telefone, "Entendido. Se mudar de ideias, basta enviar uma nota de 1 a 5. Obrigado!");
+                    }
+                    user.conversationState = 'AWAITING_REQUEST_TYPE';
+                    await user.save();
+                    break;
+
                 case 'COMPLETED':
                     await sendWhatsAppMessage(user.telefone, "Olá! O seu último pedido já foi registado. Para iniciar uma nova solicitação, escolha uma das opções abaixo.");
                     user.conversationState = 'AWAITING_REQUEST_TYPE';
@@ -216,7 +241,8 @@ const handleIncomingMessage = async (senderInfo, messageBody, mediaUrls = []) =>
     }
 };
 
+// CORREÇÃO: O module.exports foi limpo e corrigido.
 module.exports = {
     handleIncomingMessage,
-     sendWhatsAppMessage 
+    sendWhatsAppMessage
 };

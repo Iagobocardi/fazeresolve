@@ -15,7 +15,10 @@ const orcamentoValidationRules = () => {
 // Obtém todos os orçamentos
 const getAllOrcamentos = async (req, res) => {
     try {
-        const orcamentos = await Orcamento.find().populate('cliente', 'nome').sort({ data: -1 });
+        // CORREÇÃO APLICADA AQUI
+        const orcamentos = await Orcamento.find()
+            .populate('cliente', 'nome telefone') // Agora busca o nome E o telefone
+            .sort({ data: -1 });
         res.status(200).json(orcamentos);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao buscar orçamentos.' });
@@ -79,8 +82,9 @@ const deleteOrcamento = async (req, res) => {
 // Função para buscar os últimos pedidos para o dashboard
 const getRecentOrcamentos = async (req, res) => {
     try {
+        // CORREÇÃO APLICADA AQUI
         const orcamentos = await Orcamento.find()
-            .populate('cliente', 'nome')
+            .populate('cliente', 'nome telefone') // Agora busca o nome E o telefone
             .sort({ data: -1 })
             .limit(10);
         res.status(200).json(orcamentos);
@@ -91,6 +95,7 @@ const getRecentOrcamentos = async (req, res) => {
 };
 
 // Função para atualizar apenas o status de um orçamento
+// Encontre a sua função 'updateOrcamentoStatus' e substitua-a por esta versão:
 const updateOrcamentoStatus = async (req, res) => {
     try {
         const { status } = req.body;
@@ -98,7 +103,11 @@ const updateOrcamentoStatus = async (req, res) => {
         if (!allowedStatus.includes(status)) {
             return res.status(400).json({ error: 'Status inválido fornecido.' });
         }
-        const orcamento = await Orcamento.findByIdAndUpdate(req.params.id, { status }, { new: true });
+        const updateData = { status };
+        if (status === 'Finalizado') {
+            updateData.dataFinalizacao = new Date();
+        }
+        const orcamento = await Orcamento.findByIdAndUpdate(req.params.id, updateData, { new: true });
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
@@ -121,7 +130,11 @@ const submitOrcamento = async (req, res) => {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
 
-        orcamento.status = 'Aceito'; // Muda o status
+        orcamento.status = 'Aceito';
+        // ===============================================================
+        // CORREÇÃO APLICADA AQUI
+        // Garantimos que o valor é salvo como um número na base de dados.
+        // ===============================================================
         orcamento.valorProposto = parseFloat(valorProposto);
         await orcamento.save();
 

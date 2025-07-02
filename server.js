@@ -16,6 +16,7 @@ const express = require('express');
 const connectDB = require('./src/config/database'); // Assumindo que este ficheiro existe
 const cors = require('cors'); // Importa o pacote
 
+
 // PASSO 4: Inicialização da aplicação Express
 const app = express();
 app.use(cors()); // Diz à sua aplicação para permitir pedidos de outros "endereços"
@@ -36,6 +37,7 @@ const relatorioRoutes = require('./src/routes/relatorios.routes');
 const servicoRoutes = require('./src/routes/servicos.routes');
 const whatsappRoutes = require('./src/routes/whatsapp.routes.js');
 const errorMiddleware = require('./src/middlewares/error.middleware');
+const statsRoutes = require('./src/routes/stats.routes.js');
 
 // PASSO 8: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
@@ -45,6 +47,7 @@ app.use('/api/orcamentos', orcamentoRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/servicos', servicoRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {

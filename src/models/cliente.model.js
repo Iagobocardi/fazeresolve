@@ -9,7 +9,7 @@ const clienteSchema = new mongoose.Schema({
     role: { type: String, required: true, enum: ['CLIENTE_FINAL', 'PRESTADOR'] },
     conversationState: {
         type: String,
-        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION'],
+        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_SATISFACTION_RATING'],
         default: 'NONE'
     },
     currentDemand: {
@@ -29,6 +29,6 @@ const clienteSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
-});
+}); 
 
 module.exports = mongoose.model('Cliente', clienteSchema);
