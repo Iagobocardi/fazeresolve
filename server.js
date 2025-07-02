@@ -48,6 +48,8 @@ app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/servicos', servicoRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/clientes', clienteRoutes);
+
 
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {

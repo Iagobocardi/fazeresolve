@@ -1,78 +1,90 @@
-// Arquivo: src/controllers/clientes.controller.js
-
 const Cliente = require('../models/cliente.model');
+const Orcamento = require('../models/orcamento.model');
 
-// --- 1. Listar todos os clientes ---
-const listarClientes = async (req, res, next) => {
+// Função para listar todos os clientes e contar os seus pedidos
+const getAllClientes = async (req, res) => {
     try {
-        const clientes = await Cliente.find();
-        res.status(200).json(clientes);
+        const clientesComPedidos = await Cliente.aggregate([
+            {
+                $lookup: {
+                    from: Orcamento.collection.name,
+                    localField: '_id',
+                    foreignField: 'cliente',
+                    as: 'pedidos'
+                }
+            },
+            {
+                $project: {
+                    nome: 1,
+                    telefone: 1,
+                    role: 1,
+                    createdAt: 1,
+                    totalPedidos: { $size: '$pedidos' }
+                }
+            },
+            { $sort: { nome: 1 } }
+        ]);
+        res.status(200).json(clientesComPedidos);
     } catch (error) {
-        // Passa o erro para o middleware de tratamento de erros
-        next(error);
+        console.error("ERRO em getAllClientes:", error);
+        res.status(500).json({ error: 'Erro ao buscar clientes.' });
     }
 };
 
-// --- 2. Buscar um cliente por ID ---
-const buscarClientePorId = async (req, res, next) => {
+// Função para buscar um cliente por ID
+const buscarClientePorId = async (req, res) => {
     try {
         const cliente = await Cliente.findById(req.params.id);
         if (!cliente) {
-            return res.status(404).json({ message: 'Cliente não encontrado.' });
+            return res.status(404).json({ error: 'Cliente não encontrado.' });
         }
         res.status(200).json(cliente);
     } catch (error) {
-        next(error);
+        res.status(500).json({ error: 'Erro ao buscar cliente.' });
     }
 };
 
-// --- 3. Criar um novo cliente ---
-const criarCliente = async (req, res, next) => {
+// Função para criar um novo cliente (será usada pelo painel no futuro)
+const criarCliente = async (req, res) => {
     try {
-        // O corpo da requisição já foi validado pelo middleware na rota
         const novoCliente = new Cliente(req.body);
         const clienteSalvo = await novoCliente.save();
         res.status(201).json(clienteSalvo);
     } catch (error) {
-        next(error);
+        res.status(500).json({ error: 'Erro ao criar cliente.' });
     }
 };
 
-// --- 4. Atualizar um cliente existente ---
-const atualizarCliente = async (req, res, next) => {
+// Função para atualizar um cliente
+const atualizarCliente = async (req, res) => {
     try {
-        const cliente = await Cliente.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: true } // {new: true} retorna o documento atualizado
-        );
-        if (!cliente) {
-            return res.status(404).json({ message: 'Cliente não encontrado para atualização.' });
+        const clienteAtualizado = await Cliente.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!clienteAtualizado) {
+            return res.status(404).json({ error: 'Cliente não encontrado.' });
         }
-        res.status(200).json(cliente);
+        res.status(200).json(clienteAtualizado);
     } catch (error) {
-        next(error);
+        res.status(500).json({ error: 'Erro ao atualizar cliente.' });
     }
 };
 
-// --- 5. Deletar um cliente ---
-const deletarCliente = async (req, res, next) => {
+// Função para deletar um cliente
+const deletarCliente = async (req, res) => {
     try {
-        const cliente = await Cliente.findByIdAndDelete(req.params.id);
-        if (!cliente) {
-            return res.status(404).json({ message: 'Cliente não encontrado para exclusão.' });
+        const clienteDeletado = await Cliente.findByIdAndDelete(req.params.id);
+        if (!clienteDeletado) {
+            return res.status(404).json({ error: 'Cliente não encontrado.' });
         }
         res.status(200).json({ message: 'Cliente deletado com sucesso.' });
     } catch (error) {
-        next(error);
+        res.status(500).json({ error: 'Erro ao deletar cliente.' });
     }
 };
 
-// ===============================================================
-// EXPORTAÇÃO CORRETA - Garante que todas as funções estão disponíveis
-// ===============================================================
+
+// CORREÇÃO: Exporta TODAS as funções que as rotas precisam.
 module.exports = {
-    listarClientes,
+    getAllClientes,
     buscarClientePorId,
     criarCliente,
     atualizarCliente,
