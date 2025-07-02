@@ -1,5 +1,5 @@
 // Arquivo: src/models/orcamento.model.js
-// Adicionado o campo 'address' para guardar o endereço do cliente.
+// Adicionados campos para suportar a pesquisa de satisfação.
 const mongoose = require('mongoose');
 
 const orcamentoSchema = new mongoose.Schema({
@@ -21,9 +21,20 @@ const orcamentoSchema = new mongoose.Schema({
     },
     shortId: { type: String, unique: true },
     dataAgendamento: { type: String },
-    // --- NOVO CAMPO ADICIONADO ---
-    address: {
-        type: String
+    address: { type: String },
+
+    // --- NOVOS CAMPOS ADICIONADOS ---
+    dataFinalizacao: {
+        type: Date // Guarda quando o serviço foi finalizado.
+    },
+    pesquisaEnviada: {
+        type: Boolean, // Marca se a pesquisa já foi enviada para este pedido.
+        default: false
+    },
+    notaSatisfacao: {
+        type: Number, // Guarda a nota de 1 a 5 dada pelo cliente.
+        min: 1,
+        max: 5
     }
 });
 

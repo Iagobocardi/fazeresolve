@@ -3,6 +3,7 @@
 // PASSO 1: Carrega as variáveis de ambiente do ficheiro .env
 // Esta deve ser a PRIMEIRA linha de código a ser executada.
 require('dotenv').config();
+require('./src/jobs/satisfactionSurvey.js');
 
 // PASSO 2: Bloco de verificação para sabermos se as variáveis foram carregadas
 console.log('====================================');

@@ -1,5 +1,5 @@
 // Arquivo: src/services/commandParser.js
-// Adicionada a lógica para o novo comando 'finalizar'.
+// O comando 'finalizar' agora regista a data de conclusão.
 
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
@@ -7,7 +7,7 @@ const Cliente = require('../models/cliente.model');
 const parseAndExecute = async (commandText, user, sendMessageFunction) => {
     const normalizedCommand = commandText.toLowerCase().trim();
 
-    // --- NOVO COMANDO: finalizar [ID] ---
+    // --- COMANDO 'finalizar' MODIFICADO ---
     const finalizeMatch = normalizedCommand.match(/^finalizar\s+([a-f0-9]{6})$/);
     if (finalizeMatch) {
         try {
@@ -17,22 +17,22 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             if (!orcamento) {
                 return `❗ Pedido com ID "${shortIdToFind}" não encontrado.`;
             }
-
             if (orcamento.status === 'Finalizado') {
                 return `Este pedido já foi finalizado anteriormente.`;
             }
 
             orcamento.status = 'Finalizado';
+            // MODIFICAÇÃO: Registamos a data e hora exatas da finalização.
+            orcamento.dataFinalizacao = new Date();
             await orcamento.save();
 
-            // Limpa o contexto se o pedido finalizado era o que estava ativo.
             if (user.activeContext && user.activeContext.toString() === orcamento._id.toString()) {
                 user.activeContext = null;
                 await user.save();
             }
 
             const clientName = orcamento.cliente ? orcamento.cliente.nome : 'um cliente';
-            return `✅ Pedido #${orcamento.shortId} de ${clientName} foi marcado como finalizado com sucesso!`;
+            return `✅ Pedido #${orcamento.shortId} de ${clientName} foi marcado como finalizado!\nA pesquisa de satisfação será enviada ao cliente em 2 dias.`;
 
         } catch (error) {
             console.error("Erro no comando 'finalizar':", error);
@@ -40,8 +40,8 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
         }
     }
 
-
     // --- Outros comandos (agendar, ver, etc.) permanecem os mesmos ---
+    // (O resto do seu código do commandParser continua aqui, sem alterações)
     if (normalizedCommand === 'voltar' || normalizedCommand === 'cancelar') {
         if (user.activeContext) {
             user.activeContext = null;
@@ -51,7 +51,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             return "Nenhuma ação em andamento para cancelar.";
         }
     }
-
     const scheduleMatch = normalizedCommand.match(/^agendar\s+para\s+(.+)$/);
     if (scheduleMatch) {
         if (!user.activeContext) return "❗Erro: Você precisa visualizar um pedido primeiro com `ver [ID]`.";
@@ -74,7 +73,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             return "Ocorreu um erro ao tentar agendar o serviço.";
         }
     }
-
     const viewMatch = normalizedCommand.match(/^ver\s+([a-f0-9]{6})$/);
     if (viewMatch) {
         try {
@@ -112,7 +110,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             return "Ocorreu um erro ao buscar os detalhes do pedido.";
         }
     }
-    
     const acceptMatch = normalizedCommand.match(/^aceitar\s+valor\s+([0-9,.]+)/);
     if (acceptMatch) {
         if (!user.activeContext) return "❗Erro: Você precisa visualizar um pedido primeiro. Use o comando `ver [ID]`.";
@@ -134,7 +131,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             return "Ocorreu um erro ao aceitar o orçamento.";
         }
     }
-
     if (normalizedCommand === 'rejeitar') {
         if (!user.activeContext) return "❗Erro: Você precisa visualizar um pedido primeiro. Use o comando `ver [ID]`.";
         try {
@@ -153,7 +149,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             return "Ocorreu um erro ao rejeitar o pedido.";
         }
     }
-
     if (normalizedCommand === 'listar pendentes') {
         try {
             const pendentes = await Orcamento.find({ status: 'Pendente' }).populate('cliente', 'nome').sort({ data: -1 });
@@ -175,7 +170,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             return "Ocorreu um erro ao buscar as solicitações.";
         }
     }
-
     let helpMenu = `Comando não reconhecido: "${commandText}".\n\n*Menu de Comandos Disponíveis:*\n\n`;
     helpMenu += `\`listar pendentes\`\n- Mostra um resumo dos novos pedidos.\n\n`;
     helpMenu += `\`ver [ID]\`\n- Exibe todos os detalhes de um pedido específico.\n\n`;
@@ -185,7 +179,6 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
     helpMenu += `  \`aceitar valor [VALOR]\`\n`;
     helpMenu += `  \`agendar para [DATA]\`\n`;
     helpMenu += `  \`rejeitar\``;
-
     return helpMenu;
 };
 
