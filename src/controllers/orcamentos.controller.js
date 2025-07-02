@@ -1,18 +1,21 @@
-const Orcamento = require('../models/orcamento.model');
-const Servico = require('../models/servico.model');
-const { validationResult, body } = require('express-validator');
+// Arquivo: src/controllers/orcamentos.controller.js
 
-const orcamentoValidationRules = [
-    body('status').optional().isIn(['Aceito', 'Pendente', 'Rejeitado']).withMessage('Status inválido').trim(),
-    body('valorProposto').notEmpty().isNumeric().isFloat({ min: 0 }).withMessage('Valor proposto deve ser um número maior ou igual a zero'),
-    body('servico').notEmpty().isMongoId().withMessage('ID de serviço inválido'),
-     body('validade').notEmpty().isISO8601().isAfter().withMessage('Data de validade deve ser uma data futura'),
-];
+const Orcamento = require('../models/orcamento.model');
+const { validationResult, body } = require('express-validator');
+const { sendWhatsAppMessage } = require('../services/whatsapp.service');
+
+// Regras de validação (podem ser expandidas)
+const orcamentoValidationRules = () => {
+    return [
+        body('status').optional().isIn(['Pendente', 'Aceito', 'Rejeitado', 'Agendado', 'Finalizado']).withMessage('Status inválido').trim(),
+        // Adicione outras regras de validação conforme necessário
+    ];
+};
 
 // Obtém todos os orçamentos
 const getAllOrcamentos = async (req, res) => {
     try {
-        const orcamentos = await Orcamento.find().populate('servico');
+        const orcamentos = await Orcamento.find().populate('cliente', 'nome').sort({ data: -1 });
         res.status(200).json(orcamentos);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao buscar orçamentos.' });
@@ -22,7 +25,7 @@ const getAllOrcamentos = async (req, res) => {
 // Obtém um orçamento por ID
 const getOrcamentoById = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('servico');
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome');
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
@@ -39,12 +42,6 @@ const createOrcamento = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
     try {
-        // Verifica se o serviço existe
-        const servico = await Servico.findById(req.body.servico);
-        if (!servico) {
-            return res.status(400).json({ error: 'Serviço não encontrado.' });
-        }
-
         const novoOrcamento = new Orcamento(req.body);
         const orcamentoSalvo = await novoOrcamento.save();
         res.status(201).json(orcamentoSalvo);
@@ -55,15 +52,8 @@ const createOrcamento = async (req, res) => {
 
 // Atualiza um orçamento por ID
 const updateOrcamento = async (req, res) => {
-     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
     try {
-        const orcamentoAtualizado = await Orcamento.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        }).populate('servico');
+        const orcamentoAtualizado = await Orcamento.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!orcamentoAtualizado) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
@@ -86,11 +76,75 @@ const deleteOrcamento = async (req, res) => {
     }
 };
 
+// Função para buscar os últimos pedidos para o dashboard
+const getRecentOrcamentos = async (req, res) => {
+    try {
+        const orcamentos = await Orcamento.find()
+            .populate('cliente', 'nome')
+            .sort({ data: -1 })
+            .limit(10);
+        res.status(200).json(orcamentos);
+    } catch (error) {
+        console.error("ERRO DETALHADO em getRecentOrcamentos:", error);
+        res.status(500).json({ message: 'Erro interno ao buscar orçamentos recentes', error: error.message });
+    }
+};
+
+// Função para atualizar apenas o status de um orçamento
+const updateOrcamentoStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const allowedStatus = ['Pendente', 'Aceito', 'Agendado', 'Finalizado', 'Rejeitado'];
+        if (!allowedStatus.includes(status)) {
+            return res.status(400).json({ error: 'Status inválido fornecido.' });
+        }
+        const orcamento = await Orcamento.findByIdAndUpdate(req.params.id, { status }, { new: true });
+        if (!orcamento) {
+            return res.status(404).json({ error: 'Orçamento não encontrado.' });
+        }
+        res.status(200).json(orcamento);
+    } catch (error) {
+        console.error("ERRO em updateOrcamentoStatus:", error);
+        res.status(500).json({ error: 'Erro ao atualizar status do orçamento.' });
+    }
+};
+// Adicione esta nova função ao seu ficheiro:
+const submitOrcamento = async (req, res) => {
+    try {
+        const { valorProposto } = req.body;
+        if (!valorProposto || isNaN(valorProposto) || valorProposto <= 0) {
+            return res.status(400).json({ error: 'Valor do orçamento é obrigatório e deve ser um número positivo.' });
+        }
+
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
+        if (!orcamento) {
+            return res.status(404).json({ error: 'Orçamento não encontrado.' });
+        }
+
+        orcamento.status = 'Aceito'; // Muda o status
+        orcamento.valorProposto = parseFloat(valorProposto);
+        await orcamento.save();
+
+        // Envia a notificação para o cliente
+        const notificationMessage = `Boas notícias, ${orcamento.cliente.nome}! O seu orçamento para o pedido #${orcamento.shortId} está pronto.\n\n*Valor:* R$ ${orcamento.valorProposto.toFixed(2)}\n\nPara aprovar, entre em contato connosco.`;
+        await sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
+
+        res.status(200).json(orcamento);
+    } catch (error) {
+        console.error("ERRO em submitOrcamento:", error);
+        res.status(500).json({ error: 'Erro ao submeter o orçamento.' });
+    }
+};
+
+// Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
     orcamentoValidationRules,
     getAllOrcamentos,
     getOrcamentoById,
     createOrcamento,
     updateOrcamento,
-    deleteOrcamento
+    deleteOrcamento,
+    getRecentOrcamentos,
+    updateOrcamentoStatus,  
+    submitOrcamento
 };

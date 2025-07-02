@@ -14,10 +14,11 @@ console.log('====================================');
 // PASSO 3: Importações principais da aplicação
 const express = require('express');
 const connectDB = require('./src/config/database'); // Assumindo que este ficheiro existe
+const cors = require('cors'); // Importa o pacote
 
 // PASSO 4: Inicialização da aplicação Express
 const app = express();
-
+app.use(cors()); // Diz à sua aplicação para permitir pedidos de outros "endereços"
 // PASSO 5: Conectar à Base de Dados
 connectDB();
 

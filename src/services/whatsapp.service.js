@@ -217,5 +217,6 @@ const handleIncomingMessage = async (senderInfo, messageBody, mediaUrls = []) =>
 };
 
 module.exports = {
-    handleIncomingMessage
+    handleIncomingMessage,
+     sendWhatsAppMessage 
 };
