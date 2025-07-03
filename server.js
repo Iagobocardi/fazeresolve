@@ -38,6 +38,7 @@ const servicoRoutes = require('./src/routes/servicos.routes');
 const whatsappRoutes = require('./src/routes/whatsapp.routes.js');
 const errorMiddleware = require('./src/middlewares/error.middleware');
 const statsRoutes = require('./src/routes/stats.routes.js');
+const dashboardRoutes = require('./src/routes/dashboard.routes');
 
 // PASSO 8: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
@@ -49,6 +50,7 @@ app.use('/api/servicos', servicoRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/clientes', clienteRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 
 // Rota de teste para verificar se o servidor está online

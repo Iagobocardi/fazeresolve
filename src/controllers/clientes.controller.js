@@ -86,7 +86,11 @@ const getClienteComPedidos = async (req, res) => {
         if (!cliente) {
             return res.status(404).json({ error: 'Cliente não encontrado.' });
         }
-        const pedidos = await Orcamento.find({ cliente: cliente._id }).sort({ data: -1 });
+        // CORREÇÃO: A busca agora seleciona mais campos para o histórico.
+        const pedidos = await Orcamento.find({ cliente: cliente._id })
+            .select('shortId descricao status valorProposto tipo data') // Seleciona os campos específicos
+            .sort({ data: -1 });
+            
         res.status(200).json({ cliente, pedidos });
     } catch (error) {
         console.error("ERRO em getClienteComPedidos:", error);

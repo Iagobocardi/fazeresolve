@@ -1,5 +1,4 @@
 // Arquivo: src/models/orcamento.model.js
-// Adicionados campos para suportar a pesquisa de satisfação.
 const mongoose = require('mongoose');
 
 const orcamentoSchema = new mongoose.Schema({
@@ -23,20 +22,41 @@ const orcamentoSchema = new mongoose.Schema({
     dataAgendamento: { type: String },
     address: { type: String },
 
-    // --- NOVOS CAMPOS ADICIONADOS ---
+    // --- Campos de Satisfação ---
     dataFinalizacao: {
-        type: Date // Guarda quando o serviço foi finalizado.
+        type: Date
     },
     pesquisaEnviada: {
-        type: Boolean, // Marca se a pesquisa já foi enviada para este pedido.
+        type: Boolean,
         default: false
     },
     notaSatisfacao: {
-        type: Number, // Guarda a nota de 1 a 5 dada pelo cliente.
+        type: Number,
         min: 1,
         max: 5
+    },
+
+    // --- Campos de Notas e Histórico ---
+    notasInternas: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    historico: [{
+        evento: { type: String, required: true },
+        data: { type: Date, default: Date.now }
+    }],
+    
+    // =======================================================
+    // 👉 O CAMPO DE PAGAMENTO FOI MOVIDO PARA AQUI DENTRO
+    // =======================================================
+    statusPagamento: {
+        type: String,
+        enum: ['Pendente', 'Pago Parcial', 'Pago'],
+        default: 'Pendente'
     }
-});
+    
+}); // <--- FIM DO OBJETO DO SCHEMA
 
 orcamentoSchema.pre('save', function(next) {
     if (this.isNew && !this.shortId) {
@@ -44,5 +64,7 @@ orcamentoSchema.pre('save', function(next) {
     }
     next();
 });
+
+// O CÓDIGO INCORRETO QUE ESTAVA FLUTUANDO AQUI FOI REMOVIDO.
 
 module.exports = mongoose.model('Orcamento', orcamentoSchema);

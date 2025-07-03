@@ -2,7 +2,7 @@
 
 const Orcamento = require('../models/orcamento.model');
 const { validationResult, body } = require('express-validator');
-const { sendWhatsAppMessage } = require('../services/whatsapp.service');
+const whatsappService = require('../services/whatsapp.service');
 
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
@@ -95,7 +95,6 @@ const getRecentOrcamentos = async (req, res) => {
 };
 
 // Função para atualizar apenas o status de um orçamento
-// Encontre a sua função 'updateOrcamentoStatus' e substitua-a por esta versão:
 const updateOrcamentoStatus = async (req, res) => {
     try {
         const { status } = req.body;
@@ -103,21 +102,38 @@ const updateOrcamentoStatus = async (req, res) => {
         if (!allowedStatus.includes(status)) {
             return res.status(400).json({ error: 'Status inválido fornecido.' });
         }
-        const updateData = { status };
-        if (status === 'Finalizado') {
-            updateData.dataFinalizacao = new Date();
-        }
-        const orcamento = await Orcamento.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+        // CORREÇÃO: Adicionado o .populate('cliente') para termos acesso ao telefone
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
-        res.status(200).json(orcamento);
+        
+        const statusAntigo = orcamento.status;
+        
+        orcamento.status = status;
+        orcamento.historico.push({ evento: `Status alterado para "${status}".` });
+
+        if (status === 'Finalizado') {
+            orcamento.dataFinalizacao = new Date();
+            if (statusAntigo !== 'Finalizado' && !orcamento.pesquisaEnviada) {
+                if (orcamento.cliente && orcamento.cliente.telefone) {
+                    await whatsappService.sendSatisfactionSurvey(orcamento.cliente.telefone, orcamento._id);
+                    orcamento.pesquisaEnviada = true;
+                }
+            }
+        }
+        
+        const orcamentoAtualizado = await orcamento.save();
+        res.status(200).json(orcamentoAtualizado);
     } catch (error) {
         console.error("ERRO em updateOrcamentoStatus:", error);
         res.status(500).json({ error: 'Erro ao atualizar status do orçamento.' });
     }
 };
 // Adicione esta nova função ao seu ficheiro:
+// Em: src/controllers/orcamentos.controller.js
+
 const submitOrcamento = async (req, res) => {
     try {
         const { valorProposto } = req.body;
@@ -131,19 +147,23 @@ const submitOrcamento = async (req, res) => {
         }
 
         orcamento.status = 'Aceito';
-        // ===============================================================
-        // CORREÇÃO APLICADA AQUI
-        // Garantimos que o valor é salvo como um número na base de dados.
-        // ===============================================================
         orcamento.valorProposto = parseFloat(valorProposto);
+        orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} enviado.` });
+        
         await orcamento.save();
 
-        // Envia a notificação para o cliente
-        const notificationMessage = `Boas notícias, ${orcamento.cliente.nome}! O seu orçamento para o pedido #${orcamento.shortId} está pronto.\n\n*Valor:* R$ ${orcamento.valorProposto.toFixed(2)}\n\nPara aprovar, entre em contato connosco.`;
-        await sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
+        if (orcamento.cliente && orcamento.cliente.telefone) {
+            // --- CORREÇÃO APLICADA AQUI ---
+            // Usamos o método nativo do JavaScript para formatar a moeda.
+            const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto);
+            const notificationMessage = `Boas notícias, ${orcamento.cliente.nome}! O seu orçamento para o pedido #${orcamento.shortId} está pronto.\n\n*Valor:* ${valorFormatado}\n\nPara aprovar, entre em contato connosco.`;
+            
+            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
+        }
 
         res.status(200).json(orcamento);
     } catch (error) {
+        // O erro que você viu aconteceu aqui dentro, então o log é importante.
         console.error("ERRO em submitOrcamento:", error);
         res.status(500).json({ error: 'Erro ao submeter o orçamento.' });
     }
@@ -155,28 +175,118 @@ const scheduleOrcamento = async (req, res) => {
             return res.status(400).json({ error: 'A data de agendamento é obrigatória.' });
         }
 
-        const orcamento = await Orcamento.findByIdAndUpdate(
-            req.params.id,
-            { status: 'Agendado', dataAgendamento: dataAgendamento },
-            { new: true }
-        ).populate('cliente');
-
+        // CORREÇÃO: Garante que o cliente é populado para a notificação
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
+        
+        const isReagendamento = orcamento.status === 'Agendado';
+        
+        orcamento.status = 'Agendado';
+        orcamento.dataAgendamento = dataAgendamento;
+        orcamento.historico.push({ evento: `Serviço agendado para ${dataAgendamento}.` });
+        
+        const orcamentoAtualizado = await orcamento.save();
 
-        // Notifica o cliente
-        const notificationMessage = `🗓️ Agendamento Atualizado! O seu serviço para "${orcamento.descricao.slice(0, 20)}..." foi agendado para *${dataAgendamento}*.`;
-        // Assumindo que você exportou a função de envio do whatsapp.service
-        // const { sendWhatsAppMessage } = require('../services/whatsapp.service');
-        // await sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
+        // CORREÇÃO: Lógica de notificação agora dentro de um bloco seguro
+        if (orcamento.cliente && orcamento.cliente.telefone) {
+            const tipoAcao = isReagendamento ? "REAGENDADO" : "AGENDADO";
+            // LINHAS NOVAS E CORRETAS
+             const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto);
+             const notificationMessage = `Boas notícias, ${orcamento.cliente.nome}! O seu orçamento para o pedido #${orcamento.shortId} está pronto.\n\n*Valor:* ${valorFormatado}\n\nPara aprovar, entre em contato connosco.`;
+            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
+        }
 
-        res.status(200).json(orcamento);
+        res.status(200).json(orcamentoAtualizado);
     } catch (error) {
         console.error("ERRO em scheduleOrcamento:", error);
         res.status(500).json({ error: 'Erro ao agendar o serviço.' });
     }
 };
+const updateNotasInternas = async (req, res) => {
+    try {
+        const { notasInternas } = req.body;
+        const orcamento = await Orcamento.findByIdAndUpdate(
+            req.params.id,
+            { notasInternas: notasInternas },
+            { new: true }
+        );
+
+        if (!orcamento) {
+            return res.status(404).json({ error: 'Orçamento não encontrado.' });
+        }
+        res.status(200).json(orcamento);
+    } catch (error) {
+        console.error("ERRO em updateNotasInternas:", error);
+        res.status(500).json({ error: 'Erro ao atualizar as notas internas.' });
+    }
+};
+const updateStatusPagamento = async (req, res) => {
+    try {
+        const { statusPagamento } = req.body;
+        const allowedStatus = ['Pendente', 'Pago Parcial', 'Pago'];
+
+        if (!statusPagamento || !allowedStatus.includes(statusPagamento)) {
+            return res.status(400).json({ error: 'Status de pagamento inválido.' });
+        }
+
+        const orcamento = await Orcamento.findById(req.params.id);
+        if (!orcamento) {
+            return res.status(404).json({ error: 'Orçamento não encontrado.' });
+        }
+
+        orcamento.statusPagamento = statusPagamento;
+        orcamento.historico.push({ evento: `Status de pagamento alterado para "${statusPagamento}".` });
+        
+        const orcamentoAtualizado = await orcamento.save();
+        
+        res.status(200).json(orcamentoAtualizado);
+
+    } catch (error) {
+        console.error("ERRO em updateStatusPagamento:", error);
+        res.status(500).json({ error: 'Erro ao atualizar o status do pagamento.' });
+    }
+};
+
+const registrarAvaliacao = async (req, res) => {
+    try {
+        const { id, nota } = req.params;
+        const notaNum = parseInt(nota, 10);
+
+        // Validação básica
+        if (notaNum < 1 || notaNum > 5) {
+            return res.status(400).send('Nota inválida. Apenas valores de 1 a 5 são permitidos.');
+        }
+
+        const orcamento = await Orcamento.findById(id);
+
+        if (!orcamento) {
+            return res.status(404).send('Pedido não encontrado.');
+        }
+
+        // Evita que o cliente avalie duas vezes
+        if (orcamento.notaSatisfacao) {
+            return res.status(400).send('Este pedido já foi avaliado. Obrigado!');
+        }
+
+        orcamento.notaSatisfacao = notaNum;
+        await orcamento.save();
+
+        // Envia uma página de agradecimento simples para o cliente
+        res.status(200).send(`
+            <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1>Obrigado pela sua avaliação!</h1>
+                <p>Seu feedback é muito importante para nós.</p>
+            </div>
+        `);
+
+    } catch (error) {
+        console.error("ERRO em registrarAvaliacao:", error);
+        res.status(500).send('Ocorreu um erro ao processar sua avaliação.');
+    }
+};
+
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -189,5 +299,8 @@ module.exports = {
     getRecentOrcamentos,
     updateOrcamentoStatus,  
     submitOrcamento,
-    scheduleOrcamento
+    scheduleOrcamento,
+    updateNotasInternas,
+    updateStatusPagamento,
+    registrarAvaliacao
 };

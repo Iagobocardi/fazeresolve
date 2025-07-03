@@ -32,14 +32,9 @@ const handleWhatsAppWebhook = async (req, res) => {
     
     console.log(`[CONTROLLER] Requisição VÁLIDA recebida de ${senderPhone}.`);
 
-    try {
-        const senderInfo = {
-            phone: senderPhone,
-            name: senderName
-        };
-
-        await whatsappService.handleIncomingMessage(senderInfo, messageBody, mediaUrls);
-
+       try {
+        // Agora passamos o objeto 'req' inteiro. É tudo que precisamos.
+        await whatsappService.handleIncomingMessage(req);
         res.status(200).send();
     } catch (error) {
         console.error('[CONTROLLER] ERRO CRÍTICO:', error);
