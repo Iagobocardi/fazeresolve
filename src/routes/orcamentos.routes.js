@@ -16,8 +16,10 @@ router.post('/', orcamentoValidationRules(), validate, orcamentosController.crea
 router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
 router.delete('/:id', orcamentosController.deleteOrcamento);
 
+
 // ROTA para atualizar apenas o status
 router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);
 router.patch('/:id/submit', orcamentosController.submitOrcamento);
+router.patch('/:id/schedule', orcamentosController.scheduleOrcamento);
 
 module.exports = router;

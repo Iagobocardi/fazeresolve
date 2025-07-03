@@ -148,6 +148,35 @@ const submitOrcamento = async (req, res) => {
         res.status(500).json({ error: 'Erro ao submeter o orçamento.' });
     }
 };
+const scheduleOrcamento = async (req, res) => {
+    try {
+        const { dataAgendamento } = req.body;
+        if (!dataAgendamento) {
+            return res.status(400).json({ error: 'A data de agendamento é obrigatória.' });
+        }
+
+        const orcamento = await Orcamento.findByIdAndUpdate(
+            req.params.id,
+            { status: 'Agendado', dataAgendamento: dataAgendamento },
+            { new: true }
+        ).populate('cliente');
+
+        if (!orcamento) {
+            return res.status(404).json({ error: 'Orçamento não encontrado.' });
+        }
+
+        // Notifica o cliente
+        const notificationMessage = `🗓️ Agendamento Atualizado! O seu serviço para "${orcamento.descricao.slice(0, 20)}..." foi agendado para *${dataAgendamento}*.`;
+        // Assumindo que você exportou a função de envio do whatsapp.service
+        // const { sendWhatsAppMessage } = require('../services/whatsapp.service');
+        // await sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
+
+        res.status(200).json(orcamento);
+    } catch (error) {
+        console.error("ERRO em scheduleOrcamento:", error);
+        res.status(500).json({ error: 'Erro ao agendar o serviço.' });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -159,5 +188,6 @@ module.exports = {
     deleteOrcamento,
     getRecentOrcamentos,
     updateOrcamentoStatus,  
-    submitOrcamento
+    submitOrcamento,
+    scheduleOrcamento
 };

@@ -80,6 +80,19 @@ const deletarCliente = async (req, res) => {
         res.status(500).json({ error: 'Erro ao deletar cliente.' });
     }
 };
+const getClienteComPedidos = async (req, res) => {
+    try {
+        const cliente = await Cliente.findById(req.params.id);
+        if (!cliente) {
+            return res.status(404).json({ error: 'Cliente não encontrado.' });
+        }
+        const pedidos = await Orcamento.find({ cliente: cliente._id }).sort({ data: -1 });
+        res.status(200).json({ cliente, pedidos });
+    } catch (error) {
+        console.error("ERRO em getClienteComPedidos:", error);
+        res.status(500).json({ error: 'Erro ao buscar detalhes do cliente.' });
+    }
+};
 
 
 // CORREÇÃO: Exporta TODAS as funções que as rotas precisam.
@@ -88,5 +101,6 @@ module.exports = {
     buscarClientePorId,
     criarCliente,
     atualizarCliente,
-    deletarCliente
+    deletarCliente,
+    getClienteComPedidos
 };

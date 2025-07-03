@@ -22,5 +22,6 @@ router.get('/:id', clientesController.buscarClientePorId);
 router.post('/', createClienteRules, validate, clientesController.criarCliente);
 router.put('/:id', updateClienteRules, validate, clientesController.atualizarCliente);
 router.delete('/:id', clientesController.deletarCliente);
+router.get('/:id/details', clientesController.getClienteComPedidos);
 
 module.exports = router;
