@@ -239,6 +239,10 @@ const updateStatusPagamento = async (req, res) => {
         orcamento.statusPagamento = statusPagamento;
         orcamento.historico.push({ evento: `Status de pagamento alterado para "${statusPagamento}".` });
         
+        if (statusPagamento === 'Pago') {
+            orcamento.dataPagamento = new Date();
+        }
+        
         const orcamentoAtualizado = await orcamento.save();
         
         res.status(200).json(orcamentoAtualizado);

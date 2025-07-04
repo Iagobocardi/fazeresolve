@@ -16,6 +16,8 @@ const express = require('express');
 const connectDB = require('./src/config/database'); // Assumindo que este ficheiro existe
 const cors = require('cors'); // Importa o pacote
 const publicRoutes = require('./src/routes/public.routes');
+const despesasRoutes = require('./src/routes/despesas.routes');
+const produtosRoutes = require('./src/routes/produtos.routes.js');
 
 
 // PASSO 4: Inicialização da aplicação Express
@@ -52,6 +54,8 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/despesas', despesasRoutes);
+app.use('/api/produtos', produtosRoutes);
 
 
 // Rota de teste para verificar se o servidor está online

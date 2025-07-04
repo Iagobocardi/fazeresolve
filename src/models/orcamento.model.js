@@ -35,7 +35,9 @@ const orcamentoSchema = new mongoose.Schema({
         min: 1,
         max: 5
     },
-
+     dataPagamento: {
+        type: Date
+},
     // --- Campos de Notas e Histórico ---
     notasInternas: {
         type: String,
