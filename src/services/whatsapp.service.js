@@ -5,7 +5,7 @@ const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const commandParser = require('./commandParser.js');
 
-// 1. Cliente Twilio e número de telefone definidos UMA VEZ no topo do arquivo.
+// 1. Cliente Twilio e número de telefone definidos UMA VEZ no topo.
 const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const twilioPhoneNumber = `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`;
 
@@ -25,7 +25,7 @@ const sendWhatsAppMessage = async (phoneNumber, message = '', mediaUrls = []) =>
         await twilioClient.messages.create(messageData);
         console.log(`[SERVICE] Mensagem enviada com sucesso para ${phoneNumber}.`);
     } catch (error) {
-        console.error("[SERVICE] ERRO AO ENVIAR VIA TWILIO:", error);
+        console.error("[SERVICE] ERRO AO ENVIAR VIA TWILIO:", error.message);
     }
 };
 
@@ -63,7 +63,7 @@ const sendSatisfactionSurvey = async (clientPhone, orcamentoId) => {
         });
         console.log(`[Whatsapp Service] Pesquisa de satisfação enviada para ${clientPhone}.`);
     } catch (error) {
-        console.error(`[Whatsapp Service] Erro ao enviar pesquisa de satisfação:`, error);
+        console.error(`[Whatsapp Service] Erro ao enviar pesquisa de satisfação:`, error.message);
     }
 };
 
@@ -95,13 +95,14 @@ const handleCheckOrderStatus = async (user) => {
     return orderListMessage;
 };
 
-
 // =======================================================
-// FUNÇÃO 4: Lidar com TODAS as mensagens que chegam
+// FUNÇÃO 4: Lidar com TODAS as mensagens que chegam do webhook
 // =======================================================
 const handleIncomingMessage = async (req) => {
     try {
         const { From, ProfileName, Body, NumMedia, ButtonPayload } = req.body;
+        if (!From) { return console.log("Requisição ignorada por não conter remetente 'From'."); }
+
         const senderPhone = From.replace('whatsapp:', '');
         const messageBody = Body || '';
         const mediaUrls = [];
@@ -117,7 +118,6 @@ const handleIncomingMessage = async (req) => {
             const nota = parseInt(parts[1], 10);
             const orcamentoId = parts[2];
             const orcamento = await Orcamento.findById(orcamentoId);
-
             if (orcamento && !orcamento.notaSatisfacao) {
                 orcamento.notaSatisfacao = nota;
                 orcamento.historico.push({ evento: `Cliente avaliou o serviço com nota ${nota}.` });
@@ -127,7 +127,7 @@ const handleIncomingMessage = async (req) => {
             return; 
         }
 
-        // ETAPA 2: Lógica de conversa normal (SEU CÓDIGO INTEGRADO)
+        // ETAPA 2: Lógica de conversa normal
         let user = await Cliente.findOne({ telefone: senderPhone });
 
         if (!user) {
@@ -192,23 +192,21 @@ const handleIncomingMessage = async (req) => {
                         const statusResponse = await handleCheckOrderStatus(user);
                         await sendWhatsAppMessage(user.telefone, statusResponse);
                     } else if (option === '3') {
-    await sendWhatsAppMessage(user.telefone, "Entendido. A sua solicitação foi enviada. Um dos nossos atendentes irá entrar em contato consigo nesta conversa em breve.");
-    
-    const prestadorPhone = process.env.PRESTADOR_TELEFONE;
-
-    // === VERIFICAÇÃO DE SEGURANÇA ADICIONADA AQUI ===
-    if (!prestadorPhone) {
-        console.error("ALERTA: A variável PRESTADOR_TELEFONE não está definida no arquivo .env. Não é possível notificar o atendente.");
-        return; // Sai da função para não dar erro
-    }
-    
-    const clientPhoneNumber = user.telefone.replace(/\D/g, '');
-    const whatsappLink = `https://wa.me/${clientPhoneNumber}`;
-    const notificationToPrestador = `🔔 *Atenção: Cliente precisa de ajuda!*\n\nO cliente *${user.nome}* (${user.telefone}) solicitou falar com um atendente.\n\nClique aqui para abrir a conversa: ${whatsappLink}`;
-    
-    await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
-} 
-                    return;
+                        await sendWhatsAppMessage(user.telefone, "Entendido. A sua solicitação foi enviada. Um dos nossos atendentes irá entrar em contato consigo nesta conversa em breve.");
+                        const prestadorPhone = process.env.PRESTADOR_TELEFONE;
+                        if (prestadorPhone) {
+                            const clientPhoneNumber = user.telefone.replace(/\D/g, '');
+                            const whatsappLink = `https://wa.me/${clientPhoneNumber}`;
+                            const notificationToPrestador = `🔔 *Atenção: Cliente precisa de ajuda!*\n\nO cliente *${user.nome}* (${user.telefone}) solicitou falar com um atendente.\n\nClique aqui para abrir a conversa: ${whatsappLink}`;
+                            await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
+                        } else {
+                            console.error("ALERTA: PRESTADOR_TELEFONE não definido no .env. Não foi possível notificar.");
+                        }
+                    } else {
+                        const newRequestMessage = `Olá, ${user.nome}! Não entendi a sua resposta. Por favor, escolha uma das opções:\n\n*1.* Pedir um novo serviço\n*2.* Saber o estado de um serviço\n*3.* Falar com um atendente`;
+                        await sendWhatsAppMessage(user.telefone, newRequestMessage);
+                    }
+                    break;
                 
                 case 'AWAITING_ORDER_SELECTION':
                     const match = messageBody.toLowerCase().trim().match(/^(?:ver\s+)?pedido\s+(\d+)$/);
@@ -262,22 +260,25 @@ const handleIncomingMessage = async (req) => {
                         media: user.currentDemand.media,
                         address: user.currentDemand.address,
                         dataAgendamento: user.currentDemand.availability,
-                        historico: [{ evento: 'Pedido criado pelo cliente via WhatsApp.' }] // Adiciona histórico na criação
+                        historico: [{ evento: 'Pedido criado pelo cliente via WhatsApp.' }]
                     });
                     user.currentDemand = {};
                     await user.save();
                     
                     await sendWhatsAppMessage(user.telefone, "Tudo certo! A sua solicitação foi registada. Entraremos em contato em breve para confirmar.\n\nObrigado por usar o Faz & Resolve!");
                     const prestadorPhone = process.env.PRESTADOR_TELEFONE;
-                    const notificationToPrestador = `🔔 *Novo Pedido Recebido!* (#${newOrcamento.shortId})\n\n` +
-                                                  `*Cliente:* ${user.nome}\n` +
-                                                  `*Descrição:* ${newOrcamento.descricao.slice(0, 80)}...\n\n` +
-                                                  `Para ver todos os detalhes, envie: \`ver ${newOrcamento.shortId}\``;
-                    await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
+                    if(prestadorPhone) {
+                        const notificationToPrestador = `🔔 *Novo Pedido Recebido!* (#${newOrcamento.shortId})\n\n` +
+                                                      `*Cliente:* ${user.nome}\n` +
+                                                      `*Descrição:* ${newOrcamento.descricao.slice(0, 80)}...\n\n` +
+                                                      `Para ver todos os detalhes, envie: \`ver ${newOrcamento.shortId}\``;
+                        await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
+                    }
                     break;
                 
                 case 'COMPLETED':
-                    await sendWhatsAppMessage(user.telefone, "Olá! O seu último pedido já foi registado. Para iniciar uma nova solicitação, escolha uma das opções abaixo.");
+                    const completedReply = `Olá! O seu último pedido já foi registado. Para iniciar uma nova solicitação, escolha uma das opções abaixo.`;
+                    await sendWhatsAppMessage(user.telefone, completedReply);
                     user.conversationState = 'AWAITING_REQUEST_TYPE';
                     await user.save();
                     const newRequestMessage = `Como podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente`;
@@ -292,7 +293,7 @@ const handleIncomingMessage = async (req) => {
             }
         }
     } catch (error) {
-        console.error("[SERVICE] ERRO GERAL E INESPERADO:", error);
+        console.error("[SERVICE] ERRO GERAL NO HANDLEINCOMINGMESSAGE:", error);
     }
 };
 
