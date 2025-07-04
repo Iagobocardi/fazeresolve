@@ -286,6 +286,41 @@ const registrarAvaliacao = async (req, res) => {
         res.status(500).send('Ocorreu um erro ao processar sua avaliação.');
     }
 };
+// Adicione esta nova função ao seu orcamentos.controller.js
+
+const getAgendamentosParaCalendario = async (req, res) => {
+    try {
+        const pedidosAgendados = await Orcamento.find({
+            status: 'Agendado',
+            dataAgendamento: { $exists: true, $ne: null }
+        }).populate('cliente', 'nome');
+
+        // Formata os dados para o formato que o FullCalendar espera
+        const eventos = pedidosAgendados.map(pedido => {
+            // Tenta extrair data e hora da string de agendamento
+            const [data, hora] = pedido.dataAgendamento.split(' às ');
+            const startDateTime = data && hora ? new Date(`${data}T${hora}`) : new Date(pedido.dataAgendamento);
+
+            // Se a data for inválida, pula este evento para não quebrar o calendário
+            if (isNaN(startDateTime.getTime())) {
+                return null;
+            }
+
+            return {
+                id: pedido._id,
+                title: `#${pedido.shortId} - ${pedido.cliente.nome}`,
+                start: startDateTime,
+                allDay: !hora // Se não houver hora especificada, trata como evento de dia inteiro
+            };
+        }).filter(Boolean); // Remove quaisquer eventos nulos (com datas inválidas)
+
+        res.status(200).json(eventos);
+
+    } catch (error) {
+        console.error("ERRO em getAgendamentosParaCalendario:", error);
+        res.status(500).json({ message: 'Erro ao buscar agendamentos.' });
+    }
+};
 
 
 // Exporta TODAS as funções que as rotas utilizam.
@@ -302,5 +337,6 @@ module.exports = {
     scheduleOrcamento,
     updateNotasInternas,
     updateStatusPagamento,
-    registrarAvaliacao
+    registrarAvaliacao,
+    getAgendamentosParaCalendario
 };

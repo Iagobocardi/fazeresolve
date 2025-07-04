@@ -9,6 +9,7 @@ const { validate } = require('../middlewares/validation.middleware');
 // Rotas mais específicas primeiro
 router.get('/recentes', orcamentosController.getRecentOrcamentos);
 router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao);
+router.get('/agendados', orcamentosController.getAgendamentosParaCalendario);
 
 // Rotas genéricas depois
 router.get('/', orcamentosController.getAllOrcamentos);
