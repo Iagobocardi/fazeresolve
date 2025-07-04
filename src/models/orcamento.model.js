@@ -1,6 +1,6 @@
 // Arquivo: src/models/orcamento.model.js
 const mongoose = require('mongoose');
-
+const { v4: uuidv4 } = require('uuid');
 const orcamentoSchema = new mongoose.Schema({
     status: {
         type: String,
@@ -54,13 +54,23 @@ const orcamentoSchema = new mongoose.Schema({
         type: String,
         enum: ['Pendente', 'Pago Parcial', 'Pago'],
         default: 'Pendente'
+    },
+    publicId: {
+        type: String,
+        unique: true,
     }
-    
 }); // <--- FIM DO OBJETO DO SCHEMA
 
 orcamentoSchema.pre('save', function(next) {
-    if (this.isNew && !this.shortId) {
-        this.shortId = this._id.toString().slice(-6);
+    // 'this' refere-se ao documento que está a ser salvo
+    if (this.isNew) { // Só executa se for um documento novo
+        if (!this.shortId) {
+            this.shortId = this._id.toString().slice(-6);
+        }
+        if (!this.publicId) {
+            // Gera um ID único e seguro como: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d'
+            this.publicId = uuidv4(); 
+        }
     }
     next();
 });
