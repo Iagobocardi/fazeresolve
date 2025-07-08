@@ -1,4 +1,5 @@
-// Arquivo: src/controllers/dashboard.controller.js
+// DENTRO DE src/controllers/dashboard.controller.js
+// SUBSTITUA A FUNÇÃO DE TESTE POR ESTA VERSÃO ORIGINAL
 
 const Orcamento = require('../models/orcamento.model');
 
@@ -22,22 +23,18 @@ const getDashboardData = async (req, res) => {
         ]);
         const receitasFuturas = receitasFuturasResult[0]?.total || 0;
 
-        // Nota: Assumindo que você terá um campo `notaSatisfacao` nos pedidos finalizados.
         const satisfacaoResult = await Orcamento.aggregate([
             { $match: { status: 'Finalizado', notaSatisfacao: { $exists: true, $ne: null } } },
             { $group: { _id: null, media: { $avg: '$notaSatisfacao' } } }
         ]);
         const satisfacaoMedia = satisfacaoResult[0]?.media || 0;
 
-
         // --- 2. Buscar Clientes Recentes ---
-        // Buscamos os últimos pedidos para encontrar os clientes mais recentes.
         const orcamentosRecentes = await Orcamento.find({ cliente: { $exists: true } })
             .sort({ data: -1 })
-            .limit(15) // Pegamos mais para garantir que teremos 5 únicos
+            .limit(15)
             .populate('cliente', 'nome telefone');
 
-        // Usamos um Map para garantir que cada cliente apareça apenas uma vez.
         const clientesUnicos = new Map();
         orcamentosRecentes.forEach(orcamento => {
             if (orcamento.cliente && !clientesUnicos.has(orcamento.cliente._id.toString())) {
@@ -45,12 +42,11 @@ const getDashboardData = async (req, res) => {
                     _id: orcamento.cliente._id,
                     nome: orcamento.cliente.nome,
                     telefone: orcamento.cliente.telefone,
-                    ultimoPedido: orcamento.data // Guardamos a data do último pedido
+                    ultimoPedido: orcamento.data
                 });
             }
         });
-
-        // Convertemos o Map para um array e pegamos os 5 primeiros.
+        
         const recentesClientes = Array.from(clientesUnicos.values()).slice(0, 5);
 
         // --- 3. Enviar Resposta Completa ---

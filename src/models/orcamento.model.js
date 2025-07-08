@@ -60,7 +60,24 @@ const orcamentoSchema = new mongoose.Schema({
     publicId: {
         type: String,
         unique: true,
-    }
+    },
+       materiaisUsados: [{
+        produto: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Produto',
+            required: true
+        },
+        quantidade: {
+            type: Number,
+            required: true,
+            min: 1
+        },
+        // Guarda o custo do material no momento do uso, para relatórios financeiros precisos
+        custoNoMomento: { 
+            type: Number,
+            required: true
+        }
+    }]
 }); // <--- FIM DO OBJETO DO SCHEMA
 
 orcamentoSchema.pre('save', function(next) {

@@ -3,6 +3,8 @@
 const Orcamento = require('../models/orcamento.model');
 const { validationResult, body } = require('express-validator');
 const whatsappService = require('../services/whatsapp.service');
+const Produto = require('../models/produto.model');
+const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
 
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
@@ -325,6 +327,64 @@ const getAgendamentosParaCalendario = async (req, res) => {
         res.status(500).json({ message: 'Erro ao buscar agendamentos.' });
     }
 };
+const adicionarMaterialAoPedido = async (req, res) => {
+    try {
+        const { orcamentoId } = req.params;
+        const { produtoId, quantidade } = req.body;
+        const quantidadeNum = Number(quantidade);
+
+        if (!produtoId || !quantidadeNum || quantidadeNum <= 0) {
+            return res.status(400).json({ message: "ID do produto e quantidade são obrigatórios." });
+        }
+
+        // 1. Encontra o produto e o orçamento em paralelo
+        const [produto, orcamento] = await Promise.all([
+            Produto.findById(produtoId),
+            Orcamento.findById(orcamentoId)
+        ]);
+
+        if (!produto || !orcamento) {
+            return res.status(404).json({ message: "Pedido ou produto não encontrado." });
+        }
+
+        // 2. Verifica se há estoque suficiente
+        if (produto.quantidadeEmEstoque < quantidadeNum) {
+            return res.status(400).json({ message: `Estoque insuficiente para "${produto.nome}". Apenas ${produto.quantidadeEmEstoque} em estoque.` });
+        }
+
+        // 3. Atualiza a quantidade de estoque do produto
+        produto.quantidadeEmEstoque -= quantidadeNum;
+        
+        // 4. Adiciona o material à lista do pedido
+        orcamento.materiaisUsados.push({
+            produto: produtoId,
+            quantidade: quantidadeNum,
+            custoNoMomento: produto.custoUnitario // Guarda o "preço de custo" daquele momento
+        });
+
+        // 5. Cria um registo no histórico de movimentações
+        const movimento = new MovimentoEstoque({
+            produto: produtoId,
+            tipo: 'Saída',
+            quantidade: quantidadeNum,
+            motivo: `Uso no Pedido #${orcamento.shortId}`,
+            orcamentoAssociado: orcamentoId
+        });
+
+        // 6. Salva todas as alterações no banco de dados
+        await Promise.all([
+            produto.save(),
+            orcamento.save(),
+            movimento.save()
+        ]);
+
+        res.status(200).json({ message: "Material adicionado com sucesso!", orcamento });
+
+    } catch (error) {
+        console.error("ERRO em adicionarMaterialAoPedido:", error);
+        res.status(500).json({ message: 'Erro ao adicionar material ao pedido.' });
+    }
+};
 
 
 // Exporta TODAS as funções que as rotas utilizam.
@@ -342,5 +402,6 @@ module.exports = {
     updateNotasInternas,
     updateStatusPagamento,
     registrarAvaliacao,
-    getAgendamentosParaCalendario
+    getAgendamentosParaCalendario,
+    adicionarMaterialAoPedido
 };

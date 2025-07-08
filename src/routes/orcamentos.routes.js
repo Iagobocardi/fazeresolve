@@ -18,7 +18,7 @@ router.post('/', orcamentoValidationRules(), validate, orcamentosController.crea
 router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
 router.delete('/:id', orcamentosController.deleteOrcamento)
 router.patch('/:id/notas', orcamentosController.updateNotasInternas);
-
+router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoPedido);
 
 // ROTA para atualizar apenas o status
 router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);

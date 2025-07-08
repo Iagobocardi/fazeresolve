@@ -18,6 +18,9 @@ const cors = require('cors'); // Importa o pacote
 const publicRoutes = require('./src/routes/public.routes');
 const despesasRoutes = require('./src/routes/despesas.routes');
 const produtosRoutes = require('./src/routes/produtos.routes.js');
+const authRoutes = require('./src/routes/auth.routes');
+const portalClienteRoutes = require('./src/routes/portalCliente.routes');
+
 
 
 // PASSO 4: Inicialização da aplicação Express
@@ -56,6 +59,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/despesas', despesasRoutes);
 app.use('/api/produtos', produtosRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/portal-cliente', portalClienteRoutes); // <-- USAR AS NOVAS ROTAS DO CLIENTE
 
 
 // Rota de teste para verificar se o servidor está online
