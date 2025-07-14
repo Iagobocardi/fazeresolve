@@ -3,14 +3,16 @@ const router = express.Router();
 const portalClienteController = require('../controllers/portalCliente.controller'); // Precisaremos criar este controller
 const authClienteMiddleware = require('../middlewares/authCliente.middleware.js'); // O nosso segurança
 
-// --- Rotas do Portal do Cliente ---
-
 // Rota pública para o cliente fazer login
 router.post('/login', portalClienteController.login);
 
-// Rota PROTEGIDA para o cliente buscar os seus próprios pedidos
-// Note o uso do middleware "authClienteMiddleware" antes do controller.
 // Só quem passar pelo segurança chega ao controller.
 router.get('/pedidos', authClienteMiddleware, portalClienteController.getMeusPedidos);
+// ==> NOVAS ROTAS DE AÇÃO <==
+router.post('/pedidos/:id/aprovar', authClienteMiddleware, portalClienteController.aprovarPedido);
+router.post('/pedidos/:id/rejeitar', authClienteMiddleware, portalClienteController.rejeitarPedido);
+
+// NOVA ROTA pública para o cliente ativar a conta e definir a senha
+router.post('/ativar-conta', portalClienteController.ativarConta);
 
 module.exports = router;

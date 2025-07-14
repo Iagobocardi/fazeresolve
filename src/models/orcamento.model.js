@@ -61,6 +61,9 @@ const orcamentoSchema = new mongoose.Schema({
         type: String,
         unique: true,
     },
+     // =======================================================
+    // ==> NOVOS CAMPOS ADICIONADOS AQUI <==
+    // =======================================================
        materiaisUsados: [{
         produto: {
             type: mongoose.Schema.Types.ObjectId,
@@ -77,7 +80,40 @@ const orcamentoSchema = new mongoose.Schema({
             type: Number,
             required: true
         }
-    }]
+    }],
+
+      // Campo para anotações de medidas e detalhes técnicos
+    anotacoesTecnicas: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+
+    // Campo para guardar as fotos tiradas pelo prestador (ex: fotos do "antes e depois")
+    fotosServico: [{
+        url: String, // URL da imagem
+        descricao: String, // Descrição opcional (ex: "Antes da pintura")
+        dataEnvio: { type: Date, default: Date.now }
+    }],
+
+    // Campo para registrar os custos com materiais
+    custosMateriais: [{
+        descricao: { type: String, required: true },
+        valor: { type: 'Decimal128', required: true, get: v => parseFloat(v.toString()) },
+        data: { type: Date, default: Date.now }
+    }],
+
+    // Campo para lembretes sobre a nota fiscal
+    lembreteNotaFiscal: {
+        type: String,
+        trim: true,
+        default: ''
+    }
+
+}, { 
+    timestamps: true,
+    toJSON: { getters: true }, // Garante que o 'get' do Decimal128 funcione
+    toObject: { getters: true }
 }); // <--- FIM DO OBJETO DO SCHEMA
 
 orcamentoSchema.pre('save', function(next) {
@@ -93,6 +129,7 @@ orcamentoSchema.pre('save', function(next) {
     }
     next();
 });
+
 
 // O CÓDIGO INCORRETO QUE ESTAVA FLUTUANDO AQUI FOI REMOVIDO.
 

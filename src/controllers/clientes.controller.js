@@ -1,5 +1,7 @@
 const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
+const crypto = require('crypto');
+const whatsappService = require('../services/whatsapp.service');
 
 // Função para listar todos os clientes e contar os seus pedidos
 const getAllClientes = async (req, res) => {
@@ -117,6 +119,38 @@ const getClienteComPedidos = async (req, res) => {
         res.status(500).json({ error: 'Erro ao buscar detalhes do cliente.' });
     }
 };
+const enviarConvitePortal = async (req, res) => {
+    try {
+        const cliente = await Cliente.findById(req.params.id);
+        if (!cliente) {
+            return res.status(404).json({ message: 'Cliente não encontrado.' });
+        }
+
+        // 1. Gera um token seguro e aleatório
+        const token = crypto.randomBytes(32).toString('hex');
+
+        // 2. Define o token e a data de expiração (ex: 1 hora a partir de agora)
+        cliente.activationToken = token;
+        cliente.activationTokenExpires = Date.now() + 3600000; // 1 hora em milissegundos
+
+        await cliente.save();
+
+        // 3. Monta a URL de ativação (aponte para o seu frontend)
+        // ATENÇÃO: Altere 'http://localhost:3001' para o endereço real do seu frontend no futuro
+        const activationUrl = `http://localhost:3001/ativar-conta/${token}`;
+
+        // 4. Envia a mensagem via WhatsApp
+        const mensagem = `Olá, ${cliente.nome}! Para aceder ao nosso portal de cliente e acompanhar os seus serviços, por favor, ative a sua conta no seguinte link: ${activationUrl}`;
+        await whatsappService.sendWhatsAppMessage(cliente.telefone, mensagem);
+
+        res.status(200).json({ message: 'Convite enviado com sucesso!' });
+
+    } catch (error) {
+        console.error("ERRO em enviarConvitePortal:", error);
+        res.status(500).json({ message: 'Erro ao enviar o convite.' });
+    }
+};
+
 
 
 // CORREÇÃO: Exporta TODAS as funções que as rotas precisam.
@@ -126,5 +160,6 @@ module.exports = {
     criarCliente,
     atualizarCliente,
     deletarCliente,
-    getClienteComPedidos
+    getClienteComPedidos,
+    enviarConvitePortal
 };

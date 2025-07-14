@@ -5,6 +5,7 @@ const { validationResult, body } = require('express-validator');
 const whatsappService = require('../services/whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
+const Despesa = require('../models/despesa.model');
 
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
@@ -17,12 +18,37 @@ const orcamentoValidationRules = () => {
 // Obtém todos os orçamentos
 const getAllOrcamentos = async (req, res) => {
     try {
-        // CORREÇÃO APLICADA AQUI
+        // 1. Buscamos todos os orçamentos como antes, populando o cliente.
+        //    Adicionamos .lean() para obter objetos JavaScript puros, o que é mais rápido.
         const orcamentos = await Orcamento.find()
-            .populate('cliente', 'nome telefone') // Agora busca o nome E o telefone
-            .sort({ data: -1 });
-        res.status(200).json(orcamentos);
+            .populate('cliente', 'nome telefone')
+            .sort({ data: -1 })
+            .lean(); // .lean() melhora a performance
+
+        // 2. Calculamos o lucro para cada orçamento
+        const orcamentosComLucro = orcamentos.map(orcamento => {
+            // Soma o total dos custos de materiais do pedido
+            const totalCustos = orcamento.custosMateriais?.reduce(
+                (acc, custo) => acc + parseFloat(custo.valor.toString() || 0),
+                0
+            ) || 0;
+
+            // Calcula o lucro
+            const valorProposto = parseFloat(orcamento.valorProposto?.toString() || 0);
+            const lucro = valorProposto - totalCustos;
+
+            // Retorna o objeto do orçamento original com o novo campo 'lucro'
+            return {
+                ...orcamento,
+                lucro: lucro
+            };
+        });
+
+        // 3. Enviamos a lista de orçamentos, agora com o lucro calculado
+        res.status(200).json(orcamentosComLucro);
+
     } catch (error) {
+        console.error("ERRO em getAllOrcamentos:", error);
         res.status(500).json({ error: 'Erro ao buscar orçamentos.' });
     }
 };
@@ -191,12 +217,12 @@ const scheduleOrcamento = async (req, res) => {
         
         const orcamentoAtualizado = await orcamento.save();
 
-        // CORREÇÃO: Lógica de notificação agora dentro de um bloco seguro
-        if (orcamento.cliente && orcamento.cliente.telefone) {
+ if (orcamento.cliente && orcamento.cliente.telefone) {
             const tipoAcao = isReagendamento ? "REAGENDADO" : "AGENDADO";
-            // LINHAS NOVAS E CORRETAS
-             const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto);
-             const notificationMessage = `Boas notícias, ${orcamento.cliente.nome}! O seu orçamento para o pedido #${orcamento.shortId} está pronto.\n\n*Valor:* ${valorFormatado}\n\nPara aprovar, entre em contato connosco.`;
+            
+            // Mensagem personalizada baseada na ação
+            const notificationMessage = `Serviço *${tipoAcao}*!\n\nOlá, ${orcamento.cliente.nome}. O seu serviço para o pedido #${orcamento.shortId} foi ${isReagendamento ? 'reagendado para' : 'agendado para'}:\n\n*Data e Hora:* ${dataAgendamento}\n\nAté breve!`;
+            
             await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
         }
 
@@ -314,7 +340,7 @@ const getAgendamentosParaCalendario = async (req, res) => {
 
             return {
                 id: pedido._id,
-                title: `#${pedido.shortId} - ${pedido.cliente.nome}`,
+                title: `#${pedido.shortId} - ${pedido.cliente?.nome || 'Cliente Removido'}`,
                 start: startDateTime,
                 allDay: !hora // Se não houver hora especificada, trata como evento de dia inteiro
             };
@@ -385,7 +411,58 @@ const adicionarMaterialAoPedido = async (req, res) => {
         res.status(500).json({ message: 'Erro ao adicionar material ao pedido.' });
     }
 };
+const updateDetalhesOperacionais = async (req, res) => {
+     try {
+        const { anotacoesTecnicas, lembreteNotaFiscal } = req.body;
+        const orcamento = await Orcamento.findByIdAndUpdate(
+            req.params.id,
+            { $set: { anotacoesTecnicas, lembreteNotaFiscal } },
+            { new: true }
+        );
+        if (!orcamento) return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        res.status(200).json(orcamento);
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao atualizar detalhes operacionais.', error });
+    }
+};
+const addCustoMaterial = async (req, res) => {
+    try {
+        const { descricao, valor } = req.body;
+        const { id } = req.params; // ID do orçamento
 
+        // 1. Adiciona o custo ao array de custos do orçamento
+        const orcamentoAtualizado = await Orcamento.findByIdAndUpdate(
+            id,
+            { $push: { custosMateriais: { descricao, valor } } },
+            { new: true }
+        );
+
+        if (!orcamentoAtualizado) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+
+        // =======================================================
+        // ==> LÓGICA NOVA PARA CRIAR A DESPESA AUTOMATICAMENTE <==
+        // =======================================================
+        const novaDespesa = new Despesa({
+            descricao: `Material para pedido #${orcamentoAtualizado.shortId}: ${descricao}`,
+            valor: valor,
+            categoria: 'Material', // Categoria automática
+            data: new Date(),
+            orcamentoAssociado: id // Ligamos a despesa ao ID do orçamento
+        });
+
+        // Salva a nova despesa na coleção de despesas
+        await novaDespesa.save();
+        
+        // Envia a resposta de sucesso com os dados do orçamento atualizado
+        res.status(200).json(orcamentoAtualizado);
+
+    } catch (error) {
+        console.error("ERRO em addCustoMaterial:", error);
+        res.status(500).json({ message: 'Erro ao adicionar custo.', error });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -403,5 +480,7 @@ module.exports = {
     updateStatusPagamento,
     registrarAvaliacao,
     getAgendamentosParaCalendario,
-    adicionarMaterialAoPedido
+    adicionarMaterialAoPedido,
+    updateDetalhesOperacionais,
+    addCustoMaterial   
 };

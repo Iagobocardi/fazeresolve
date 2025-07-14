@@ -13,12 +13,14 @@ const clienteSchema = new mongoose.Schema({
         trim: true,
         sparse: true 
     },
-       password: {
-        type: String,
-        required: true, // Vamos tornar obrigatória para clientes com login
-        minlength: 6,
-        select: false   // Ótima ideia para não enviar a senha em buscas!
-         },
+       // Depois (Correto)
+password: {
+    type: String,
+    // required: false, // O campo agora é opcional
+    minlength: 6,
+    select: false
+},
+
     role: { type: String, required: true, enum: ['CLIENTE_FINAL', 'PRESTADOR'], default: 'CLIENTE_FINAL' },
     conversationState: {
         type: String,
@@ -39,10 +41,17 @@ const clienteSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Orcamento',
         default: null
+    },
+     activationToken: {
+        type: String
+    },
+    activationTokenExpires: {
+        type: Date
     }
 }, {
     timestamps: true
 }); 
+
 clienteSchema.pre('save', async function(next) {
     // Só executa esta função se a senha foi modificada (ou é nova)
     if (!this.isModified('password')) {
