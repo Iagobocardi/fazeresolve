@@ -4,14 +4,11 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
     try {
-        // CORREÇÃO: Usando MONGODB_URI, o mesmo nome que está no seu ficheiro .env
-        await mongoose.connect(process.env.MONGODB_URI, {
-            // Opções de conexão podem ser adicionadas aqui se necessário no futuro
-        });
-        console.log('MongoDB conectado com sucesso!');
+        // A conexão é feita aqui e retorna o objeto de conexão 'conn'
+        const conn = await mongoose.connect(process.env.MONGODB_URI);
+
     } catch (error) {
         console.error('Erro ao conectar ao MongoDB:', error.message);
-        // Em caso de erro, termina o processo para evitar que a aplicação rode sem base de dados
         process.exit(1);
     }
 };

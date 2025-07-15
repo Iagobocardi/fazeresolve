@@ -1,5 +1,4 @@
 // Arquivo: server.js (ou o seu ficheiro de entrada principal)
-
 // PASSO 1: Carrega as variáveis de ambiente do ficheiro .env
 // Esta deve ser a PRIMEIRA linha de código a ser executada.
 require('dotenv').config();

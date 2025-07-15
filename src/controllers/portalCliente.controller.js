@@ -1,9 +1,10 @@
 // src/controllers/portalCliente.controller.js
-
+const mongoose = require('mongoose'); 
 const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
 
 // Lógica de Login
 const login = async (req, res) => {
@@ -62,19 +63,35 @@ const getMeusPedidos = async (req, res) => {
 // Nova função para buscar um pedido por ID, com verificação de segurança
 const getMeuPedidoPorId = async (req, res) => {
     try {
-        const clienteId = req.cliente.id;
-        const pedidoId = req.params.id;
+        const clienteIdString = req.cliente.id; // ID do cliente (como string)
+        const pedidoIdString = req.params.id;   // ID do pedido (como string)
 
+        // =============================================================
+        // ==> AQUI ESTÁ A CORREÇÃO: convertemos as strings para ObjectIds
+        // =============================================================
+        const clienteIdObj = new mongoose.Types.ObjectId(clienteIdString);
+        const pedidoIdObj = new mongoose.Types.ObjectId(pedidoIdString);
+
+        console.log('--- Buscando Pedido Específico com IDs Convertidos ---');
+        console.log('ID do Cliente (ObjectId):', clienteIdObj);
+        console.log('ID do Pedido (ObjectId):  ', pedidoIdObj);
+
+        // Usamos os ObjectIds na busca
         const pedido = await Orcamento.findOne({ 
-            _id: pedidoId, 
-            cliente: clienteId 
+            _id: pedidoIdObj, 
+            cliente: clienteIdObj 
         });
+
+        console.log('Resultado da busca no MongoDB:', pedido);
 
         if (!pedido) {
             return res.status(404).json({ message: 'Pedido não encontrado ou não pertence a este cliente.' });
         }
+
         res.status(200).json(pedido);
+
     } catch (error) {
+        console.error("ERRO em getMeuPedidoPorId:", error);
         res.status(500).json({ message: 'Erro ao buscar detalhes do pedido.' });
     }
 };

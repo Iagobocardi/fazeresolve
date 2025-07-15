@@ -1,18 +1,27 @@
+// src/routes/portalCliente.routes.js
+
 const express = require('express');
 const router = express.Router();
-const portalClienteController = require('../controllers/portalCliente.controller'); // Precisaremos criar este controller
-const authClienteMiddleware = require('../middlewares/authCliente.middleware.js'); // O nosso segurança
+const portalClienteController = require('../controllers/portalCliente.controller');
+const authClienteMiddleware = require('../middlewares/authCliente.middleware.js');
 
-// Rota pública para o cliente fazer login
+// --- Rotas Públicas ---
 router.post('/login', portalClienteController.login);
+router.post('/ativar-conta', portalClienteController.ativarConta);
 
-// Só quem passar pelo segurança chega ao controller.
+// --- Rotas Protegidas (Exigem Token) ---
+
+// Busca a LISTA de pedidos do cliente logado
 router.get('/pedidos', authClienteMiddleware, portalClienteController.getMeusPedidos);
-// ==> NOVAS ROTAS DE AÇÃO <==
+
+// ===============================================
+// ==> A ROTA QUE FALTAVA FOI ADICIONADA AQUI <==
+// ===============================================
+// Busca UM pedido específico pelo ID
+router.get('/pedidos/:id', authClienteMiddleware, portalClienteController.getMeuPedidoPorId);
+
+// Ações para um pedido específico
 router.post('/pedidos/:id/aprovar', authClienteMiddleware, portalClienteController.aprovarPedido);
 router.post('/pedidos/:id/rejeitar', authClienteMiddleware, portalClienteController.rejeitarPedido);
-
-// NOVA ROTA pública para o cliente ativar a conta e definir a senha
-router.post('/ativar-conta', portalClienteController.ativarConta);
 
 module.exports = router;
