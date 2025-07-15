@@ -4,6 +4,7 @@ const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const whatsappService = require('../services/whatsapp.service');
 
 
 // Lógica de Login
@@ -102,17 +103,37 @@ const aprovarPedido = async (req, res) => {
         const clienteId = req.cliente.id;
         const pedidoId = req.params.id;
 
-        const orcamento = await Orcamento.findOne({ _id: pedidoId, cliente: clienteId });
+        // A busca precisa do .populate() para termos acesso ao nome do cliente para a notificação
+        const orcamento = await Orcamento.findOne({ _id: pedidoId, cliente: clienteId }).populate('cliente', 'nome');
+
         if (!orcamento) {
             return res.status(404).json({ message: 'Pedido não encontrado.' });
+        }
+          if (!orcamento.valorProposto || orcamento.valorProposto <= 0) {
+            return res.status(400).json({ message: 'Este orçamento ainda não pode ser aprovado pois não tem um valor definido pelo prestador.' });
         }
         
         orcamento.status = 'Aceito';
         orcamento.historico.push({ evento: 'Orçamento aprovado pelo cliente.' });
         await orcamento.save();
+
+        // ==========================================================
+        // ==> LÓGICA DE NOTIFICAÇÃO PARA O PRESTADOR ADICIONADA AQUI <==
+        // ==========================================================
+        const numeroPrestador = process.env.PRESTADOR_TELEFONE;
+        if (numeroPrestador) {
+            const clienteNome = orcamento.cliente.nome;
+            const pedidoId = orcamento.shortId;
+            const notificationMessage = `✅ Orçamento Aprovado!\n\nO cliente *${clienteNome}* aprovou o orçamento para o pedido *#${pedidoId}*.\n\nAcesse o painel para ver os detalhes.`;
+            
+            // Usamos o nosso serviço de WhatsApp para enviar a notificação
+            await whatsappService.sendWhatsAppMessage(numeroPrestador, notificationMessage);
+        }
+        // Fim da lógica de notificação
         
         res.status(200).json({ message: 'Pedido aprovado com sucesso!', orcamento });
     } catch (error) {
+        console.error("ERRO em aprovarPedido:", error);
         res.status(500).json({ message: 'Erro ao aprovar o pedido.' });
     }
 };
@@ -171,6 +192,32 @@ const ativarConta = async (req, res) => {
         res.status(500).json({ message: 'Erro ao ativar a conta.' });
     }
 };
+const sugerirAgendamento = async (req, res) => {
+    try {
+        const { dataSugerida } = req.body;
+        const orcamento = await Orcamento.findOne({ _id: req.params.id, cliente: req.cliente.id });
+
+        if (!orcamento || orcamento.status !== 'Aceito') {
+            return res.status(400).json({ message: 'Este pedido não pode ser agendado neste momento.' });
+        }
+
+        orcamento.sugestaoAgendamentoCliente = dataSugerida;
+        orcamento.historico.push({ evento: `Cliente sugeriu agendamento para: ${dataSugerida}` });
+        await orcamento.save();
+
+        // Notifica o PRESTADOR sobre a sugestão do cliente
+        const numeroPrestador = process.env.PRESTADOR_TELEFONE;
+        if (numeroPrestador) {
+            const msg = `🗓️ Agendamento Sugerido!\n\nO cliente *${orcamento.cliente.nome}* sugeriu uma data para o pedido *#${orcamento.shortId}*:\n\n*Sugestão:* ${dataSugerida}\n\nAcesse o painel para confirmar.`;
+            await whatsappService.sendWhatsAppMessage(numeroPrestador, msg);
+        }
+
+        res.status(200).json(orcamento);
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao sugerir agendamento.' });
+    }
+};
+// Não se esqueça de exportar a nova função!
 
 module.exports = {
     login,
@@ -178,5 +225,6 @@ module.exports = {
     getMeuPedidoPorId,
     aprovarPedido,
     rejeitarPedido,
-    ativarConta
+    ativarConta,
+    sugerirAgendamento
 };

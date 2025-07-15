@@ -130,18 +130,48 @@ const handleIncomingMessage = async (req) => {
         // ETAPA 2: Lógica de conversa normal
         let user = await Cliente.findOne({ telefone: senderPhone });
 
-        if (!user) {
-            const clienteNome = ProfileName || `Cliente ${senderPhone.slice(-4)}`;
-            if (senderPhone === process.env.PRESTADOR_TELEFONE) {
-                await Cliente.create({ nome: "Prestador Principal", telefone: senderPhone, role: 'PRESTADOR', conversationState: 'NONE' });
-                await sendWhatsAppMessage(senderPhone, "Modo de comando ativado. Para ver a lista de comandos, envie 'ajuda'.");
-            } else {
-                await Cliente.create({ nome: clienteNome, telefone: senderPhone, role: 'CLIENTE_FINAL', conversationState: 'AWAITING_REQUEST_TYPE' });
-                const welcomeMessage = `Olá, ${clienteNome}! Bem-vindo(a) ao Faz&Resolve.\n\nComo podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente\n\n(A qualquer momento, envie *voltar* para ir ao passo anterior).`;
-                await sendWhatsAppMessage(senderPhone, welcomeMessage);
-            }
-            return;
-        }
+       if (!user) {
+    const clienteNome = ProfileName || `Cliente ${senderPhone.slice(-4)}`;
+
+    // ==========================================================
+    // ==> LÓGICA DE COMPARAÇÃO FINAL E À PROVA DE FALHAS <==
+    // ==========================================================
+    // Limpa tudo o que não for um dígito numérico de ambos os números
+    const numeroLimpoDoWhatsapp = senderPhone.replace(/\D/g, '');
+    const numeroLimpoDoEnv = process.env.PRESTADOR_TELEFONE.replace(/\D/g, '');
+
+    console.log('--- VERIFICAÇÃO FINAL ---');
+    console.log(`Número Limpo do WhatsApp: |${numeroLimpoDoWhatsapp}|`);
+    console.log(`Número Limpo do .env:     |${numeroLimpoDoEnv}|`);
+    
+    const isPrestador = (numeroLimpoDoWhatsapp === numeroLimpoDoEnv);
+    console.log('São iguais?', isPrestador);
+    console.log('---------------------------');
+
+    if (isPrestador) {
+        console.log(`[SERVICE] Número ${senderPhone} identificado como PRESTADOR.`);
+        user = new Cliente({
+            nome: "Prestador Principal",
+            telefone: senderPhone,
+            role: 'PRESTADOR',
+            conversationState: 'NONE'
+        });
+        await user.save();
+        await sendWhatsAppMessage(senderPhone, "Modo de comando ativado. Para ver a lista de comandos, envie 'ajuda'.");
+    } else {
+        console.log(`[SERVICE] Criando novo cliente para o número: ${senderPhone}`);
+        user = new Cliente({
+            nome: clienteNome,
+            telefone: senderPhone,
+            role: 'CLIENTE_FINAL',
+            conversationState: 'AWAITING_REQUEST_TYPE'
+        });
+        await user.save();
+        const welcomeMessage = `Olá, ${clienteNome}! Bem-vindo(a) ao Faz&Resolve.\n\nComo podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente\n\n(A qualquer momento, envie *voltar* para ir ao passo anterior).`;
+        await sendWhatsAppMessage(senderPhone, welcomeMessage);
+    }
+    return; // Encerra a execução aqui, pois o resto do fluxo é para mensagens seguintes.
+}
 
         if (user.role === 'PRESTADOR') {
             const responseMessage = await commandParser.parseAndExecute(messageBody, user, sendWhatsAppMessage);

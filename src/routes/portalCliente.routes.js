@@ -9,7 +9,6 @@ const authClienteMiddleware = require('../middlewares/authCliente.middleware.js'
 router.post('/login', portalClienteController.login);
 router.post('/ativar-conta', portalClienteController.ativarConta);
 
-// --- Rotas Protegidas (Exigem Token) ---
 
 // Busca a LISTA de pedidos do cliente logado
 router.get('/pedidos', authClienteMiddleware, portalClienteController.getMeusPedidos);
@@ -23,5 +22,6 @@ router.get('/pedidos/:id', authClienteMiddleware, portalClienteController.getMeu
 // Ações para um pedido específico
 router.post('/pedidos/:id/aprovar', authClienteMiddleware, portalClienteController.aprovarPedido);
 router.post('/pedidos/:id/rejeitar', authClienteMiddleware, portalClienteController.rejeitarPedido);
+router.post('/pedidos/:id/sugerir-agendamento', authClienteMiddleware, portalClienteController.sugerirAgendamento);
 
 module.exports = router;

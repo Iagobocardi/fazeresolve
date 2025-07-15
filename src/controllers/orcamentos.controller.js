@@ -174,9 +174,8 @@ const submitOrcamento = async (req, res) => {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
 
-        orcamento.status = 'Aceito';
-        orcamento.valorProposto = parseFloat(valorProposto);
-        orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} enviado.` });
+         orcamento.valorProposto = parseFloat(valorProposto);
+        orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} proposto ao cliente.` });
         
         await orcamento.save();
 
@@ -214,6 +213,7 @@ const scheduleOrcamento = async (req, res) => {
         orcamento.status = 'Agendado';
         orcamento.dataAgendamento = dataAgendamento;
         orcamento.historico.push({ evento: `Serviço agendado para ${dataAgendamento}.` });
+        orcamento.sugestaoAgendamentoCliente = null; // <-- ADICIONE ESTA LINHA para limpar a sugestão
         
         const orcamentoAtualizado = await orcamento.save();
 

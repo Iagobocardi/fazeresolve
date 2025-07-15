@@ -108,6 +108,9 @@ const orcamentoSchema = new mongoose.Schema({
         type: String,
         trim: true,
         default: ''
+    },
+     sugestaoAgendamentoCliente: {
+        type: String
     }
 
 }, { 
