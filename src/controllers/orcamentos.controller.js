@@ -20,38 +20,87 @@ const orcamentoValidationRules = () => {
 // Obtém todos os orçamentos
 const getAllOrcamentos = async (req, res) => {
     try {
-        // 1. Buscamos todos os orçamentos como antes, populando o cliente.
-        //    Adicionamos .lean() para obter objetos JavaScript puros, o que é mais rápido.
-        const orcamentos = await Orcamento.find()
-            .populate('cliente', 'nome telefone')
-            .sort({ data: -1 })
-            .lean(); // .lean() melhora a performance
+        const { search, statusPagamento, dataInicio, dataFim } = req.query;
 
-        // 2. Calculamos o lucro para cada orçamento
-        const orcamentosComLucro = orcamentos.map(orcamento => {
-            // Soma o total dos custos de materiais do pedido
-            const totalCustos = orcamento.custosMateriais?.reduce(
-                (acc, custo) => acc + parseFloat(custo.valor.toString() || 0),
-                0
-            ) || 0;
+        // Estágio inicial do pipeline de agregação
+        const pipeline = [];
 
-            // Calcula o lucro
-            const valorProposto = parseFloat(orcamento.valorProposto?.toString() || 0);
-            const lucro = valorProposto - totalCustos;
-
-            // Retorna o objeto do orçamento original com o novo campo 'lucro'
-            return {
-                ...orcamento,
-                lucro: lucro
-            };
+        // 1. Adicionar campos calculados para facilitar a filtragem
+        pipeline.push({
+            $addFields: {
+                totalPago: { $sum: '$pagamentos.valor' },
+                statusPagamentoCalculado: {
+                    $switch: {
+                        branches: [
+                            {
+                                case: { $eq: [{ $sum: '$pagamentos.valor' }, 0] },
+                                then: 'pendente'
+                            },
+                            {
+                                case: { $gte: [{ $sum: '$pagamentos.valor' }, '$valorProposto'] },
+                                then: 'pago'
+                            }
+                        ],
+                        default: 'parcial'
+                    }
+                }
+            }
         });
 
-        // 3. Enviamos a lista de orçamentos, agora com o lucro calculado
-        res.status(200).json(orcamentosComLucro);
+        // 2. Construir o objeto de filtro ($match)
+        const matchStage = {};
 
+        if (search) {
+            // Para a busca funcionar, precisamos fazer um $lookup para buscar os dados do cliente
+            pipeline.unshift({
+                $lookup: {
+                    from: 'clientes', // nome da sua collection de clientes
+                    localField: 'cliente',
+                    foreignField: '_id',
+                    as: 'clienteInfo'
+                }
+            },
+            {
+                $unwind: '$clienteInfo'
+            });
+            
+            const regex = new RegExp(search, 'i');
+            matchStage.$or = [
+                { 'clienteInfo.nome': regex },
+                { 'clienteInfo.telefone': regex },
+                { 'descricao': regex }
+            ];
+        }
+
+        if (statusPagamento && statusPagamento !== 'todos') {
+            matchStage.statusPagamentoCalculado = statusPagamento;
+        }
+
+        if (dataInicio && dataFim) {
+            matchStage.data = {
+                $gte: new Date(dataInicio),
+                $lte: new Date(new Date(dataFim).setDate(new Date(dataFim).getDate() + 1)) // Inclui o dia final
+            };
+        }
+        
+        // Adiciona o estágio de $match ao pipeline se houver filtros
+        if (Object.keys(matchStage).length > 0) {
+            pipeline.push({ $match: matchStage });
+        }
+        
+        // Ordena os resultados
+        pipeline.push({ $sort: { 'data': -1 } });
+
+        const orcamentos = await Orcamento.aggregate(pipeline);
+        
+        // Como o populate não funciona com aggregate, re-populamos o cliente se necessário
+        // (O lookup acima já faz isso, mas se precisar de mais dados, aqui é o lugar)
+
+        res.json(orcamentos);
+        
     } catch (error) {
-        console.error("ERRO em getAllOrcamentos:", error);
-        res.status(500).json({ error: 'Erro ao buscar orçamentos.' });
+        console.error("Erro ao buscar orçamentos com filtros:", error);
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -611,6 +660,37 @@ const removerPagamento = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao remover pagamento.' });
     }
 };
+const getAgendadosParaCalendario = async (req, res) => {
+    try {
+        // 1. Busca no banco todos os orçamentos com status 'Agendado' e que tenham uma data
+        const orcamentosAgendados = await Orcamento.find({
+    status: 'Agendado',
+    dataAgendamento: { $exists: true, $ne: null }
+})
+.populate('cliente', 'nome')
+.select('dataAgendamento descricao cliente');
+
+        // 2. Transforma os dados do MongoDB para o formato que o FullCalendar espera
+        const eventos = orcamentosAgendados.map(orcamento => {
+            // Monta um título descritivo para o evento no calendário
+            const tituloEvento = `Serviço para: ${orcamento.cliente?.nome || 'Cliente não identificado'}`;
+
+            return {
+                id: orcamento._id,          // ID do evento
+                title: tituloEvento,        // O que vai aparecer escrito no evento
+                start: orcamento.dataAgendamento, // Data e hora de início
+                // end: ...  // Você pode adicionar uma data de término se tiver essa informação
+            };
+        });
+
+        // 3. Envia a lista de eventos formatada como resposta
+        res.status(200).json(eventos);
+
+    } catch (error) {
+        console.error("Erro ao buscar eventos para o calendário:", error);
+        res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -635,5 +715,6 @@ module.exports = {
     gerarFaturaPDF,
     gerarOrcamentoPDF,
     adicionarPagamento,
-    removerPagamento
+    removerPagamento,
+    getAgendadosParaCalendario
 };
