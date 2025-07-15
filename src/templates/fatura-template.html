@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Fatura - Pedido #{{pedidoId}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; }
+        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .15); }
+        .header { text-align: center; margin-bottom: 20px; }
+        .details { margin-bottom: 30px; }
+        .details table { width: 100%; }
+        .details td { padding: 5px; }
+        .items-table { width: 100%; border-collapse: collapse; }
+        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; }
+        .items-table th { background-color: #f2f2f2; }
+        .total { text-align: right; margin-top: 20px; font-size: 1.2em; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="invoice-box">
+        <div class="header">
+            <h1>Fatura / Recibo de Serviço</h1>
+            <p>Pedido #{{pedidoId}}</p>
+        </div>
+        <div class="details">
+            <table>
+                <tr><td><strong>Prestador:</strong></td><td>Faz & Resolve</td></tr>
+                <tr><td><strong>Cliente:</strong></td><td>{{clienteNome}}</td></tr>
+                <tr><td><strong>Telefone:</strong></td><td>{{clienteTelefone}}</td></tr>
+                <tr><td><strong>Data de Emissão:</strong></td><td>{{dataGeracao}}</td></tr>
+            </table>
+        </div>
+        <table class="items-table">
+            <thead>
+                <tr><th>Descrição do Serviço</th><th>Valor</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>{{pedidoDescricao}}</td><td>R$ {{valorProposto}}</td></tr>
+            </tbody>
+        </table>
+        <div class="total">Total: R$ {{valorProposto}}</div>
+    </div>
+</body>
+</html>

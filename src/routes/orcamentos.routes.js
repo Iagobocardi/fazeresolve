@@ -13,7 +13,7 @@ router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao);
 router.get('/agendados', orcamentosController.getAgendamentosParaCalendario);
 router.post('/:id/upload-foto', upload.single('foto'), orcamentosController.uploadFotoServico);
 router.get('/:id/fatura-pdf', orcamentosController.gerarFaturaPDF);
-
+router.get('/:id/orcamento-pdf', orcamentosController.gerarOrcamentoPDF);
 // ROTA para atualizar apenas o status
 router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);
 router.patch('/:id/submit', orcamentosController.submitOrcamento);
