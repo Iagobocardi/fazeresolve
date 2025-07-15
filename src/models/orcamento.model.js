@@ -52,11 +52,16 @@ const orcamentoSchema = new mongoose.Schema({
     // =======================================================
     // 👉 O CAMPO DE PAGAMENTO FOI MOVIDO PARA AQUI DENTRO
     // =======================================================
-    statusPagamento: {
-        type: String,
-        enum: ['Pendente', 'Pago Parcial', 'Pago'],
-        default: 'Pendente'
+    pagamentos: [{
+    valor: { type: Number, required: true },
+    data: { type: Date, default: Date.now },
+    metodo: { 
+        type: String, 
+        enum: ['Pix', 'Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 'Transferência'], 
+        default: 'Pix' 
     },
+    observacao: { type: String, trim: true, maxLength: 100 }
+}],
     publicId: {
         type: String,
         unique: true,

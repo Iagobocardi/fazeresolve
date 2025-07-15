@@ -554,6 +554,63 @@ const gerarOrcamentoPDF = async (req, res) => {
         res.status(500).send('Erro interno do servidor');
     }
 };
+const adicionarPagamento = async (req, res) => {
+    try {
+        const { valor, metodo, observacao } = req.body;
+        const orcamentoId = req.params.id;
+
+        // Validação simples dos dados de entrada
+        if (!valor || valor <= 0) {
+            return res.status(400).json({ message: 'O valor do pagamento deve ser maior que zero.' });
+        }
+
+        const orcamento = await Orcamento.findById(orcamentoId);
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+
+        // Adiciona o novo pagamento ao array de pagamentos
+        orcamento.pagamentos.push({ valor, metodo, observacao });
+
+        // Salva as alterações no banco de dados
+        await orcamento.save();
+
+        // Retorna o orçamento completo e atualizado
+        res.status(200).json(orcamento);
+
+    } catch (error) {
+        console.error("Erro ao adicionar pagamento:", error);
+        res.status(500).json({ message: 'Erro interno ao adicionar pagamento.' });
+    }
+};
+
+// =======================================================
+// 👉 NOVA FUNÇÃO PARA REMOVER PAGAMENTO
+// =======================================================
+const removerPagamento = async (req, res) => {
+    try {
+        const { id: orcamentoId, pagamentoId } = req.params;
+
+        const orcamento = await Orcamento.findById(orcamentoId);
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+
+        // Encontra o pagamento específico e o remove do array
+        // O método .pull do Mongoose é perfeito para isso
+        orcamento.pagamentos.pull({ _id: pagamentoId });
+
+        // Salva as alterações
+        await orcamento.save();
+
+        // Retorna o orçamento atualizado
+        res.status(200).json(orcamento);
+
+    } catch (error) {
+        console.error("Erro ao remover pagamento:", error);
+        res.status(500).json({ message: 'Erro interno ao remover pagamento.' });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -576,5 +633,7 @@ module.exports = {
     addCustoMaterial,
     uploadFotoServico,
     gerarFaturaPDF,
-    gerarOrcamentoPDF
+    gerarOrcamentoPDF,
+    adicionarPagamento,
+    removerPagamento
 };

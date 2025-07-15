@@ -25,6 +25,10 @@ router.patch('/:id/pagamento', orcamentosController.updateStatusPagamento);
 router.patch('/:id/operacional', orcamentosController.updateDetalhesOperacionais);
 router.post('/:id/custos', orcamentosController.addCustoMaterial);
 
+// Rota para ADICIONAR um novo pagamento a um orçamento
+router.post('/:id/pagamentos', orcamentosController.adicionarPagamento);
+// Rota para REMOVER um pagamento de um orçamento
+router.delete('/:id/pagamentos/:pagamentoId', orcamentosController.removerPagamento);
 // Rotas genéricas depois
 router.get('/', orcamentosController.getAllOrcamentos);
 router.get('/:id', orcamentosController.getOrcamentoById);
