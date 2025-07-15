@@ -59,7 +59,8 @@ app.use('/api/public', publicRoutes);
 app.use('/api/despesas', despesasRoutes);
 app.use('/api/produtos', produtosRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/portal-cliente', portalClienteRoutes); // <-- USAR AS NOVAS ROTAS DO CLIENTE
+app.use('/api/portal-cliente', portalClienteRoutes); 
+app.use(express.static('public'));
 
 
 // Rota de teste para verificar se o servidor está online

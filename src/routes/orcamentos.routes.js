@@ -5,11 +5,14 @@ const router = express.Router();
 const orcamentosController = require('../controllers/orcamentos.controller');
 const { orcamentoValidationRules } = require('../controllers/orcamentos.controller');
 const { validate } = require('../middlewares/validation.middleware');
+const upload = require('../config/multer.config.js');
 
 // Rotas mais específicas primeiro
 router.get('/recentes', orcamentosController.getRecentOrcamentos);
 router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao);
 router.get('/agendados', orcamentosController.getAgendamentosParaCalendario);
+router.post('/:id/upload-foto', upload.single('foto'), orcamentosController.uploadFotoServico);
+router.get('/:id/fatura-pdf', orcamentosController.gerarFaturaPDF);
 
 // ROTA para atualizar apenas o status
 router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);
@@ -28,7 +31,6 @@ router.get('/:id', orcamentosController.getOrcamentoById);
 router.post('/', orcamentoValidationRules(), validate, orcamentosController.createOrcamento);
 router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
 router.delete('/:id', orcamentosController.deleteOrcamento)
-router.patch('/:id/notas', orcamentosController.updateNotasInternas);
 router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoPedido);
 
 

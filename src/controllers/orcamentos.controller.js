@@ -6,6 +6,7 @@ const whatsappService = require('../services/whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
 const Despesa = require('../models/despesa.model');
+const pdfService = require('../services/pdf.service');
 
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
@@ -463,6 +464,106 @@ const addCustoMaterial = async (req, res) => {
         res.status(500).json({ message: 'Erro ao adicionar custo.', error });
     }
 };
+const uploadFotoServico = async (req, res) => {
+    try {
+        const orcamentoId = req.params.id;
+        const { descricao } = req.body;
+        
+        if (!req.file) {
+            return res.status(400).json({ message: 'Nenhum ficheiro enviado.' });
+        }
+
+        const orcamento = await Orcamento.findById(orcamentoId);
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+
+        // Constrói a URL pública do ficheiro
+        const fotoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+        orcamento.fotosServico.push({
+            url: fotoUrl,
+            descricao: descricao || 'Foto do serviço'
+        });
+
+        await orcamento.save();
+        res.status(200).json(orcamento);
+
+    } catch (error) {
+        console.error("ERRO em uploadFotoServico:", error);
+        res.status(500).json({ message: 'Erro ao fazer upload da foto.' });
+    }
+};
+const gerarFaturaPDF = async (req, res) => {
+    try {
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
+        if (!orcamento) {
+            return res.status(404).send('Pedido não encontrado.');
+        }
+
+        // Função que cria o HTML da fatura
+        const getInvoiceHtml = (data) => {
+            const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+            return `
+                <!DOCTYPE html>
+                <html lang="pt-br">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Fatura - Pedido #${data.shortId}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; color: #333; }
+                        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .15); }
+                        .header { text-align: center; margin-bottom: 20px; }
+                        .details { margin-bottom: 30px; }
+                        .details table { width: 100%; }
+                        .details td { padding: 5px; }
+                        .items-table { width: 100%; border-collapse: collapse; }
+                        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; }
+                        .items-table th { background-color: #f2f2f2; }
+                        .total { text-align: right; margin-top: 20px; font-size: 1.2em; font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <div class="invoice-box">
+                        <div class="header">
+                            <h1>Fatura / Recibo de Serviço</h1>
+                            <p>Pedido #${data.shortId}</p>
+                        </div>
+                        <div class="details">
+                            <table>
+                                <tr><td><strong>Prestador:</strong></td><td>Faz & Resolve</td></tr>
+                                <tr><td><strong>Cliente:</strong></td><td>${data.cliente.nome}</td></tr>
+                                <tr><td><strong>Telefone:</strong></td><td>${data.cliente.telefone}</td></tr>
+                                <tr><td><strong>Data de Emissão:</strong></td><td>${new Date().toLocaleDateString('pt-BR')}</td></tr>
+                            </table>
+                        </div>
+                        <table class="items-table">
+                            <thead>
+                                <tr><th>Descrição do Serviço</th><th>Valor</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>${data.descricao}</td><td>${formatCurrency(data.valorProposto)}</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="total">Total: ${formatCurrency(data.valorProposto)}</div>
+                    </div>
+                </body>
+                </html>
+            `;
+        };
+
+        const html = getInvoiceHtml(orcamento);
+        const pdfBuffer = await pdfService.generatePdf(html);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=fatura-${orcamento.shortId}.pdf`); // Força o download
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        console.error("ERRO em gerarFaturaPDF:", error);
+        res.status(500).json({ message: 'Erro ao gerar o PDF da fatura.' });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -482,5 +583,7 @@ module.exports = {
     getAgendamentosParaCalendario,
     adicionarMaterialAoPedido,
     updateDetalhesOperacionais,
-    addCustoMaterial   
+    addCustoMaterial,
+    uploadFotoServico,
+    gerarFaturaPDF
 };
