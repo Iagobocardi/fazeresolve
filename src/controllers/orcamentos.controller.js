@@ -716,5 +716,5 @@ module.exports = {
     gerarOrcamentoPDF,
     adicionarPagamento,
     removerPagamento,
-    getAgendadosParaCalendario
+    getAgendadosParaCalendario,
 };
