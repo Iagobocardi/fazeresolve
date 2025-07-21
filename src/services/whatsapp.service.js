@@ -4,6 +4,7 @@
 const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const commandParser = require('./commandParser.js');
+const chrono = require('chrono-node');
 
 // 1. Cliente Twilio e número de telefone definidos UMA VEZ no topo.
 const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -18,22 +19,42 @@ const sendWhatsAppMessage = async (phoneNumber, message = '', mediaUrls = []) =>
         return;
     }
     try {
-        const messageData = { from: twilioPhoneNumber, to: `whatsapp:${phoneNumber}` };
-        if (message && message.trim() !== '') { messageData.body = message; }
-        if (mediaUrls && mediaUrls.length > 0) { messageData.mediaUrl = mediaUrls; }
-        if (!messageData.body && !messageData.mediaUrl) { return; }
+        const messageData = {
+            from: twilioPhoneNumber,
+            to: `whatsapp:${phoneNumber}`,
+            // =======================================================
+            // 👉 A CORREÇÃO FINAL ESTÁ AQUI
+            //    Enviamos um StatusCallback vazio para sobrepor a
+            //    configuração inválida ('none') que está na sua conta Twilio.
+            // =======================================================
+            statusCallback: '' 
+        };
+
+        if (message && message.trim() !== '') {
+            messageData.body = message;
+        }
+        if (mediaUrls && mediaUrls.length > 0) {
+            messageData.mediaUrl = mediaUrls;
+        }
+        if (!messageData.body && !messageData.mediaUrl) {
+            return;
+        }
+
+        // Já não precisamos do log de debug, pode ser removido
+        // console.log("A enviar os seguintes dados para a API da Twilio:", JSON.stringify(messageData, null, 2));
+
         await twilioClient.messages.create(messageData);
+
         console.log(`[SERVICE] Mensagem enviada com sucesso para ${phoneNumber}.`);
+
     } catch (error) {
-        console.error("[SERVICE] ERRO AO ENVIAR VIA TWILIO:", error.message);
+        // Agora, se o erro persistir, saberemos que é algo que só o suporte da Twilio pode resolver.
+        console.error("[SERVICE] ERRO AO ENVIAR VIA TWILIO (APÓS CORREÇÃO):", error);
     }
 };
-
-// =======================================================
-// FUNÇÃO 2: Enviar a pesquisa de satisfação INTERATIVA
-// =======================================================
 const sendSatisfactionSurvey = async (clientPhone, orcamentoId) => {
     try {
+        // Este é o objeto que define a mensagem interativa de lista
         const interactiveMessage = {
             interactive: {
                 type: 'list',
@@ -55,15 +76,23 @@ const sendSatisfactionSurvey = async (clientPhone, orcamentoId) => {
                 }
             }
         };
+
+        // A chamada à API da Twilio usando o Content API
         await twilioClient.messages.create({
             from: twilioPhoneNumber,
             to: `whatsapp:${clientPhone}`,
-            contentSid: process.env.TWILIO_CONTENT_SID,
-            contentVariables: JSON.stringify(interactiveMessage)
+            contentSid: process.env.TWILIO_CONTENT_SID, // Essencial que esta variável esteja no seu .env
+            contentVariables: JSON.stringify({
+                1: orcamentoId // Passa o ID do orçamento como variável para o template
+            })
         });
+        
         console.log(`[Whatsapp Service] Pesquisa de satisfação enviada para ${clientPhone}.`);
+
     } catch (error) {
         console.error(`[Whatsapp Service] Erro ao enviar pesquisa de satisfação:`, error.message);
+        // Lançamos o erro para que o job que chamou esta função saiba que algo falhou.
+        throw error;
     }
 };
 
@@ -111,21 +140,31 @@ const handleIncomingMessage = async (req) => {
                 mediaUrls.push(req.body[`MediaUrl${i}`]);
             }
         }
+        const prestadorPhone = process.env.PRESTADOR_TELEFONE;
+         const interactiveReplyId = Body || ButtonPayload; 
+
 
         // ETAPA 1: Processar respostas de botões/listas primeiro
-        if (ButtonPayload && ButtonPayload.startsWith('rating_')) {
-            const parts = ButtonPayload.split('_');
+         if (interactiveReplyId && interactiveReplyId.startsWith('rating_')) {
+            console.log(`[SERVICE] Recebida avaliação via interactiveReplyId: ${interactiveReplyId}`);
+            const parts = interactiveReplyId.split('_'); // Usamos a variável unificada
             const nota = parseInt(parts[1], 10);
             const orcamentoId = parts[2];
+            
+            // O resto da sua lógica de salvar a nota continua exatamente igual...
             const orcamento = await Orcamento.findById(orcamentoId);
             if (orcamento && !orcamento.notaSatisfacao) {
                 orcamento.notaSatisfacao = nota;
                 orcamento.historico.push({ evento: `Cliente avaliou o serviço com nota ${nota}.` });
                 await orcamento.save();
                 await sendWhatsAppMessage(senderPhone, 'Obrigado pelo seu feedback! 👍');
+            } else if (orcamento && orcamento.notaSatisfacao) {
+                // Opcional: Responder se o cliente tentar avaliar de novo
+                await sendWhatsAppMessage(senderPhone, 'Este pedido já foi avaliado. Agradecemos novamente!');
             }
-            return; 
+            return; // Importante para não continuar para a lógica de conversa
         }
+        
 
         // ETAPA 2: Lógica de conversa normal
         let user = await Cliente.findOne({ telefone: senderPhone });
@@ -147,6 +186,41 @@ const handleIncomingMessage = async (req) => {
     const isPrestador = (numeroLimpoDoWhatsapp === numeroLimpoDoEnv);
     console.log('São iguais?', isPrestador);
     console.log('---------------------------');
+if (user && user.role === 'CLIENTE_FINAL' && user.conversationState === 'AWAITING_RATING') {
+    const textoAvaliacao = (Body || '').trim();
+    let nota = null;
+
+    // Lógica inteligente para "entender" a nota do cliente
+    if (textoAvaliacao.includes('⭐⭐⭐⭐⭐') || textoAvaliacao.match(/\b5\b/)) nota = 5;
+    else if (textoAvaliacao.includes('⭐⭐⭐⭐') || textoAvaliacao.match(/\b4\b/)) nota = 4;
+    else if (textoAvaliacao.includes('⭐⭐⭐') || textoAvaliacao.match(/\b3\b/)) nota = 3;
+    else if (textoAvaliacao.includes('⭐⭐') || textoAvaliacao.match(/\b2\b/)) nota = 2;
+    else if (textoAvaliacao.includes('⭐') || textoAvaliacao.match(/\b1\b/)) nota = 1;
+
+    if (nota !== null && user.pendingRating && user.pendingRating.orcamentoId) {
+        // Encontrámos a nota E sabemos qual pedido avaliar!
+        const orcamentoId = user.pendingRating.orcamentoId;
+        const orcamento = await Orcamento.findById(orcamentoId);
+
+        if (orcamento) {
+            orcamento.notaSatisfacao = nota;
+            orcamento.historico.push({ evento: `Cliente avaliou o serviço com nota ${nota} via WhatsApp.` });
+            await orcamento.save();
+            await sendWhatsAppMessage(senderPhone, 'Obrigado pelo seu feedback! 👍');
+        }
+
+        // Limpa o estado e volta a conversa ao normal
+        user.conversationState = 'AWAITING_REQUEST_TYPE';
+        user.pendingRating = {};
+        await user.save();
+
+    } else {
+        // Não entendeu a nota, pede para tentar de novo
+        await sendWhatsAppMessage(senderPhone, 'Não entendi a sua avaliação. Por favor, escolha uma das opções da lista ou envie um número de 1 a 5.');
+    }
+    
+    return; // ESSENCIAL: Interrompe o resto da execução para não enviar o menu principal
+}
 
     if (isPrestador) {
         console.log(`[SERVICE] Número ${senderPhone} identificado como PRESTADOR.`);
@@ -223,7 +297,6 @@ const handleIncomingMessage = async (req) => {
                         await sendWhatsAppMessage(user.telefone, statusResponse);
                     } else if (option === '3') {
                         await sendWhatsAppMessage(user.telefone, "Entendido. A sua solicitação foi enviada. Um dos nossos atendentes irá entrar em contato consigo nesta conversa em breve.");
-                        const prestadorPhone = process.env.PRESTADOR_TELEFONE;
                         if (prestadorPhone) {
                             const clientPhoneNumber = user.telefone.replace(/\D/g, '');
                             const whatsappLink = `https://wa.me/${clientPhoneNumber}`;
@@ -280,23 +353,64 @@ const handleIncomingMessage = async (req) => {
                     await sendWhatsAppMessage(user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si.\n\n(Envie *voltar* para corrigir o endereço).");
                     break;
 
-                case 'AWAITING_AVAILABILITY':
-                    user.currentDemand.availability = messageBody;
-                    user.conversationState = 'COMPLETED';
-                    const newOrcamento = await Orcamento.create({
-                        cliente: user._id,
-                        tipo: 'ORCAMENTO',
-                        descricao: user.currentDemand.description,
-                        media: user.currentDemand.media,
-                        address: user.currentDemand.address,
-                        dataAgendamento: user.currentDemand.availability,
-                        historico: [{ evento: 'Pedido criado pelo cliente via WhatsApp.' }]
-                    });
+                // CÓDIGO CORRIGIDO E INTELIGENTE
+case 'AWAITING_AVAILABILITY':
+    // 1. Tenta "entender" a data e hora que o cliente enviou.
+    // Usamos o chrono-node para extrair a data do texto.
+    // A opção forwardDate garante que ele não pegue uma data no passado (ex: se hoje é dia 20 e o cliente diz "dia 18", ele entende que é do próximo mês).
+    const dataParseada = chrono.pt.parseDate(messageBody, new Date(), { forwardDate: true });
+
+    // 2. Se não entender a data, pede para o cliente tentar de novo.
+    if (!dataParseada) {
+        // A data é inválida! Não mudamos o estado da conversa.
+        // Apenas enviamos uma mensagem pedindo para tentar novamente.
+        await sendWhatsAppMessage(
+            user.telefone,
+            "Desculpe, não consegui entender a data que você informou. 🤔\n\nPoderia tentar de novo? Por favor, use um formato claro, como:\n\n• *18/07/2025 às 14:30*\n• *amanhã de manhã*\n• *sexta-feira ao meio-dia*"
+        );
+        // O break aqui interrompe e espera a próxima mensagem do cliente,
+        // ainda no estado AWAITING_AVAILABILITY.
+        break; 
+    }
+
+    // 3. Se a data for válida, prossegue com a criação do pedido.
+    // Se chegamos aqui, 'dataParseada' é um objeto Date válido!
+    user.conversationState = 'COMPLETED'; // Agora sim, mudamos o estado.
+    
+    const newOrcamento = await Orcamento.create({
+    cliente: user._id,
+    tipo: 'ORCAMENTO',
+    status: 'Agendado', // ✅ <--- ADICIONE ESTA LINHA
+    descricao: user.currentDemand.description,
+    media: user.currentDemand.media,
+    address: user.currentDemand.address,
+    dataAgendamento: dataParseada,
+    historico: [{ evento: 'Pedido criado pelo cliente via WhatsApp.' }]
+});
+
+    user.currentDemand = {}; // Limpa a demanda atual
+    await user.save();
+    
+    // Envia a confirmação para o cliente, com a data formatada corretamente.
+    await sendWhatsAppMessage(user.telefone, "Tudo certo! A sua solicitação foi registada com sucesso. Entraremos em contato em breve para confirmar.\n\nObrigado por usar o Faz & Resolve!");
+
+    // Notifica o prestador sobre o novo pedido.
+    const prestadorPhone = process.env.PRESTADOR_TELEFONE;
+    if(prestadorPhone) {
+        // Usamos .toLocaleString para mostrar a data de forma amigável para o prestador.
+        const dataFormatada = dataParseada.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        const notificationToPrestador = `🔔 *Novo Pedido Recebido!* (#${newOrcamento.shortId})\n\n` +
+                                      `*Cliente:* ${user.nome}\n` +
+                                      `*Descrição:* ${newOrcamento.descricao.slice(0, 80)}...\n` +
+                                      `*Sugestão de Data:* ${dataFormatada}\n\n` +
+                                      `Para ver todos os detalhes, envie: \`ver ${newOrcamento.shortId}\``;
+        await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
+    }
+    break;
                     user.currentDemand = {};
                     await user.save();
                     
                     await sendWhatsAppMessage(user.telefone, "Tudo certo! A sua solicitação foi registada. Entraremos em contato em breve para confirmar.\n\nObrigado por usar o Faz & Resolve!");
-                    const prestadorPhone = process.env.PRESTADOR_TELEFONE;
                     if(prestadorPhone) {
                         const notificationToPrestador = `🔔 *Novo Pedido Recebido!* (#${newOrcamento.shortId})\n\n` +
                                                       `*Cliente:* ${user.nome}\n` +

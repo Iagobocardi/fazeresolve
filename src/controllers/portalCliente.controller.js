@@ -5,7 +5,7 @@ const Orcamento = require('../models/orcamento.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const whatsappService = require('../services/whatsapp.service');
-
+const orcamentoService = require('../services/orcamento.service'); 
 
 // Lógica de Login
 const login = async (req, res) => {
@@ -97,47 +97,6 @@ const getMeuPedidoPorId = async (req, res) => {
     }
 };
 
-// Nova função para aprovar um pedido
-const aprovarPedido = async (req, res) => {
-    try {
-        const clienteId = req.cliente.id;
-        const pedidoId = req.params.id;
-
-        // A busca precisa do .populate() para termos acesso ao nome do cliente para a notificação
-        const orcamento = await Orcamento.findOne({ _id: pedidoId, cliente: clienteId }).populate('cliente', 'nome');
-
-        if (!orcamento) {
-            return res.status(404).json({ message: 'Pedido não encontrado.' });
-        }
-          if (!orcamento.valorProposto || orcamento.valorProposto <= 0) {
-            return res.status(400).json({ message: 'Este orçamento ainda não pode ser aprovado pois não tem um valor definido pelo prestador.' });
-        }
-        
-        orcamento.status = 'Aceito';
-        orcamento.historico.push({ evento: 'Orçamento aprovado pelo cliente.' });
-        await orcamento.save();
-
-        // ==========================================================
-        // ==> LÓGICA DE NOTIFICAÇÃO PARA O PRESTADOR ADICIONADA AQUI <==
-        // ==========================================================
-        const numeroPrestador = process.env.PRESTADOR_TELEFONE;
-        if (numeroPrestador) {
-            const clienteNome = orcamento.cliente.nome;
-            const pedidoId = orcamento.shortId;
-            const notificationMessage = `✅ Orçamento Aprovado!\n\nO cliente *${clienteNome}* aprovou o orçamento para o pedido *#${pedidoId}*.\n\nAcesse o painel para ver os detalhes.`;
-            
-            // Usamos o nosso serviço de WhatsApp para enviar a notificação
-            await whatsappService.sendWhatsAppMessage(numeroPrestador, notificationMessage);
-        }
-        // Fim da lógica de notificação
-        
-        res.status(200).json({ message: 'Pedido aprovado com sucesso!', orcamento });
-    } catch (error) {
-        console.error("ERRO em aprovarPedido:", error);
-        res.status(500).json({ message: 'Erro ao aprovar o pedido.' });
-    }
-};
-
 // Nova função para rejeitar um pedido
 const rejeitarPedido = async (req, res) => {
     try {
@@ -217,14 +176,47 @@ const sugerirAgendamento = async (req, res) => {
         res.status(500).json({ message: 'Erro ao sugerir agendamento.' });
     }
 };
+const aprovarOrcamento = async (req, res) => {
+    try {
+        const orcamentoId = req.params.id;
+        const clienteId = req.cliente.id;
+
+        // 1. Usa o serviço para mudar o status para "Aceito"
+        const orcamentoAtualizado = await orcamentoService.atualizarStatus(orcamentoId, 'Aceito');
+
+        // 2. Verificação de segurança
+        if (orcamentoAtualizado.cliente.toString() !== clienteId) {
+            return res.status(403).json({ error: "Acesso não autorizado." });
+        }
+
+        // 3. Notifica o prestador
+        const prestadorPhone = process.env.PRESTADOR_TELEFONE;
+        if (prestadorPhone) {
+            // Usamos a nova função do serviço para obter o nome do cliente
+            const clienteInfo = await orcamentoService.getClienteInfo(orcamentoId);
+            const notificacao = `🔔 Orçamento Aprovado!\n\nO cliente "${clienteInfo.nome}" aprovou o pedido #${orcamentoAtualizado.shortId}.\n\nO pedido está agora no estado "Aceito", pronto para agendamento.`;
+            //await whatsappService.sendWhatsAppMessage(prestadorPhone, notificacao);
+        }
+        
+        // 4. Envia a resposta de sucesso
+        res.status(200).json({ 
+            message: "Orçamento aprovado com sucesso!", 
+            orcamento: orcamentoAtualizado 
+        });
+
+    } catch (error) {
+        console.error("ERRO na rota /orcamentos/:id/aprovar:", error);
+        res.status(500).json({ error: error.message || 'Erro interno ao aprovar o orçamento.' });
+    }
+};
 // Não se esqueça de exportar a nova função!
 
 module.exports = {
     login,
     getMeusPedidos,
     getMeuPedidoPorId,
-    aprovarPedido,
     rejeitarPedido,
     ativarConta,
-    sugerirAgendamento
+    sugerirAgendamento,
+    aprovarOrcamento,
 };

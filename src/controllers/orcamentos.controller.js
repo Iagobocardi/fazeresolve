@@ -9,6 +9,7 @@ const Despesa = require('../models/despesa.model');
 const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
+const orcamentoService = require('../services/orcamento.service');
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
     return [
@@ -23,7 +24,29 @@ const getAllOrcamentos = async (req, res) => {
         const { search, statusPagamento, dataInicio, dataFim } = req.query;
 
         // Estágio inicial do pipeline de agregação
-        const pipeline = [];
+        const pipeline = [
+            // =======================================================
+            // 👉 CORREÇÃO DE LÓGICA APLICADA AQUI
+            // O $lookup deve vir PRIMEIRO, para que os dados do cliente
+            // estejam sempre disponíveis para a busca e para a exibição.
+            // =======================================================
+            {
+                $lookup: {
+                    from: 'clientes', // nome da sua collection de clientes
+                    localField: 'cliente',
+                    foreignField: '_id',
+                    as: 'clienteInfo'
+                }
+            },
+            // Usamos um unwind mais seguro, que não descarta pedidos
+            // se o cliente por acaso for deletado.
+            {
+                $unwind: {
+                    path: '$clienteInfo',
+                    preserveNullAndEmptyArrays: true 
+                }
+            }
+        ];
 
         // 1. Adicionar campos calculados para facilitar a filtragem
         pipeline.push({
@@ -32,14 +55,8 @@ const getAllOrcamentos = async (req, res) => {
                 statusPagamentoCalculado: {
                     $switch: {
                         branches: [
-                            {
-                                case: { $eq: [{ $sum: '$pagamentos.valor' }, 0] },
-                                then: 'pendente'
-                            },
-                            {
-                                case: { $gte: [{ $sum: '$pagamentos.valor' }, '$valorProposto'] },
-                                then: 'pago'
-                            }
+                            { case: { $eq: [{ $sum: '$pagamentos.valor' }, 0] }, then: 'pendente' },
+                            { case: { $gte: [{ $sum: '$pagamentos.valor' }, '$valorProposto'] }, then: 'pago' }
                         ],
                         default: 'parcial'
                     }
@@ -51,19 +68,6 @@ const getAllOrcamentos = async (req, res) => {
         const matchStage = {};
 
         if (search) {
-            // Para a busca funcionar, precisamos fazer um $lookup para buscar os dados do cliente
-            pipeline.unshift({
-                $lookup: {
-                    from: 'clientes', // nome da sua collection de clientes
-                    localField: 'cliente',
-                    foreignField: '_id',
-                    as: 'clienteInfo'
-                }
-            },
-            {
-                $unwind: '$clienteInfo'
-            });
-            
             const regex = new RegExp(search, 'i');
             matchStage.$or = [
                 { 'clienteInfo.nome': regex },
@@ -79,35 +83,35 @@ const getAllOrcamentos = async (req, res) => {
         if (dataInicio && dataFim) {
             matchStage.data = {
                 $gte: new Date(dataInicio),
-                $lte: new Date(new Date(dataFim).setDate(new Date(dataFim).getDate() + 1)) // Inclui o dia final
+                $lte: new Date(new Date(dataFim).setDate(new Date(dataFim).getDate() + 1))
             };
         }
         
-        // Adiciona o estágio de $match ao pipeline se houver filtros
         if (Object.keys(matchStage).length > 0) {
             pipeline.push({ $match: matchStage });
         }
         
-        // Ordena os resultados
         pipeline.push({ $sort: { 'data': -1 } });
 
         const orcamentos = await Orcamento.aggregate(pipeline);
-        
-        // Como o populate não funciona com aggregate, re-populamos o cliente se necessário
-        // (O lookup acima já faz isso, mas se precisar de mais dados, aqui é o lugar)
 
-        res.json(orcamentos);
+        // Renomeia clienteInfo para cliente para consistência
+        const orcamentosComCliente = orcamentos.map(orc => ({
+            ...orc,
+            cliente: orc.clienteInfo 
+        }));
+
+        res.json(orcamentosComCliente);
         
     } catch (error) {
         console.error("Erro ao buscar orçamentos com filtros:", error);
         res.status(500).json({ message: error.message });
     }
 };
-
 // Obtém um orçamento por ID
 const getOrcamentoById = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome');
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone');
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
@@ -177,110 +181,61 @@ const getRecentOrcamentos = async (req, res) => {
 const updateOrcamentoStatus = async (req, res) => {
     try {
         const { status } = req.body;
-        const allowedStatus = ['Pendente', 'Aceito', 'Agendado', 'Finalizado', 'Rejeitado'];
-        if (!allowedStatus.includes(status)) {
-            return res.status(400).json({ error: 'Status inválido fornecido.' });
-        }
+        const orcamentoId = req.params.id;
 
-        // CORREÇÃO: Adicionado o .populate('cliente') para termos acesso ao telefone
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
-        if (!orcamento) {
-            return res.status(404).json({ error: 'Orçamento não encontrado.' });
-        }
-        
-        const statusAntigo = orcamento.status;
-        
-        orcamento.status = status;
-        orcamento.historico.push({ evento: `Status alterado para "${status}".` });
+        // Chama o serviço para executar a lógica de negócio
+        const orcamentoAtualizado = await orcamentoService.atualizarStatus(orcamentoId, status);
 
-        if (status === 'Finalizado') {
-            orcamento.dataFinalizacao = new Date();
-            if (statusAntigo !== 'Finalizado' && !orcamento.pesquisaEnviada) {
-                if (orcamento.cliente && orcamento.cliente.telefone) {
-                    await whatsappService.sendSatisfactionSurvey(orcamento.cliente.telefone, orcamento._id);
-                    orcamento.pesquisaEnviada = true;
-                }
-            }
-        }
-        
-        const orcamentoAtualizado = await orcamento.save();
+        // Envia a resposta HTTP de sucesso
         res.status(200).json(orcamentoAtualizado);
+
     } catch (error) {
-        console.error("ERRO em updateOrcamentoStatus:", error);
-        res.status(500).json({ error: 'Erro ao atualizar status do orçamento.' });
+        // Apanha qualquer erro lançado pelo serviço
+        console.error("ERRO na rota updateOrcamentoStatus:", error);
+        res.status(500).json({ error: error.message || 'Erro ao atualizar status do orçamento.' });
     }
 };
-// Adicione esta nova função ao seu ficheiro:
-// Em: src/controllers/orcamentos.controller.js
-
 const submitOrcamento = async (req, res) => {
     try {
         const { valorProposto } = req.body;
-        if (!valorProposto || isNaN(valorProposto) || valorProposto <= 0) {
-            return res.status(400).json({ error: 'Valor do orçamento é obrigatório e deve ser um número positivo.' });
-        }
+        const orcamentoId = req.params.id;
 
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
-        if (!orcamento) {
-            return res.status(404).json({ error: 'Orçamento não encontrado.' });
-        }
-
-         orcamento.valorProposto = parseFloat(valorProposto);
-        orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} proposto ao cliente.` });
+        // O controller chama o serviço, que contém toda a lógica.
+        const orcamentoAtualizado = await orcamentoService.submeterOrcamento(orcamentoId, valorProposto);
         
-        await orcamento.save();
+        // Envia a resposta HTTP.
+        res.status(200).json(orcamentoAtualizado);
 
-        if (orcamento.cliente && orcamento.cliente.telefone) {
-            // --- CORREÇÃO APLICADA AQUI ---
-            // Usamos o método nativo do JavaScript para formatar a moeda.
-            const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto);
-            const notificationMessage = `Boas notícias, ${orcamento.cliente.nome}! O seu orçamento para o pedido #${orcamento.shortId} está pronto.\n\n*Valor:* ${valorFormatado}\n\nPara aprovar, entre em contato connosco.`;
-            
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
-        }
-
-        res.status(200).json(orcamento);
     } catch (error) {
-        // O erro que você viu aconteceu aqui dentro, então o log é importante.
-        console.error("ERRO em submitOrcamento:", error);
-        res.status(500).json({ error: 'Erro ao submeter o orçamento.' });
+        // Apanha erros lançados pelo serviço, como 'Valor inválido' ou 'Orçamento não encontrado'.
+        console.error("ERRO na rota submitOrcamento:", error);
+        // Retorna o status 400 (Bad Request) para erros de validação, o que é mais semântico.
+        if (error.message.includes('Valor') || error.message.includes('obrigatório')) {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: error.message || 'Erro interno ao submeter o orçamento.' });
     }
 };
 const scheduleOrcamento = async (req, res) => {
     try {
         const { dataAgendamento } = req.body;
+        const orcamentoId = req.params.id;
+
         if (!dataAgendamento) {
             return res.status(400).json({ error: 'A data de agendamento é obrigatória.' });
         }
-
-        // CORREÇÃO: Garante que o cliente é populado para a notificação
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente');
-        if (!orcamento) {
-            return res.status(404).json({ error: 'Orçamento não encontrado.' });
-        }
         
-        const isReagendamento = orcamento.status === 'Agendado';
-        
-        orcamento.status = 'Agendado';
-        orcamento.dataAgendamento = dataAgendamento;
-        orcamento.historico.push({ evento: `Serviço agendado para ${dataAgendamento}.` });
-        orcamento.sugestaoAgendamentoCliente = null; // <-- ADICIONE ESTA LINHA para limpar a sugestão
-        
-        const orcamentoAtualizado = await orcamento.save();
+        // O controller agora apenas chama o serviço, passando os dados necessários.
+        // Toda a lógica complexa está no orcamento.service.js
+        const orcamentoAtualizado = await orcamentoService.agendarServico(orcamentoId, dataAgendamento);
 
- if (orcamento.cliente && orcamento.cliente.telefone) {
-            const tipoAcao = isReagendamento ? "REAGENDADO" : "AGENDADO";
-            
-            // Mensagem personalizada baseada na ação
-            const notificationMessage = `Serviço *${tipoAcao}*!\n\nOlá, ${orcamento.cliente.nome}. O seu serviço para o pedido #${orcamento.shortId} foi ${isReagendamento ? 'reagendado para' : 'agendado para'}:\n\n*Data e Hora:* ${dataAgendamento}\n\nAté breve!`;
-            
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, notificationMessage);
-        }
-
+        // A única responsabilidade do controller é enviar a resposta HTTP.
         res.status(200).json(orcamentoAtualizado);
+
     } catch (error) {
-        console.error("ERRO em scheduleOrcamento:", error);
-        res.status(500).json({ error: 'Erro ao agendar o serviço.' });
+        // O erro lançado pelo serviço (ex: 'Orçamento não encontrado') é apanhado aqui.
+        console.error("ERRO na rota scheduleOrcamento:", error);
+        res.status(500).json({ error: error.message || 'Erro interno ao agendar o serviço.' });
     }
 };
 const updateNotasInternas = async (req, res) => {
@@ -373,93 +328,52 @@ const registrarAvaliacao = async (req, res) => {
 
 const getAgendamentosParaCalendario = async (req, res) => {
     try {
-        const pedidosAgendados = await Orcamento.find({
+        const orcamentosAgendados = await Orcamento.find({
             status: 'Agendado',
             dataAgendamento: { $exists: true, $ne: null }
-        }).populate('cliente', 'nome');
+        })
+        .populate('cliente', 'nome telefone')
+        .select('dataAgendamento descricao cliente');
 
-        // Formata os dados para o formato que o FullCalendar espera
-        const eventos = pedidosAgendados.map(pedido => {
-            // Tenta extrair data e hora da string de agendamento
-            const [data, hora] = pedido.dataAgendamento.split(' às ');
-            const startDateTime = data && hora ? new Date(`${data}T${hora}`) : new Date(pedido.dataAgendamento);
+        // ✅ FILTRO DE SEGURANÇA ADICIONADO AQUI
+        // Antes de tentar formatar os dados, nós garantimos que não há nenhum pedido
+        // com cliente ou data faltando, prevenindo o erro.
+        const eventos = orcamentosAgendados
+            .filter(orcamento => orcamento && orcamento.cliente && orcamento.dataAgendamento)
+            .map(orcamento => {
+                const tituloEvento = `Serviço para: ${orcamento.cliente.nome || 'Cliente Removido'}`;
 
-            // Se a data for inválida, pula este evento para não quebrar o calendário
-            if (isNaN(startDateTime.getTime())) {
-                return null;
-            }
-
-            return {
-                id: pedido._id,
-                title: `#${pedido.shortId} - ${pedido.cliente?.nome || 'Cliente Removido'}`,
-                start: startDateTime,
-                allDay: !hora // Se não houver hora especificada, trata como evento de dia inteiro
-            };
-        }).filter(Boolean); // Remove quaisquer eventos nulos (com datas inválidas)
+                return {
+                    id: orcamento._id,
+                    title: tituloEvento,
+                    start: orcamento.dataAgendamento,
+                };
+            });
 
         res.status(200).json(eventos);
 
     } catch (error) {
         console.error("ERRO em getAgendamentosParaCalendario:", error);
-        res.status(500).json({ message: 'Erro ao buscar agendamentos.' });
+        res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
     }
 };
 const adicionarMaterialAoPedido = async (req, res) => {
     try {
         const { orcamentoId } = req.params;
         const { produtoId, quantidade } = req.body;
-        const quantidadeNum = Number(quantidade);
 
-        if (!produtoId || !quantidadeNum || quantidadeNum <= 0) {
-            return res.status(400).json({ message: "ID do produto e quantidade são obrigatórios." });
-        }
+        // O controller apenas delega a tarefa para o serviço
+        const orcamentoAtualizado = await orcamentoService.adicionarMaterial(orcamentoId, produtoId, quantidade);
 
-        // 1. Encontra o produto e o orçamento em paralelo
-        const [produto, orcamento] = await Promise.all([
-            Produto.findById(produtoId),
-            Orcamento.findById(orcamentoId)
-        ]);
-
-        if (!produto || !orcamento) {
-            return res.status(404).json({ message: "Pedido ou produto não encontrado." });
-        }
-
-        // 2. Verifica se há estoque suficiente
-        if (produto.quantidadeEmEstoque < quantidadeNum) {
-            return res.status(400).json({ message: `Estoque insuficiente para "${produto.nome}". Apenas ${produto.quantidadeEmEstoque} em estoque.` });
-        }
-
-        // 3. Atualiza a quantidade de estoque do produto
-        produto.quantidadeEmEstoque -= quantidadeNum;
-        
-        // 4. Adiciona o material à lista do pedido
-        orcamento.materiaisUsados.push({
-            produto: produtoId,
-            quantidade: quantidadeNum,
-            custoNoMomento: produto.custoUnitario // Guarda o "preço de custo" daquele momento
-        });
-
-        // 5. Cria um registo no histórico de movimentações
-        const movimento = new MovimentoEstoque({
-            produto: produtoId,
-            tipo: 'Saída',
-            quantidade: quantidadeNum,
-            motivo: `Uso no Pedido #${orcamento.shortId}`,
-            orcamentoAssociado: orcamentoId
-        });
-
-        // 6. Salva todas as alterações no banco de dados
-        await Promise.all([
-            produto.save(),
-            orcamento.save(),
-            movimento.save()
-        ]);
-
-        res.status(200).json({ message: "Material adicionado com sucesso!", orcamento });
+        res.status(200).json({ message: "Material adicionado com sucesso!", orcamento: orcamentoAtualizado });
 
     } catch (error) {
-        console.error("ERRO em adicionarMaterialAoPedido:", error);
-        res.status(500).json({ message: 'Erro ao adicionar material ao pedido.' });
+        console.error("ERRO na rota adicionarMaterialAoPedido:", error);
+        // Retorna um status 400 (Bad Request) para erros de validação (ex: stock insuficiente)
+        if (error.message.includes('insuficiente') || error.message.includes('obrigatórios')) {
+            return res.status(400).json({ message: error.message });
+        }
+        res.status(500).json({ message: 'Erro interno ao adicionar material ao pedido.' });
     }
 };
 const updateDetalhesOperacionais = async (req, res) => {
@@ -561,7 +475,7 @@ const preencherTemplate = (templatePath, dados) => {
 
 const gerarFaturaPDF = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente'); // <-- CORRIGIDO AQUI
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone'); // <-- CORRIGIDO AQUI
         if (!orcamento) {
             return res.status(404).send('Orçamento não encontrado.');
         }
@@ -584,7 +498,7 @@ const gerarFaturaPDF = async (req, res) => {
 // --- VERSÃO CORRIGIDA ---
 const gerarOrcamentoPDF = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente'); // <-- CORRIGIDO AQUI
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone'); // <-- CORRIGIDO AQUI
         if (!orcamento) {
             return res.status(404).send('Orçamento não encontrado.');
         }
@@ -667,7 +581,7 @@ const getAgendadosParaCalendario = async (req, res) => {
     status: 'Agendado',
     dataAgendamento: { $exists: true, $ne: null }
 })
-.populate('cliente', 'nome')
+.populate('cliente', 'nome telefone')
 .select('dataAgendamento descricao cliente');
 
         // 2. Transforma os dados do MongoDB para o formato que o FullCalendar espera

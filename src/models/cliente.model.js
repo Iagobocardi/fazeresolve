@@ -24,7 +24,7 @@ password: {
     role: { type: String, required: true, enum: ['CLIENTE_FINAL', 'PRESTADOR'], default: 'CLIENTE_FINAL' },
     conversationState: {
         type: String,
-        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_SATISFACTION_RATING'],
+        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_RATING'],
         default: 'NONE'
     },
     currentDemand: {

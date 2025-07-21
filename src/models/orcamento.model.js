@@ -19,7 +19,7 @@ const orcamentoSchema = new mongoose.Schema({
         default: 'ORCAMENTO'
     },
     shortId: { type: String, unique: true },
-    dataAgendamento: { type: String },
+    dataAgendamento: { type: Date },
     address: { type: String },
 
     // --- Campos de Satisfação ---

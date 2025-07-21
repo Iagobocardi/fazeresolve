@@ -1,27 +1,28 @@
-// src/routes/portalCliente.routes.js
+// Ficheiro: src/routes/portalCliente.routes.js (VERSÃO CORRIGIDA E FINAL)
 
 const express = require('express');
 const router = express.Router();
-const portalClienteController = require('../controllers/portalCliente.controller');
-const authClienteMiddleware = require('../middlewares/authCliente.middleware.js');
+
+// 1. Importa o controller e o middleware UMA VEZ com nomes consistentes.
+const portalClienteController = require('../controllers/portalCliente.controller.js');
+const authCliente = require('../middlewares/authCliente.middleware.js');
 
 // --- Rotas Públicas ---
 router.post('/login', portalClienteController.login);
 router.post('/ativar-conta', portalClienteController.ativarConta);
 
+// --- Rotas Protegidas (exigem que o cliente esteja logado) ---
 
-// Busca a LISTA de pedidos do cliente logado
-router.get('/pedidos', authClienteMiddleware, portalClienteController.getMeusPedidos);
+// 2. Mantém as suas rotas GET consistentes (usando /pedidos)
+router.get('/pedidos', authCliente, portalClienteController.getMeusPedidos);
+router.get('/pedidos/:id', authCliente, portalClienteController.getMeuPedidoPorId);
 
-// ===============================================
-// ==> A ROTA QUE FALTAVA FOI ADICIONADA AQUI <==
-// ===============================================
-// Busca UM pedido específico pelo ID
-router.get('/pedidos/:id', authClienteMiddleware, portalClienteController.getMeuPedidoPorId);
+// 3. Centraliza TODAS as ações de um pedido (aprovar, rejeitar, etc.)
+//    numa única rota base para consistência. A rota de aprovação agora
+//    chama a ÚNICA função correta: `aprovarOrcamento`.
+router.post('/pedidos/:id/aprovar', authCliente, portalClienteController.aprovarOrcamento);
+router.post('/pedidos/:id/rejeitar', authCliente, portalClienteController.rejeitarPedido);
+router.post('/pedidos/:id/sugerir-agendamento', authCliente, portalClienteController.sugerirAgendamento);
 
-// Ações para um pedido específico
-router.post('/pedidos/:id/aprovar', authClienteMiddleware, portalClienteController.aprovarPedido);
-router.post('/pedidos/:id/rejeitar', authClienteMiddleware, portalClienteController.rejeitarPedido);
-router.post('/pedidos/:id/sugerir-agendamento', authClienteMiddleware, portalClienteController.sugerirAgendamento);
 
 module.exports = router;
