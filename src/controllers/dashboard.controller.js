@@ -3,7 +3,7 @@
 
 const Orcamento = require('../models/orcamento.model');
 
-const getDashboardData = async (req, res) => {
+exports.getDashboardData = async (req, res) => {
     try {
         const umMesAtras = new Date();
         umMesAtras.setMonth(umMesAtras.getMonth() - 1);
@@ -60,5 +60,24 @@ const getDashboardData = async (req, res) => {
         res.status(500).json({ error: 'Erro ao buscar dados do dashboard.' });
     }
 };
+// ADICIONE ESTA NOVA FUNÇÃO
+exports.getProximosAgendamentos = async (req, res) => {
+  try {
+    const hoje = new Date();
+    
+    // CORREÇÃO AQUI: Usar a variável correta "Orcamento"
+    const proximosAgendamentos = await Orcamento.find({
+      status: 'Agendado',
+      dataAgendamento: { $gte: hoje }
+    })
+    .sort({ dataAgendamento: 1 })
+    .limit(5)
+    .populate('cliente', 'nome');
 
-module.exports = { getDashboardData };
+    res.json(proximosAgendamentos);
+
+  } catch (error) {
+    console.error('Erro ao buscar próximos agendamentos:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
