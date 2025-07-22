@@ -96,3 +96,19 @@ exports.getPedidosPendentes = async (req, res) => {
     res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
+exports.getPagamentosAtrasados = async (req, res) => {
+  try {
+    const pagamentosAtrasados = await Orcamento.find({
+      status: 'Finalizado',
+      statusPagamento: { $ne: 'Pago' } // Onde o status de pagamento NÃO SEJA 'Pago'
+    })
+    .sort({ dataFinalizacao: 1 }) // Ordena pelos finalizados mais antigos primeiro
+    .limit(5)
+    .populate('cliente', 'nome');
+
+    res.json(pagamentosAtrasados);
+  } catch (error) {
+    console.error('Erro ao buscar pagamentos em atraso:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
