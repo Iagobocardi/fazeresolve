@@ -9,5 +9,5 @@ router.get('/', dashboardController.getDashboardData);
 
 // Rota para os próximos agendamentos (agora mais limpa)
 router.get('/proximos-agendamentos', dashboardController.getProximosAgendamentos);
-
+router.get('/pedidos-pendentes', dashboardController.getPedidosPendentes);
 module.exports = router;

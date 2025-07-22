@@ -81,3 +81,18 @@ exports.getProximosAgendamentos = async (req, res) => {
     res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
+exports.getPedidosPendentes = async (req, res) => {
+  try {
+    const pedidosPendentes = await Orcamento.find({
+      status: 'Pendente',
+    })
+    .sort({ data: 1 }) // Ordena pelos mais antigos primeiro
+    .limit(5)
+    .populate('cliente', 'nome'); // Inclui o nome do cliente
+
+    res.json(pedidosPendentes);
+  } catch (error) {
+    console.error('Erro ao buscar pedidos pendentes:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
