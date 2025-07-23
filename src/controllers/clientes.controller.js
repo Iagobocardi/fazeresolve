@@ -2,12 +2,14 @@ const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const crypto = require('crypto');
 const whatsappService = require('../services/whatsapp.service');
+const mongoose = require('mongoose');
 
 // Função para listar todos os clientes e contar os seus pedidos
 const getAllClientes = async (req, res) => {
     try {
-        const clientesComPedidos = await Cliente.aggregate([
+        const clientesComDados = await Cliente.aggregate([
             {
+                // 1. Juntar os clientes com os seus respetivos pedidos (orçamentos)
                 $lookup: {
                     from: Orcamento.collection.name,
                     localField: '_id',
@@ -16,20 +18,50 @@ const getAllClientes = async (req, res) => {
                 }
             },
             {
+                // 2. Adicionar novos campos para calcular os totais
+                $addFields: {
+                    // Conta o número total de pedidos
+                    totalPedidos: { $size: '$pedidos' },
+                    // Calcula o valor total gasto apenas em pedidos 'Finalizado'
+                    valorTotalGasto: {
+                        $sum: {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: '$pedidos',
+                                        as: 'pedido',
+                                        cond: { $eq: ['$$pedido.status', 'Finalizado'] }
+                                    }
+                                },
+                                as: 'pedidoFinalizado',
+                                in: '$$pedidoFinalizado.valorProposto'
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                // 3. Definir quais campos queremos na resposta final
                 $project: {
                     nome: 1,
                     telefone: 1,
-                    role: 1,
-                    createdAt: 1,
-                    totalPedidos: { $size: '$pedidos' }
+                    totalPedidos: 1,
+                    valorTotalGasto: 1,
+                    // pode adicionar outros campos do cliente aqui se necessário
                 }
             },
-            { $sort: { nome: 1 } }
+            {
+                // 4. Ordenar por quem gastou mais
+                $sort: {
+                    valorTotalGasto: -1
+                }
+            }
         ]);
-        res.status(200).json(clientesComPedidos);
+
+        res.status(200).json(clientesComDados);
     } catch (error) {
-        console.error("ERRO em getAllClientes:", error);
-        res.status(500).json({ error: 'Erro ao buscar clientes.' });
+        console.error("Erro ao buscar clientes com dados agregados:", error);
+        res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
     }
 };
 

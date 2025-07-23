@@ -605,6 +605,36 @@ const getAgendadosParaCalendario = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
     }
 };
+const marcarComoPago = async (req, res) => {
+    try {
+        const pedido = await Orcamento.findById(req.params.id);
+        if (!pedido) {
+            return res.status(404).json({ message: "Pedido não encontrado." });
+        }
+
+        const valorTotal = pedido.valorProposto || 0;
+        const totalJaPago = pedido.pagamentos.reduce((acc, p) => acc + p.valor, 0);
+        const valorRestante = valorTotal - totalJaPago;
+
+        if (valorRestante > 0) {
+            pedido.pagamentos.push({
+                valor: valorRestante,
+                metodo: 'Automático',
+                observacao: 'Pagamento liquidado pela ação rápida.'
+            });
+        }
+        
+        pedido.statusPagamento = 'Pago';
+        pedido.historico.push({ evento: `Status do pagamento alterado para "Pago" (Ação Rápida).` });
+
+        const pedidoAtualizado = await pedido.save();
+        res.status(200).json(pedidoAtualizado);
+
+    } catch (error) {
+        console.error("Erro ao marcar como pago:", error);
+        res.status(500).json({ message: "Ocorreu um erro no servidor." });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -631,4 +661,5 @@ module.exports = {
     adicionarPagamento,
     removerPagamento,
     getAgendadosParaCalendario,
+    marcarComoPago
 };

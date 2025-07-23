@@ -38,5 +38,7 @@ router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.up
 router.delete('/:id', orcamentosController.deleteOrcamento)
 router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoPedido);
 
+//  Rota para a ação rápida de marcar como pago
+router.post('/:id/marcar-pago', orcamentosController.marcarComoPago);
 
 module.exports = router;
