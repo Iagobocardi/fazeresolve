@@ -20,9 +20,6 @@ const despesasRoutes = require('./src/routes/despesas.routes');
 const produtosRoutes = require('./src/routes/produtos.routes.js');
 const authRoutes = require('./src/routes/auth.routes');
 const portalClienteRoutes = require('./src/routes/portalCliente.routes');
-
-
-
 // PASSO 4: Inicialização da aplicação Express
 const app = express();
 app.use(cors()); // Diz à sua aplicação para permitir pedidos de outros "endereços"
@@ -47,6 +44,7 @@ const statsRoutes = require('./src/routes/stats.routes.js');
 const dashboardRoutes = require('./src/routes/dashboard.routes');
 const fornecedorRoutes = require('./src/routes/fornecedores.routes.js');
 const configuracaoRoutes = require('./src/routes/configuracao.routes.js');
+const produtosFornecedorRoutes = require('./src/routes/produtosFornecedor.routes.js');
 
 // PASSO 8: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
@@ -66,6 +64,7 @@ app.use('/api/portal-cliente', portalClienteRoutes);
 app.use(express.static('public'));
 app.use('/api/fornecedores', fornecedorRoutes);
 app.use('/api/configuracoes', configuracaoRoutes);
+app.use('/api/fornecedores', produtosFornecedorRoutes);
 
 
 // Rota de teste para verificar se o servidor está online
