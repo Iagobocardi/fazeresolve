@@ -5,6 +5,7 @@ const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
 const commandParser = require('./commandParser.js');
 const chrono = require('chrono-node');
+const axios = require('axios');
 
 // 1. Cliente Twilio e número de telefone definidos UMA VEZ no topo.
 const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -341,17 +342,49 @@ if (user && user.role === 'CLIENTE_FINAL' && user.conversationState === 'AWAITIN
                     if (mediaUrls && mediaUrls.length > 0) {
                         user.currentDemand.media = mediaUrls.map(url => ({ url: url, sid: url.split('/').pop() }));
                     }
-                    user.conversationState = 'AWAITING_ADDRESS';
-                    await user.save();
-                    await sendWhatsAppMessage(user.telefone, "Recebido! Agora, por favor, informe o seu endereço completo.\n\n(Envie *voltar* para corrigir a descrição).");
-                    break;
+                    user.conversationState = 'AWAITING_CEP'; // Próximo passo: pedir o CEP
+        await user.save();
+        await sendWhatsAppMessage(user.telefone, "Descrição recebida! 👍\n\nPara agilizar, por favor, digite o seu *CEP* (apenas números, ex: 18270000).");
+        break;
 
-                case 'AWAITING_ADDRESS':
-                    user.currentDemand.address = messageBody;
-                    user.conversationState = 'AWAITING_AVAILABILITY';
-                    await user.save();
-                    await sendWhatsAppMessage(user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si.\n\n(Envie *voltar* para corrigir o endereço).");
-                    break;
+        case 'AWAITING_CEP': // <-- NOVA ETAPA
+        const cepRegex = /^\d{5}-?\d{3}$/;
+        if (!cepRegex.test(messageBody.trim())) {
+            await sendWhatsAppMessage(user.telefone, "CEP inválido. Por favor, envie um CEP válido, como `18270-000` ou `18270000`.");
+            return; // Continua a aguardar um CEP válido
+        }
+         try {
+            const cepLimpo = messageBody.replace(/\D/g, '');
+            const { data } = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+
+            if (data.erro) {
+                await sendWhatsAppMessage(user.telefone, 'CEP não encontrado. Por favor, verifique e envie novamente.');
+                return;
+            }
+              user.currentDemand.addressData = {
+                rua: data.logradouro,
+                bairro: data.bairro,
+                cidade: data.localidade,
+                uf: data.uf,
+            };
+              user.conversationState = 'AWAITING_NUMERO'; // Próximo passo: pedir o número
+            await user.save();
+              } catch (error) {
+            await sendWhatsAppMessage(user.telefone, 'Ocorreu um erro ao consultar o seu CEP. Por favor, tente novamente.');
+        }
+        break;
+         case 'AWAITING_NUMERO': // <-- NOVA ETAPA
+        const { rua, bairro, cidade, uf } = user.currentDemand.addressData;
+        const numeroEComplemento = messageBody;
+        const enderecoCompleto = `${rua}, ${numeroEComplemento}, ${bairro}, ${cidade} - ${uf}`;
+        
+        user.currentDemand.address = enderecoCompleto;
+        user.conversationState = 'AWAITING_AVAILABILITY'; // Próximo passo: pedir a data
+        await user.save();
+
+         await sendWhatsAppMessage(user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si (ex: 'amanhã à tarde', 'sábado de manhã').");
+        break;
+
 
                 // CÓDIGO CORRIGIDO E INTELIGENTE
 case 'AWAITING_AVAILABILITY':

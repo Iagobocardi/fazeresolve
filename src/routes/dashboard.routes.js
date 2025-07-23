@@ -11,4 +11,6 @@ router.get('/', dashboardController.getDashboardData);
 router.get('/proximos-agendamentos', dashboardController.getProximosAgendamentos);
 router.get('/pedidos-pendentes', dashboardController.getPedidosPendentes);
 router.get('/pagamentos-atrasados', dashboardController.getPagamentosAtrasados);
+router.get('/top-regioes', dashboardController.getTopRegioes);
+router.get('/pedidos-coordenadas', dashboardController.getPedidosCoordenadas);
 module.exports = router;

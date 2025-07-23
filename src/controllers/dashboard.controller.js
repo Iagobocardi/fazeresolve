@@ -2,7 +2,15 @@
 // SUBSTITUA A FUNÇÃO DE TESTE POR ESTA VERSÃO ORIGINAL
 
 const Orcamento = require('../models/orcamento.model');
+const NodeGeocoder = require('node-geocoder');
 
+// Configuração do Geocoder (use a sua chave de API do Google Maps)
+const options = {
+  provider: 'google',
+  apiKey: 'AIzaSyDoErNIO8j-qr34f64QBP6CaOYI5G1Kgkg', // Substitua pela sua chave
+  formatter: null
+};
+const geocoder = NodeGeocoder(options);
 exports.getDashboardData = async (req, res) => {
     try {
         const umMesAtras = new Date();
@@ -110,5 +118,75 @@ exports.getPagamentosAtrasados = async (req, res) => {
   } catch (error) {
     console.error('Erro ao buscar pagamentos em atraso:', error);
     res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+exports.getTopRegioes = async (req, res) => {
+  try {
+    const topRegioes = await Orcamento.aggregate([
+      // 1. Considerar apenas pedidos que tenham um endereço
+      { $match: { address: { $exists: true, $ne: "" } } },
+      
+      // 2. Agrupar por endereço e contar as ocorrências
+      { $group: {
+          _id: '$address', // Agrupa pelo campo do endereço
+          count: { $sum: 1 }
+      }},
+      
+      // 3. Ordenar pelos mais populares
+      { $sort: { count: -1 } },
+      
+      // 4. Limitar ao Top 5
+      { $limit: 5 },
+
+      // 5. Renomear os campos para um formato mais amigável
+      { $project: {
+          _id: 0,
+          regiao: '$_id',
+          pedidos: '$count'
+      }}
+    ]);
+
+    res.json(topRegioes);
+  } catch (error) {
+    console.error('Erro ao buscar top regiões:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+exports.getPedidosCoordenadas = async (req, res) => {
+  try {
+    // 1. Buscar todos os pedidos que têm um endereço
+    const pedidosComEndereco = await Orcamento.find({
+      address: { $exists: true, $ne: null, $ne: "" }
+    }).select('address shortId'); 
+
+    // 2. Extrair apenas os endereços para um array
+    const enderecos = pedidosComEndereco.map(p => p.address);
+
+    if (enderecos.length === 0) {
+      return res.json([]);
+    }
+
+   
+    const geocodedData = await geocoder.batchGeocode(enderecos);
+
+    const resultados = pedidosComEndereco.map((pedido, index) => {
+      const geo = geocodedData[index];
+      if (geo.value && geo.value.length > 0) {
+        return {
+          // 👇 ALTERAÇÃO: Incluir os IDs na resposta 👇
+          _id: pedido._id,
+          shortId: pedido.shortId,
+          lat: geo.value[0].latitude,
+          lng: geo.value[0].longitude,
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    res.json(resultados);
+
+  } catch (error) {
+    console.error('Erro ao geocodificar endereços:', error);
+    res.status(500).json({ message: 'Erro ao processar as coordenadas dos pedidos' });
   }
 };
