@@ -46,6 +46,7 @@ const errorMiddleware = require('./src/middlewares/error.middleware');
 const statsRoutes = require('./src/routes/stats.routes.js');
 const dashboardRoutes = require('./src/routes/dashboard.routes');
 const fornecedorRoutes = require('./src/routes/fornecedores.routes.js');
+const configuracaoRoutes = require('./src/routes/configuracao.routes.js');
 
 // PASSO 8: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
@@ -64,6 +65,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/portal-cliente', portalClienteRoutes); 
 app.use(express.static('public'));
 app.use('/api/fornecedores', fornecedorRoutes);
+app.use('/api/configuracoes', configuracaoRoutes);
 
 
 // Rota de teste para verificar se o servidor está online

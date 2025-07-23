@@ -10,6 +10,7 @@ const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
+const Configuracao = require('../models/configuracao.model.js');
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
     return [
@@ -460,33 +461,49 @@ const uploadFotoServico = async (req, res) => {
 };
 const preencherTemplate = (templatePath, dados) => {
     let html = fs.readFileSync(templatePath, 'utf8');
-    const formatCurrency = (value) => (value || 0).toFixed(2).replace('.', ',');
 
-    html = html.replace(/{{pedidoId}}/g, dados._id.toString().slice(-6).toUpperCase());
-    html = html.replace(/{{dataGeracao}}/g, new Date().toLocaleDateString('pt-BR'));
-    html = html.replace(/{{clienteNome}}/g, dados.cliente?.nome || 'N/A');
-    html = html.replace(/{{clienteTelefone}}/g, dados.cliente?.telefone || 'N/A');
-    html = html.replace(/{{clienteEmail}}/g, dados.cliente?.email || 'N/A');
-    html = html.replace(/{{pedidoDescricao}}/g, dados.descricao || 'Nenhuma descrição.');
-    html = html.replace(/{{valorProposto}}/g, formatCurrency(dados.valorProposto));
-    
-    return html;
+    // Função recursiva que encontra e substitui todos os placeholders, incluindo os aninhados.
+    const substituirPlaceholders = (template, dataObject, prefix = '') => {
+        for (const key in dataObject) {
+            if (Object.prototype.hasOwnProperty.call(dataObject, key)) {
+                const valor = dataObject[key];
+                const placeholder = `{{${prefix}${key}}}`;
+                
+                if (typeof valor === 'object' && valor !== null && !Array.isArray(valor)) {
+                    template = substituirPlaceholders(template, valor, `${prefix}${key}.`);
+                } else {
+                    template = template.replace(new RegExp(placeholder, 'g'), valor);
+                }
+            }
+        }
+        return template;
+    };
+
+    return substituirPlaceholders(html, dados);
 };
-
 const gerarFaturaPDF = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone'); // <-- CORRIGIDO AQUI
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone');
         if (!orcamento) {
             return res.status(404).send('Orçamento não encontrado.');
         }
 
+        const config = await Configuracao.obterConfiguracao();
+
+        const dadosParaTemplate = {
+            orcamento: orcamento.toObject(),
+            config: config.toObject(),
+            dataEmissao: new Date().toLocaleDateString('pt-BR'),
+            valorPropostoFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0)
+        };
+
         const templatePath = path.join(__dirname, '..', 'templates', 'fatura-template.html');
-        const html = preencherTemplate(templatePath, orcamento); // <-- CORRIGIDO AQUI
+        const html = preencherTemplate(templatePath, dadosParaTemplate);
         
         const pdfBuffer = await pdfService.generatePdf(html);
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=fatura-${orcamento._id}.pdf`); // <-- CORRIGIDO AQUI
+        res.setHeader('Content-Disposition', `attachment; filename=fatura-${orcamento.shortId}.pdf`);
         res.send(pdfBuffer);
 
     } catch (error) {
@@ -495,21 +512,29 @@ const gerarFaturaPDF = async (req, res) => {
     }
 };
 
-// --- VERSÃO CORRIGIDA ---
 const gerarOrcamentoPDF = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone'); // <-- CORRIGIDO AQUI
+        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone');
         if (!orcamento) {
             return res.status(404).send('Orçamento não encontrado.');
         }
 
+        const config = await Configuracao.obterConfiguracao();
+
+        const dadosParaTemplate = {
+            orcamento: orcamento.toObject(),
+            config: config.toObject(),
+            dataEmissao: new Date().toLocaleDateString('pt-BR'),
+            valorPropostoFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0)
+        };
+
         const templatePath = path.join(__dirname, '..', 'templates', 'orcamento-template.html');
-        const html = preencherTemplate(templatePath, orcamento); // <-- CORRIGIDO AQUI
+        const html = preencherTemplate(templatePath, dadosParaTemplate);
         
         const pdfBuffer = await pdfService.generatePdf(html);
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=orcamento-${orcamento._id}.pdf`); // <-- CORRIGIDO AQUI
+        res.setHeader('Content-Disposition', `attachment; filename=orcamento-${orcamento.shortId}.pdf`);
         res.send(pdfBuffer);
         
     } catch (error) {
@@ -517,6 +542,7 @@ const gerarOrcamentoPDF = async (req, res) => {
         res.status(500).send('Erro interno do servidor');
     }
 };
+
 const adicionarPagamento = async (req, res) => {
     try {
         const { valor, metodo, observacao } = req.body;

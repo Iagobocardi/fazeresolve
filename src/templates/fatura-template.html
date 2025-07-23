@@ -2,43 +2,69 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Fatura - Pedido #{{pedidoId}}</title>
+    <title>Fatura - Pedido #{{orcamento.shortId}}</title>
     <style>
-        body { font-family: Arial, sans-serif; color: #333; }
-        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .15); }
-        .header { text-align: center; margin-bottom: 20px; }
-        .details { margin-bottom: 30px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #333; }
+        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .05); font-size: 14px; line-height: 24px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .company-name { font-size: 24px; font-weight: bold; color: #000; }
+        .company-details { font-size: 12px; color: #555; }
         .details table { width: 100%; }
         .details td { padding: 5px; }
-        .items-table { width: 100%; border-collapse: collapse; }
-        .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; }
-        .items-table th { background-color: #f2f2f2; }
-        .total { text-align: right; margin-top: 20px; font-size: 1.2em; font-weight: bold; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        .items-table th, .items-table td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
+        .items-table th { background-color: #f9f9f9; font-weight: bold; }
+        .total { text-align: right; margin-top: 20px; font-size: 1.1em; font-weight: bold; }
+        .footer { text-align: center; margin-top: 40px; font-size: 10px; color: #888; }
     </style>
 </head>
 <body>
     <div class="invoice-box">
         <div class="header">
-            <h1>Fatura / Recibo de Serviço</h1>
-            <p>Pedido #{{pedidoId}}</p>
+            <h1 class="company-name">{{config.nomeEmpresa}}</h1>
+            <p class="company-details">
+                NIF/CNPJ: {{config.documento}} | Telefone: {{config.telefoneEmpresa}} | Email: {{config.emailEmpresa}}
+            </p>
         </div>
+
         <div class="details">
             <table>
-                <tr><td><strong>Prestador:</strong></td><td>Faz & Resolve</td></tr>
-                <tr><td><strong>Cliente:</strong></td><td>{{clienteNome}}</td></tr>
-                <tr><td><strong>Telefone:</strong></td><td>{{clienteTelefone}}</td></tr>
-                <tr><td><strong>Data de Emissão:</strong></td><td>{{dataGeracao}}</td></tr>
+                <tr>
+                    <td style="width: 50%;">
+                        <strong>Faturado para:</strong><br>
+                        {{orcamento.cliente.nome}}<br>
+                        Telefone: {{orcamento.cliente.telefone}}
+                    </td>
+                    <td style="text-align: right;">
+                        <strong>Pedido #:</strong> {{orcamento.shortId}}<br>
+                        <strong>Data de Emissão:</strong> {{dataEmissao}}
+                    </td>
+                </tr>
             </table>
         </div>
+
         <table class="items-table">
             <thead>
-                <tr><th>Descrição do Serviço</th><th>Valor</th></tr>
+                <tr>
+                    <th>Descrição do Serviço</th>
+                    <th style="text-align: right;">Valor</th>
+                </tr>
             </thead>
             <tbody>
-                <tr><td>{{pedidoDescricao}}</td><td>R$ {{valorProposto}}</td></tr>
+                <tr>
+                    <td>{{orcamento.descricao}}</td>
+                    <td style="text-align: right;">{{valorPropostoFormatado}}</td>
+                </tr>
             </tbody>
         </table>
-        <div class="total">Total: R$ {{valorProposto}}</div>
+        
+        <div class="total">
+            Total: {{valorPropostoFormatado}}
+        </div>
+
+        <div class="footer">
+            <p>Obrigado por escolher os nossos serviços!</p>
+        </div>
     </div>
 </body>
 </html>
