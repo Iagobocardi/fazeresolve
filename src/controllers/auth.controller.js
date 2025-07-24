@@ -3,6 +3,59 @@
 const Cliente = require('../models/cliente.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { google } = require('googleapis');
+
+// Configuração do cliente OAuth 2.0
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  `http://localhost:3000/api/auth/google/callback` // O URI de redirecionamento que você configurou na Google Cloud
+);
+
+// Função que inicia o processo de login com a Google
+const iniciarAuthGoogle = (req, res) => {
+  const scopes = [
+    'https://www.googleapis.com/auth/calendar' // Permissão total para ler e escrever no calendário
+  ];
+
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline', // Pede um refresh_token para acesso contínuo
+    scope: scopes,
+    // prompt: 'consent' // Descomente esta linha se quiser forçar o ecrã de consentimento sempre
+  });
+  res.redirect(url);
+};
+
+// Função que recebe o callback da Google após o consentimento do utilizador
+const handleGoogleCallback = async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            throw new Error("Código de autorização não recebido.");
+        }
+
+        const { tokens } = await oauth2Client.getToken(code);
+
+        // =====================================================================
+        // IMPORTANTE: GUARDAR OS TOKENS NO BANCO DE DADOS
+        // =====================================================================
+        // Aqui, você deve associar os `tokens` (especialmente o `refresh_token`)
+        // ao utilizador que está logado no seu sistema.
+        //
+        // Exemplo (requer um modelo de Utilizador):
+        // const userId = req.session.userId; // Supondo que você tem sessões
+        // await User.findByIdAndUpdate(userId, { googleTokens: tokens });
+
+        console.log('Tokens recebidos e prontos para serem guardados:', tokens);
+
+        // Redireciona o utilizador de volta para a página de configurações no frontend
+        res.redirect('http://localhost:3001/configuracoes?google_auth=success');
+
+    } catch (error) {
+        console.error('Erro ao obter tokens do Google:', error.message);
+        res.redirect('http://localhost:3001/configuracoes?google_auth=error');
+    }
+};
 
 // Função de Login
 const loginCliente = async (req, res) => {
@@ -57,6 +110,9 @@ const loginCliente = async (req, res) => {
     }
 };
 
+
 module.exports = {
-    loginCliente
+    loginCliente,
+    handleGoogleCallback,
+     iniciarAuthGoogle
 };

@@ -1,37 +1,25 @@
-// Arquivo: server.js (ou o seu ficheiro de entrada principal)
-// PASSO 1: Carrega as variáveis de ambiente do ficheiro .env
-// Esta deve ser a PRIMEIRA linha de código a ser executada.
+// PASSO 1: Carrega as variáveis de ambiente
 require('dotenv').config();
-// require('./src/jobs/satisfactionSurvey.js');
-require('./src/jobs/lembretes.job'); 
+require('./src/jobs/lembretes.job');
 
-// PASSO 2: Bloco de verificação para sabermos se as variáveis foram carregadas
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
 console.log('Número do Prestador carregado:', process.env.PRESTADOR_TELEFONE);
 console.log('====================================');
 
-// PASSO 3: Importações principais da aplicação
+// PASSO 2: Importações essenciais
 const express = require('express');
-const connectDB = require('./src/config/database'); // Assumindo que este ficheiro existe
-const cors = require('cors'); // Importa o pacote
+const cors = require('cors');
+const session = require('express-session');
+const path = require('path'); // Importação que estava faltando
+const connectDB = require('./src/config/database'); // Conexão com o banco
+
+// Importação das rotas
 const publicRoutes = require('./src/routes/public.routes');
 const despesasRoutes = require('./src/routes/despesas.routes');
 const produtosRoutes = require('./src/routes/produtos.routes.js');
 const authRoutes = require('./src/routes/auth.routes');
 const portalClienteRoutes = require('./src/routes/portalCliente.routes');
-// PASSO 4: Inicialização da aplicação Express
-const app = express();
-app.use(cors()); // Diz à sua aplicação para permitir pedidos de outros "endereços"
-// PASSO 5: Conectar à Base de Dados
-connectDB();
-
-// PASSO 6: Middlewares essenciais (ANTES DAS ROTAS)
-// Permitem que o servidor leia JSON e dados de formulários.
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// PASSO 7: Importação das Rotas
 const agendamentoRoutes = require('./src/routes/agendamentos.routes');
 const clienteRoutes = require('./src/routes/clientes.routes');
 const financeiroRoutes = require('./src/routes/financeiro.routes');
@@ -39,7 +27,6 @@ const orcamentoRoutes = require('./src/routes/orcamentos.routes');
 const relatorioRoutes = require('./src/routes/relatorios.routes');
 const servicoRoutes = require('./src/routes/servicos.routes');
 const whatsappRoutes = require('./src/routes/whatsapp.routes.js');
-const errorMiddleware = require('./src/middlewares/error.middleware');
 const statsRoutes = require('./src/routes/stats.routes.js');
 const dashboardRoutes = require('./src/routes/dashboard.routes');
 const fornecedorRoutes = require('./src/routes/fornecedores.routes.js');
@@ -47,7 +34,31 @@ const configuracaoRoutes = require('./src/routes/configuracao.routes.js');
 const produtosFornecedorRoutes = require('./src/routes/produtosFornecedor.routes.js');
 const checklistRoutes = require('./src/routes/checklist.routes.js');
 
-// PASSO 8: Utilização das Rotas na API
+// Importação do Middleware de Erro
+const errorMiddleware = require('./src/middlewares/error.middleware');
+
+// PASSO 3: Inicialização da Aplicação Express
+const app = express();
+
+// PASSO 4: Conectar à Base de Dados
+connectDB();
+
+// PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
+app.use(cors()); // Habilita o CORS para todas as rotas
+app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
+app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
+app.use(express.static('public')); // Serve arquivos estáticos da pasta public
+
+// Configuração da Sessão (unificada)
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'SEU_SEGREDO_DE_SESSAO_SUPER_SECRETO', // Use uma variável de ambiente!
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: process.env.NODE_ENV === 'production' } // Em produção, use `true` com HTTPS
+}));
+
+// PASSO 6: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/financeiro', financeiroRoutes);
@@ -61,24 +72,22 @@ app.use('/api/public', publicRoutes);
 app.use('/api/despesas', despesasRoutes);
 app.use('/api/produtos', produtosRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/portal-cliente', portalClienteRoutes); 
-app.use(express.static('public'));
+app.use('/api/portal-cliente', portalClienteRoutes);
 app.use('/api/fornecedores', fornecedorRoutes);
 app.use('/api/configuracoes', configuracaoRoutes);
-app.use('/api/fornecedores', produtosFornecedorRoutes);
-app.use('/api/orcamentos', checklistRoutes);
-
+app.use('/api/produtos-fornecedor', produtosFornecedorRoutes); // Rota corrigida para evitar conflito
+app.use('/api/checklist', checklistRoutes); // Rota corrigida para evitar conflito
 
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {
-  res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');
+    res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');
 });
 
-// PASSO 9: Middleware de Erro (SEMPRE POR ÚLTIMO)
+// PASSO 7: Middleware de Erro (SEMPRE DEPOIS DAS ROTAS)
 app.use(errorMiddleware);
 
-// PASSO 10: Iniciar o Servidor
+// PASSO 8: Iniciar o Servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
+    console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
 });
