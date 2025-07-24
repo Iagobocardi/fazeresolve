@@ -1,41 +1,34 @@
-// Arquivo: src/models/produto.model.js
+// src/models/produto.model.js
 
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const produtoSchema = new mongoose.Schema({
+const produtoSchema = new Schema({
     nome: {
         type: String,
         required: [true, 'O nome do produto é obrigatório.'],
         trim: true,
-        unique: true // Garante que não haverá dois produtos com o mesmo nome
+        unique: true
     },
-    descricao: {
-        type: String,
-        trim: true
-    },
-    unidade: {
-        type: String,
-        enum: ['Unidade', 'Metro', 'Litro', 'Kg', 'Caixa'],
-        required: true,
-        default: 'Unidade'
-    },
-    quantidadeEmEstoque: {
+    descricao: { type: String, trim: true },
+    unidade: { type: String, default: 'Unidade' },
+    quantidadeEmEstoque: { type: Number, default: 0, min: 0 },
+    custoUnitario: { type: Number, default: 0 },
+    fornecedor: { type: String, trim: true },
+
+    // 👇 NOVOS CAMPOS INTELIGENTES 👇
+    estoqueMinimo: {
         type: Number,
-        required: true,
-        default: 0,
+        default: 5, // Valor padrão para "estoque baixo"
         min: 0
     },
-    custoUnitario: {
-        type: Number,
-        default: 0,
-        min: 0
-    },
-    fornecedor: {
+    categoria: {
         type: String,
-        trim: true
+        trim: true,
+        default: 'Geral'
     }
 }, {
-    timestamps: true 
+    timestamps: true
 });
 
 const Produto = mongoose.model('Produto', produtoSchema);

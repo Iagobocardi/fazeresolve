@@ -1,6 +1,14 @@
 // Arquivo: src/models/orcamento.model.js
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
+const { Schema } = mongoose;
+
+// Sub-schema para as tarefas do checklist
+const tarefaSchema = new Schema({
+    descricao: { type: String, required: true },
+    concluida: { type: Boolean, default: false }
+});
+
 const orcamentoSchema = new mongoose.Schema({
     status: {
         type: String,
@@ -48,6 +56,7 @@ const orcamentoSchema = new mongoose.Schema({
         evento: { type: String, required: true },
         data: { type: Date, default: Date.now }
     }],
+    
     
     // =======================================================
     // 👉 O CAMPO DE PAGAMENTO FOI MOVIDO PARA AQUI DENTRO
@@ -107,6 +116,7 @@ const orcamentoSchema = new mongoose.Schema({
         valor: { type: 'Decimal128', required: true, get: v => parseFloat(v.toString()) },
         data: { type: Date, default: Date.now }
     }],
+     
 
     // Campo para lembretes sobre a nota fiscal
     lembreteNotaFiscal: {
@@ -116,8 +126,8 @@ const orcamentoSchema = new mongoose.Schema({
     },
      sugestaoAgendamentoCliente: {
         type: String
-    }
-
+    },
+     checklist: [tarefaSchema]
 }, { 
     timestamps: true,
     toJSON: { getters: true }, // Garante que o 'get' do Decimal128 funcione
