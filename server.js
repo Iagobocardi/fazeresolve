@@ -13,6 +13,7 @@ const cors = require('cors');
 const session = require('express-session');
 const path = require('path'); // Importação que estava faltando
 const connectDB = require('./src/config/database'); // Conexão com o banco
+const googleRoutes = require('./src/routes/google.routes.js');
 
 // Importação das rotas
 const publicRoutes = require('./src/routes/public.routes');
@@ -77,6 +78,7 @@ app.use('/api/fornecedores', fornecedorRoutes);
 app.use('/api/configuracoes', configuracaoRoutes);
 app.use('/api/produtos-fornecedor', produtosFornecedorRoutes); // Rota corrigida para evitar conflito
 app.use('/api/checklist', checklistRoutes); // Rota corrigida para evitar conflito
+app.use('/api/google', googleRoutes);
 
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {
