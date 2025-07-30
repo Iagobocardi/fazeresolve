@@ -34,6 +34,7 @@ const fornecedorRoutes = require('./src/routes/fornecedores.routes.js');
 const configuracaoRoutes = require('./src/routes/configuracao.routes.js');
 const produtosFornecedorRoutes = require('./src/routes/produtosFornecedor.routes.js');
 const checklistRoutes = require('./src/routes/checklist.routes.js');
+const estoqueRoutes = require('./src/routes/estoque.routes.js');
 
 // Importação do Middleware de Erro
 const errorMiddleware = require('./src/middlewares/error.middleware');
@@ -79,6 +80,7 @@ app.use('/api/configuracoes', configuracaoRoutes);
 app.use('/api/produtos-fornecedor', produtosFornecedorRoutes); // Rota corrigida para evitar conflito
 app.use('/api/checklist', checklistRoutes); // Rota corrigida para evitar conflito
 app.use('/api/google', googleRoutes);
+app.use('/api/estoque', estoqueRoutes);
 
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {
