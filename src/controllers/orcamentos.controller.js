@@ -11,6 +11,8 @@ const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
 const Configuracao = require('../models/configuracao.model.js');
+
+
 // Regras de validação (podem ser expandidas)
 const orcamentoValidationRules = () => {
     return [
@@ -481,6 +483,7 @@ const preencherTemplate = (templatePath, dados) => {
 
     return substituirPlaceholders(html, dados);
 };
+
 const gerarFaturaPDF = async (req, res) => {
     try {
         const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone');
@@ -490,11 +493,46 @@ const gerarFaturaPDF = async (req, res) => {
 
         const config = await Configuracao.obterConfiguracao();
 
+        // --- INÍCIO DA NOVA LÓGICA DA LOGO ---
+
+        let logoHtml = ''; // Começa como uma string vazia
+
+        // Verifica se a configuração e a URL da logo existem
+        if (config && config.logoUrl) {
+            try {
+                // 1. Extrai apenas o nome do arquivo da URL completa
+                const fileName = path.basename(config.logoUrl);
+
+                // 2. Cria o caminho completo para o arquivo no disco do servidor
+                const filePath = path.join(__dirname, '..', '..', 'public', 'uploads', fileName);
+
+                // 3. Verifica se o arquivo realmente existe antes de tentar lê-lo
+                if (fs.existsSync(filePath)) {
+                    // 4. Lê o arquivo da imagem para a memória
+                    const imageBuffer = fs.readFileSync(filePath);
+                    
+                    // 5. Converte a imagem para Base64
+                    const base64Image = imageBuffer.toString('base64');
+                    
+                    // 6. Descobre o tipo da imagem (png, jpeg, etc.) pelo nome do arquivo
+                    const mimeType = path.extname(fileName).slice(1);
+                    
+                    // 7. Cria a "Data URI" completa e a tag <img>
+                    const dataUri = `data:image/${mimeType};base64,${base64Image}`;
+                    logoHtml = `<img src="${dataUri}" alt="Logo da Empresa" class="logo">`;
+                }
+            } catch (err) {
+                console.error("Erro ao ler o arquivo da logo para o PDF:", err);
+                // Se der erro, a logoHtml continua vazia e a fatura é gerada sem ela.
+            }
+        }
+
         const dadosParaTemplate = {
             orcamento: orcamento.toObject(),
             config: config.toObject(),
             dataEmissao: new Date().toLocaleDateString('pt-BR'),
-            valorPropostoFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0)
+            valorPropostoFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0),
+            logoHtml: logoHtml // 3. Adicione a variável com o HTML da logo aos dados.
         };
 
         const templatePath = path.join(__dirname, '..', 'templates', 'fatura-template.html');
@@ -521,11 +559,32 @@ const gerarOrcamentoPDF = async (req, res) => {
 
         const config = await Configuracao.obterConfiguracao();
 
+        // --- LÓGICA DA LOGO (IDÊNTICA À DA FATURA) ---
+        let logoHtml = '';
+        if (config && config.logoUrl) {
+            try {
+                const fileName = path.basename(config.logoUrl);
+                const filePath = path.join(__dirname, '..', '..', 'public', 'uploads', fileName);
+
+                if (fs.existsSync(filePath)) {
+                    const imageBuffer = fs.readFileSync(filePath);
+                    const base64Image = imageBuffer.toString('base64');
+                    const mimeType = path.extname(fileName).slice(1);
+                    const dataUri = `data:image/${mimeType};base64,${base64Image}`;
+                    logoHtml = `<img src="${dataUri}" alt="Logo da Empresa" class="logo">`;
+                }
+            } catch (err) {
+                console.error("Erro ao ler o arquivo da logo para o orçamento:", err);
+            }
+        }
+        // --- FIM DA LÓGICA DA LOGO ---
+
         const dadosParaTemplate = {
             orcamento: orcamento.toObject(),
             config: config.toObject(),
             dataEmissao: new Date().toLocaleDateString('pt-BR'),
-            valorPropostoFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0)
+            valorPropostoFormatado: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0),
+            logoHtml: logoHtml // Passamos o HTML da logo para o template
         };
 
         const templatePath = path.join(__dirname, '..', 'templates', 'orcamento-template.html');
@@ -661,6 +720,47 @@ const marcarComoPago = async (req, res) => {
         res.status(500).json({ message: "Ocorreu um erro no servidor." });
     }
 };
+const attachInvoice = async (req, res) => {
+    try {
+        const { imageUrl } = req.body;
+        const { id } = req.params;
+
+        if (!imageUrl) {
+            return res.status(400).json({ message: 'O URL da imagem é obrigatório.' });
+        }
+
+        const orcamento = await Orcamento.findByIdAndUpdate(
+            id,
+            { notaFiscalUrl: imageUrl },
+            { new: true, runValidators: true }
+        );
+
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+
+        res.status(200).json({ message: 'Nota fiscal anexada com sucesso!', orcamento });
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao anexar nota fiscal.', error: error.message });
+    }
+};
+const getPedidosPorCliente = async (req, res) => {
+    try {
+        // 1. Pega o ID do cliente a partir dos parâmetros da URL
+        const { clienteId } = req.params;
+
+        // 2. Busca no banco de dados todos os orçamentos onde o campo 'cliente' corresponde ao ID
+        // O .sort({ data: -1 }) mostra os pedidos mais recentes primeiro.
+        const pedidosDoCliente = await Orcamento.find({ cliente: clienteId }).sort({ data: -1 });
+
+        // 3. Retorna a lista de pedidos encontrados (pode ser uma lista vazia, o que está correto)
+        res.status(200).json(pedidosDoCliente);
+
+    } catch (error) {
+        console.error("Erro ao buscar pedidos por cliente:", error);
+        res.status(500).json({ message: "Erro ao buscar os pedidos do cliente." });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -687,5 +787,7 @@ module.exports = {
     adicionarPagamento,
     removerPagamento,
     getAgendadosParaCalendario,
-    marcarComoPago
+    marcarComoPago,
+    attachInvoice,
+    getPedidosPorCliente
 };

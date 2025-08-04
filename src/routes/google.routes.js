@@ -8,5 +8,7 @@ router.post('/create-event', googleController.createEvent);
 
 // Aqui pode adicionar outras rotas relacionadas ao Google no futuro
 // Ex: router.get('/list-events', googleController.listEvents);
+// --- 👇 NOVA ROTA PARA BUSCAR IMAGENS 👇 ---
+router.post('/search-image', googleController.searchImage);
 
 module.exports = router;

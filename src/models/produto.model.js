@@ -15,6 +15,10 @@ const produtoSchema = new Schema({
     quantidadeEmEstoque: { type: Number, default: 0, min: 0 },
     custoUnitario: { type: Number, default: 0 },
     fornecedor: { type: String, trim: true },
+      imagemUrl: { 
+        type: String, 
+        trim: true 
+    },
 
     // 👇 NOVOS CAMPOS INTELIGENTES 👇
     estoqueMinimo: {

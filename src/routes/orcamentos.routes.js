@@ -15,6 +15,8 @@ router.post('/:id/upload-foto', upload.single('foto'), orcamentosController.uplo
 router.get('/:id/fatura-pdf', orcamentosController.gerarFaturaPDF);
 router.get('/:id/orcamento-pdf', orcamentosController.gerarOrcamentoPDF);
 router.get('/agendados', orcamentosController.getAgendadosParaCalendario);
+router.get( '/por-cliente/:clienteId', orcamentosController.getPedidosPorCliente);
+// --------------------------------
 // ROTA para atualizar apenas o status
 router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);
 router.patch('/:id/submit', orcamentosController.submitOrcamento);
@@ -40,5 +42,10 @@ router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoP
 
 //  Rota para a ação rápida de marcar como pago
 router.post('/:id/marcar-pago', orcamentosController.marcarComoPago);
+
+// PATCH /api/orcamentos/:id/attach-invoice
+router.patch('/:id/attach-invoice', orcamentosController.attachInvoice);
+
+
 
 module.exports = router;

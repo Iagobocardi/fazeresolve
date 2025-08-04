@@ -13,13 +13,19 @@ const configuracaoSchema = new Schema({
     telefoneEmpresa: { type: String, trim: true },
     emailEmpresa: { type: String, trim: true },
     logoUrl: { type: String, trim: true },
+    
 
     // Mensagens Personalizadas
     mensagemBoasVindas: {
         type: String,
         default: 'Olá, {cliente}! Bem-vindo(a) ao {empresa}. Como podemos ajudar hoje?'
     },
-
+      // whatsapp
+    whatsappMode: {
+        type: String,
+        enum: ['assistido', 'completo'], // Apenas estes dois valores são permitidos
+        default: 'assistido' // Define 'assistido' como o padrão para novos utilizadores
+    },
     // Configurações de Alertas
     diasParaAlertaPendente: {
         type: Number,
@@ -42,4 +48,4 @@ configuracaoSchema.statics.obterConfiguracao = async function() {
 
 const Configuracao = mongoose.model('Configuracao', configuracaoSchema);
 
-module.exports = Configuracao;
+module.exports = Configuracao;  

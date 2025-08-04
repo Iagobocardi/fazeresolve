@@ -1,5 +1,5 @@
 const { google } = require('googleapis');
-
+const axios = require('axios');
 /**
  * Controller para criar um novo evento no Google Calendar do utilizador.
  */
@@ -64,7 +64,50 @@ const createEvent = async (req, res) => {
     res.status(500).json({ message: 'Ocorreu um erro ao tentar criar o evento no Google Calendar.' });
   }
 };
+const searchImage = async (req, res) => {
+  const { query } = req.body; // O nome do produto a ser pesquisado
+
+  if (!query) {
+    return res.status(400).json({ message: 'Um termo de busca é obrigatório.' });
+  }
+
+  // Lê as credenciais do ficheiro .env
+  const apiKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
+  const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+  if (!apiKey || !searchEngineId) {
+    return res.status(500).json({ message: 'As credenciais da API de busca do Google não estão configuradas no servidor.' });
+  }
+
+  const url = `https://www.googleapis.com/customsearch/v1`;
+
+  try {
+    const response = await axios.get(url, {
+      params: {
+        key: apiKey,
+        cx: searchEngineId,
+        q: query,
+        searchType: 'image',
+        num: 10 // Pede 10 imagens
+      }
+    });
+
+    // Filtra e formata a resposta para enviar apenas o que o frontend precisa
+    const images = response.data.items.map(item => ({
+      link: item.link,
+      title: item.title,
+      snippet: item.snippet
+    }));
+
+    res.status(200).json({ items: images });
+
+  } catch (error) {
+    console.error('Erro ao buscar imagens no Google:', error.response?.data?.error || error.message);
+    res.status(500).json({ message: 'Ocorreu um erro ao tentar buscar as imagens.' });
+  }
+};
 
 module.exports = {
   createEvent,
+  searchImage,
 };
