@@ -13,7 +13,12 @@ const configuracaoSchema = new Schema({
     telefoneEmpresa: { type: String, trim: true },
     emailEmpresa: { type: String, trim: true },
     logoUrl: { type: String, trim: true },
-    
+    website: { type: String, trim: true },
+    // Endereço
+    endereco: { type: String, trim: true },
+    cidade: { type: String, trim: true },
+    estado: { type: String, trim: true },
+    cep: { type: String, trim: true },
 
     // Mensagens Personalizadas
     mensagemBoasVindas: {
