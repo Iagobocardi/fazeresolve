@@ -37,6 +37,7 @@ const checklistRoutes = require('./src/routes/checklist.routes.js');
 const estoqueRoutes = require('./src/routes/estoque.routes.js');
 const uploadRoutes = require('./src/routes/upload.routes.js');
 const conversaRoutes = require('./src/routes/conversa.routes.js');
+const adminRoutes = require('./src/routes/admin.routes.js');
 
 // Importação do Middleware de Erro
 const errorMiddleware = require('./src/middlewares/error.middleware');
@@ -85,6 +86,7 @@ app.use('/api/google', googleRoutes);
 app.use('/api/estoque', estoqueRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/conversas', conversaRoutes);
+app.use('/api/admin', adminRoutes);
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {
     res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');

@@ -20,6 +20,23 @@ const configuracaoSchema = new Schema({
     cidade: { type: String, trim: true },
     estado: { type: String, trim: true },
     cep: { type: String, trim: true },
+     // --- NOVOS CAMPOS PARA INTEGRAÇÕES ---
+    googleCalendarConnected: {
+        type: Boolean,
+        default: false
+    },
+    googleCalendarEmail: {
+        type: String,
+        default: ''
+    },
+    googleTokens: {
+        access_token: String,
+        refresh_token: String,
+        scope: String,
+        token_type: String,
+        expiry_date: Number
+    },
+    // ------------------------------------
 
     // Mensagens Personalizadas
     mensagemBoasVindas: {

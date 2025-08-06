@@ -12,4 +12,9 @@ router.get('/', configuracaoController.getConfiguracao);
 // PUT /api/configuracoes
 router.put('/', configuracaoController.updateConfiguracao);
 
+// --- NOVAS ROTAS PARA A INTEGRAÇÃO ---
+router.get('/google/connect', configuracaoController.connectGoogleCalendar);
+router.get('/google/callback', configuracaoController.handleGoogleCallback);
+router.delete('/google/disconnect', configuracaoController.disconnectGoogleCalendar);
+
 module.exports = router;
