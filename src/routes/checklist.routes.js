@@ -1,14 +1,19 @@
-// src/routes/checklist.routes.js
+// Em: src/routes/checklist.routes.js
+
 const express = require('express');
 const router = express.Router();
 const checklistController = require('../controllers/checklist.controller.js');
 
-// Adicionar tarefa a um pedido
-router.post('/:pedidoId/checklist', checklistController.adicionarTarefa);
+// Adicionar uma nova tarefa a um pedido
+// Rota Final: POST /api/checklist/:pedidoId/tarefas
+router.post('/:pedidoId/tarefas', checklistController.adicionarTarefa);
 
-// Atualizar uma tarefa específica
-router.patch('/:pedidoId/checklist/:tarefaId', checklistController.atualizarTarefa);
+// Atualizar o estado de uma tarefa (concluída/não concluída)
+// Rota Final: PATCH /api/checklist/:pedidoId/tarefas/:tarefaId
+router.patch('/:pedidoId/tarefas/:tarefaId', checklistController.atualizarTarefa);
 
-router.delete('/:pedidoId/checklist/:tarefaId', checklistController.removerTarefa);
+// Remover uma tarefa específica
+// Rota Final: DELETE /api/checklist/:pedidoId/tarefas/:tarefaId
+router.delete('/:pedidoId/tarefas/:tarefaId', checklistController.removerTarefa);
 
 module.exports = router;

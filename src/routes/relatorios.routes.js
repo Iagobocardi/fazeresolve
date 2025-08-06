@@ -9,5 +9,7 @@ router.get('/servicos/pdf', relatoriosController.gerarRelatorioServicosPDF);
 router.get('/financeiro/pdf', relatoriosController.gerarRelatorioFinanceiroPDF);
 router.get('/orcamentos/pdf', relatoriosController.gerarRelatorioOrcamentosPDF);
 router.get('/agendamentos/pdf', relatoriosController.gerarRelatorioAgendamentos); // Corrigido para pdf
+router.get('/receita-vs-despesa/pdf', relatoriosController.gerarRelatorioReceitaVsDespesa);
+router.get('/satisfacao-cliente/pdf', relatoriosController.gerarRelatorioSatisfacaoCliente);
 
 module.exports = router;

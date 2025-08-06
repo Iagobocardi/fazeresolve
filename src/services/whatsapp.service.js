@@ -29,7 +29,7 @@ const sendWhatsAppMessage = async (phoneNumber, message = '', mediaUrls = []) =>
             //    Enviamos um StatusCallback vazio para sobrepor a
             //    configuração inválida ('none') que está na sua conta Twilio.
             // =======================================================
-            statusCallback: []
+            statusCallback: 'http://demo.twilio.com/'
         };
 
         if (message && message.trim() !== '') {
