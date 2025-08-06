@@ -465,18 +465,7 @@ case 'AWAITING_AVAILABILITY':
         await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
     }
     break;
-                    user.currentDemand = {};
-                    await user.save();
                     
-                    await sendWhatsAppMessage(user.telefone, "Tudo certo! A sua solicitação foi registada. Entraremos em contato em breve para confirmar.\n\nObrigado por usar o Faz & Resolve!");
-                    if(prestadorPhone) {
-                        const notificationToPrestador = `🔔 *Novo Pedido Recebido!* (#${newOrcamento.shortId})\n\n` +
-                                                      `*Cliente:* ${user.nome}\n` +
-                                                      `*Descrição:* ${newOrcamento.descricao.slice(0, 80)}...\n\n` +
-                                                      `Para ver todos os detalhes, envie: \`ver ${newOrcamento.shortId}\``;
-                        await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
-                    }
-                    break;
                 
                 case 'COMPLETED':
                     const completedReply = `Olá! O seu último pedido já foi registado. Para iniciar uma nova solicitação, escolha uma das opções abaixo.`;
@@ -500,10 +489,78 @@ case 'AWAITING_AVAILABILITY':
 };
 
 // =======================================================
+// SEÇÃO DE CRUD PARA TEMPLATES
+// =======================================================
+const WhatsappTemplate = require('../models/whatsappTemplate.model.js');
+//const Orcamento = require('../models/orcamento.model.js');
+//const Cliente = require('../models/cliente.model.js');
+
+// Classe de erro customizada para facilitar o tratamento no controller
+class NotFoundError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'NotFoundError';
+    }
+}
+
+const findAllTemplates = async () => {
+    return await WhatsappTemplate.find();
+};
+
+const createTemplate = async (templateData) => {
+    return await WhatsappTemplate.create(templateData);
+};
+
+const updateTemplate = async (id, templateData) => {
+    return await WhatsappTemplate.findByIdAndUpdate(id, templateData, { new: true });
+};
+
+const deleteTemplate = async (id) => {
+    return await WhatsappTemplate.findByIdAndDelete(id);
+};
+
+// =======================================================
+// SEÇÃO DE RENDERIZAÇÃO DE TEMPLATES
+// =======================================================
+const renderTemplateMessage = async (templateId, orcamentoId) => {
+    const template = await WhatsappTemplate.findById(templateId);
+    if (!template) {
+        throw new NotFoundError('Template não encontrado.');
+    }
+
+    const orcamento = await Orcamento.findById(orcamentoId).populate('cliente');
+    if (!orcamento || !orcamento.cliente) {
+        throw new NotFoundError('Orçamento ou cliente associado não encontrado.');
+    }
+    
+    const cliente = orcamento.cliente;
+
+    // Lógica de substituição dos placeholders
+    let mensagemFinal = template.mensagem;
+    mensagemFinal = mensagemFinal.replace(/{{cliente.nome}}/g, cliente.nome);
+    mensagemFinal = mensagemFinal.replace(/{{cliente.telefone}}/g, cliente.telefone);
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.descricao}}/g, orcamento.descricao);
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.valorProposto}}/g, orcamento.valorProposto ? orcamento.valorProposto.toFixed(2) : 'N/A');
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.dataAgendamento}}/g, orcamento.dataAgendamento ? new Date(orcamento.dataAgendamento).toLocaleDateString('pt-BR') : 'N/A');
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.shortId}}/g, orcamento.shortId);
+
+    return {
+        numeroDoCliente: cliente.telefone,
+        mensagemFinal: mensagemFinal
+    };
+};
+
+
+// =======================================================
 // EXPORTANDO AS FUNÇÕES CORRETAMENTE
 // =======================================================
 module.exports = {
     handleIncomingMessage,
     sendWhatsAppMessage,
-    sendSatisfactionSurvey
+    sendSatisfactionSurvey,
+    findAllTemplates,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    renderTemplateMessage
 };

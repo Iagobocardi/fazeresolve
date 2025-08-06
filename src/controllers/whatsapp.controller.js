@@ -1,47 +1,88 @@
 // Arquivo: src/controllers/whatsapp.controller.js
 const whatsappService = require('../services/whatsapp.service');
 
+// --- Controller do Webhook (Existente) ---
 const handleWhatsAppWebhook = async (req, res) => {
-    // ===============================================================
-    // SUPER LOG DE DIAGNÓSTICO - Adicione este bloco
-    // ===============================================================
-    console.log('--- NOVO WEBHOOK RECEBIDO ---');
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Corpo da Requisição (Body):', JSON.stringify(req.body, null, 2));
-    console.log('Cabeçalhos (Headers):', JSON.stringify(req.headers, null, 2));
-    console.log('---------------------------------');
-    // ===============================================================
     if (!req.body || !req.body.From) {
-        console.log('[CONTROLLER] Requisição recebida sem um remetente (From). Ignorando.');
         return res.status(200).send('Request ignored: Missing "From" field.');
     }
-
-    // --- PASSO 2: EXTRACÇÃO SEGURA DOS DADOS ---
-    // Agora que sabemos que 'From' existe, podemos prosseguir com segurança.
-    const senderPhone = req.body.From.replace('whatsapp:', '');
-    const senderName = req.body.ProfileName;
-    const messageBody = req.body.Body || ''; // Garante que nunca é undefined
-    const mediaUrls = [];
-    const numMedia = parseInt(req.body.NumMedia || '0');
-
-    if (numMedia > 0) {
-        for (let i = 0; i < numMedia; i++) {
-            mediaUrls.push(req.body[`MediaUrl${i}`]);
-        }
-    }
-    
-    console.log(`[CONTROLLER] Requisição VÁLIDA recebida de ${senderPhone}.`);
-
-       try {
-        // Agora passamos o objeto 'req' inteiro. É tudo que precisamos.
+    try {
         await whatsappService.handleIncomingMessage(req);
         res.status(200).send();
     } catch (error) {
-        console.error('[CONTROLLER] ERRO CRÍTICO:', error);
+        console.error('[CONTROLLER] ERRO CRÍTICO no Webhook:', error);
         res.status(500).send('Internal Server Error');
     }
 };
 
+// --- Controllers do CRUD de Templates ---
+
+const getAllTemplates = async (req, res) => {
+    try {
+        const templates = await whatsappService.findAllTemplates();
+        res.status(200).json(templates);
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao buscar templates.', error: error.message });
+    }
+};
+
+const createTemplate = async (req, res) => {
+    try {
+        const novoTemplate = await whatsappService.createTemplate(req.body);
+        res.status(201).json(novoTemplate);
+    } catch (error) {
+        res.status(400).json({ message: 'Erro ao criar template.', error: error.message });
+    }
+};
+
+const updateTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const templateAtualizado = await whatsappService.updateTemplate(id, req.body);
+        if (!templateAtualizado) {
+            return res.status(404).json({ message: 'Template não encontrado.' });
+        }
+        res.status(200).json(templateAtualizado);
+    } catch (error) {
+        res.status(400).json({ message: 'Erro ao atualizar template.', error: error.message });
+    }
+};
+
+const deleteTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const templateDeletado = await whatsappService.deleteTemplate(id);
+        if (!templateDeletado) {
+            return res.status(404).json({ message: 'Template não encontrado.' });
+        }
+        res.status(200).json({ message: 'Template deletado com sucesso.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao deletar template.', error: error.message });
+    }
+};
+
+// --- Controller de Renderização ---
+
+const renderTemplate = async (req, res) => {
+    try {
+        const { templateId, orcamentoId } = req.params;
+        const resultado = await whatsappService.renderTemplateMessage(templateId, orcamentoId);
+        res.status(200).json(resultado);
+    } catch (error) {
+        // O serviço pode lançar erros específicos que podemos usar
+        if (error.name === 'NotFoundError') {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(500).json({ message: 'Erro ao renderizar o template.', error: error.message });
+    }
+};
+
+
 module.exports = {
-    handleWhatsAppWebhook 
+    handleWhatsAppWebhook,
+    getAllTemplates,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    renderTemplate
 };
