@@ -772,6 +772,29 @@ const calcularPrecoSugerido = async (req, res) => {
         res.status(500).json({ message: 'Erro ao processar a sugestão de preço.' });
     }
 };
+const removeCustoMaterial = async (req, res) => {
+    try {
+        const { orcamentoId, custoId } = req.params;
+
+        // Remove a despesa correspondente na coleção de Despesas
+        await Despesa.findByIdAndDelete(custoId);
+        
+        // Remove o custo do array dentro do Orçamento
+        const orcamento = await Orcamento.findById(orcamentoId);
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+        
+        orcamento.custosMateriais.pull({ _id: custoId });
+        await orcamento.save();
+
+        res.status(200).json(orcamento);
+
+    } catch (error) {
+        console.error("Erro ao remover custo do material:", error);
+        res.status(500).json({ message: 'Erro interno ao remover custo.' });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -800,5 +823,6 @@ module.exports = {
     marcarComoPago,
     attachInvoice,
     getPedidosPorCliente,
-    calcularPrecoSugerido
+    calcularPrecoSugerido,
+    removeCustoMaterial,
 };

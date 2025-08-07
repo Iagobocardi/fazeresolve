@@ -3,6 +3,8 @@
 
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
+const Agendamento = require('../models/agendamento.model');
+const Servico = require('../models/servico.model');
 
 const parseAndExecute = async (commandText, user, sendMessageFunction) => {
     const normalizedCommand = commandText.toLowerCase().trim();
@@ -58,10 +60,38 @@ const parseAndExecute = async (commandText, user, sendMessageFunction) => {
             const dateText = scheduleMatch[1];
             const orcamento = await Orcamento.findById(user.activeContext).populate('cliente');
             if (!orcamento) { user.activeContext = null; await user.save(); return `❗Erro: O pedido não foi encontrado.`; }
-            
+
+            // 1. Atualizar o orçamento
             orcamento.status = 'Agendado';
-            orcamento.dataAgendamento = dateText;
+            
+            // Tenta converter o texto da data para um objeto Date.
+            // NOTA: Isto é frágil e pode não funcionar para todos os formatos de texto.
+            // Uma biblioteca de parsing de datas como 'date-fns' ou 'moment.js' seria mais robusta.
+            const dataAgendamento = new Date(dateText);
+            orcamento.dataAgendamento = isNaN(dataAgendamento) ? null : dataAgendamento;
+
+            // 2. Criar um novo agendamento no sistema de agendamentos
+            // Procura por um serviço padrão ou o primeiro serviço disponível
+            let servicoPadrao = await Servico.findOne({ nome: "Visita Técnica" });
+            if (!servicoPadrao) {
+                servicoPadrao = await Servico.findOne();
+            }
+            if (!servicoPadrao) {
+                 return "❗Erro Crítico: Não foi possível encontrar um serviço padrão para criar o agendamento. Cadastre um serviço no sistema.";
+            }
+
+            const novoAgendamento = new Agendamento({
+                dataHoraInicio: dataAgendamento,
+                // Define a data de fim para 1 hora após o início, como padrão
+                dataHoraFim: new Date(dataAgendamento.getTime() + 60 * 60 * 1000), 
+                servico: servicoPadrao._id,
+                cliente: orcamento.cliente._id,
+                observacoes: `Agendamento criado a partir do pedido #${orcamento.shortId}. Descrição original: ${orcamento.descricao}`
+            });
+
+            await novoAgendamento.save();
             await orcamento.save();
+            
             user.activeContext = null;
             await user.save();
 

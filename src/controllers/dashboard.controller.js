@@ -1,6 +1,3 @@
-// DENTRO DE src/controllers/dashboard.controller.js
-// SUBSTITUA A FUNÇÃO DE TESTE POR ESTA VERSÃO ORIGINAL
-
 const Orcamento = require('../models/orcamento.model');
 const NodeGeocoder = require('node-geocoder');
 
@@ -73,7 +70,6 @@ exports.getProximosAgendamentos = async (req, res) => {
   try {
     const hoje = new Date();
     
-    // CORREÇÃO AQUI: Usar a variável correta "Orcamento"
     const proximosAgendamentos = await Orcamento.find({
       status: 'Agendado',
       dataAgendamento: { $gte: hoje }
