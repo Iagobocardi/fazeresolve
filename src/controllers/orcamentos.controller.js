@@ -662,37 +662,6 @@ const removerPagamento = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao remover pagamento.' });
     }
 };
-const getAgendadosParaCalendario = async (req, res) => {
-    try {
-        // 1. Busca no banco todos os orçamentos com status 'Agendado' e que tenham uma data
-        const orcamentosAgendados = await Orcamento.find({
-    status: 'Agendado',
-    dataAgendamento: { $exists: true, $ne: null }
-})
-.populate('cliente', 'nome telefone')
-.select('dataAgendamento descricao cliente');
-
-        // 2. Transforma os dados do MongoDB para o formato que o FullCalendar espera
-        const eventos = orcamentosAgendados.map(orcamento => {
-            // Monta um título descritivo para o evento no calendário
-            const tituloEvento = `Serviço para: ${orcamento.cliente?.nome || 'Cliente não identificado'}`;
-
-            return {
-                id: orcamento._id,          // ID do evento
-                title: tituloEvento,        // O que vai aparecer escrito no evento
-                start: orcamento.dataAgendamento, // Data e hora de início
-                // end: ...  // Você pode adicionar uma data de término se tiver essa informação
-            };
-        });
-
-        // 3. Envia a lista de eventos formatada como resposta
-        res.status(200).json(eventos);
-
-    } catch (error) {
-        console.error("Erro ao buscar eventos para o calendário:", error);
-        res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
-    }
-};
 const marcarComoPago = async (req, res) => {
     try {
         const pedido = await Orcamento.findById(req.params.id);
@@ -764,6 +733,45 @@ const getPedidosPorCliente = async (req, res) => {
         res.status(500).json({ message: "Erro ao buscar os pedidos do cliente." });
     }
 };
+// --- NOVA FUNÇÃO PARA CALCULAR O PREÇO SUGERIDO ---
+const calcularPrecoSugerido = async (req, res) => {
+    try {
+        const { pedidoId } = req.params;
+        const { horasEstimadas, custoHora, margemLucro } = req.body;
+
+        console.log("A. [BACKEND] Dados recebidos:", req.body);
+
+        const orcamento = await Orcamento.findById(pedidoId).populate('materiaisUsados.produto');
+        if (!orcamento) {
+            return res.status(404).json({ message: "Pedido não encontrado." });
+        }
+
+        const custoTotalMateriais = orcamento.materiaisUsados.reduce((acc, item) => {
+            return acc + (item.custoNoMomento * item.quantidade);
+        }, 0);
+        console.log("B. [BACKEND] Custo de materiais calculado:", custoTotalMateriais);
+
+        const custoMaoDeObra = (Number(horasEstimadas) || 0) * (Number(custoHora) || 0);
+        console.log("C. [BACKEND] Custo de mão de obra calculado:", custoMaoDeObra);
+
+        const custoTotal = custoTotalMateriais + custoMaoDeObra;
+        const precoSugerido = custoTotal * (1 + (Number(margemLucro) || 100) / 100);
+        console.log("D. [BACKEND] Preço final sugerido:", precoSugerido);
+
+        // ... (lógica para guardar os dados no orçamento)
+
+        // --- PONTO DE VERIFICAÇÃO PRINCIPAL ---
+        const resposta = { precoSugerido: precoSugerido.toFixed(2) };
+        console.log("E. [BACKEND] Objeto de resposta a ser enviado:", resposta);
+        // ------------------------------------
+
+        res.status(200).json(resposta);
+
+    } catch (error) {
+        console.error("Erro ao calcular preço sugerido:", error);
+        res.status(500).json({ message: 'Erro ao processar a sugestão de preço.' });
+    }
+};
 
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
@@ -789,8 +797,8 @@ module.exports = {
     gerarOrcamentoPDF,
     adicionarPagamento,
     removerPagamento,
-    getAgendadosParaCalendario,
     marcarComoPago,
     attachInvoice,
-    getPedidosPorCliente
+    getPedidosPorCliente,
+    calcularPrecoSugerido
 };

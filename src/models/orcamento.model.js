@@ -120,7 +120,21 @@ const orcamentoSchema = new mongoose.Schema({
         valor: { type: 'Decimal128', required: true, get: v => parseFloat(v.toString()) },
         data: { type: Date, default: Date.now }
     }],
-     
+    // Campos para o cálculo do preço sugerido
+    horasEstimadas: {
+        type: Number,
+        default: 0
+    },
+    custoHora: {
+        type: Number,
+        default: 0 // O utilizador pode definir um padrão nas configurações
+    },
+    margemLucro: {
+        type: Number,
+        default: 100 // Padrão de 100% de margem
+    },
+    // ------------------------------------
+      statusPagamento: { type: String, default: 'Pendente' },
 
     // Campo para lembretes sobre a nota fiscal
     lembreteNotaFiscal: {

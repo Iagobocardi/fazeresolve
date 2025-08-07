@@ -14,7 +14,6 @@ router.get('/agendados', orcamentosController.getAgendamentosParaCalendario);
 router.post('/:id/upload-foto', upload.single('foto'), orcamentosController.uploadFotoServico);
 router.get('/:id/fatura-pdf', orcamentosController.gerarFaturaPDF);
 router.get('/:id/orcamento-pdf', orcamentosController.gerarOrcamentoPDF);
-router.get('/agendados', orcamentosController.getAgendadosParaCalendario);
 router.get( '/por-cliente/:clienteId', orcamentosController.getPedidosPorCliente);
 // --------------------------------
 // ROTA para atualizar apenas o status
@@ -27,6 +26,9 @@ router.patch('/:id/pagamento', orcamentosController.updateStatusPagamento);
 // Rotas para as novas funcionalidades que criámos
 router.patch('/:id/operacional', orcamentosController.updateDetalhesOperacionais);
 router.post('/:id/custos', orcamentosController.addCustoMaterial);
+
+// --- ADICIONE A NOVA ROTA AQUI ---
+router.post('/:pedidoId/sugerir-preco', orcamentosController.calcularPrecoSugerido);
 
 // Rota para ADICIONAR um novo pagamento a um orçamento
 router.post('/:id/pagamentos', orcamentosController.adicionarPagamento);

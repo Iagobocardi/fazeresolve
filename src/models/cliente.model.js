@@ -22,16 +22,9 @@ password: {
 },
 
     role: { type: String, required: true, enum: ['CLIENTE_FINAL', 'PRESTADOR'], default: 'CLIENTE_FINAL' },
-     // --- ADICIONE ESTE CAMPO AQUI ---
-    plano: {
-        type: String,
-        enum: ['Essencial', 'Profissional', 'Premium'],
-        default: 'Essencial' // Todo novo utilizador começa como Essencial
-    },
-    // -----------------------------------
     conversationState: {
         type: String,
-        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE','AWAITING_CEP','AWAITING_NUMERO','AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_RATING'],
+        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_RATING'],
         default: 'NONE'
     },
     currentDemand: {
@@ -40,10 +33,9 @@ password: {
         address: String,
         availability: String,
         media: [{ url: String, sid: String }],
-        pendingOrderIds: [mongoose.Schema.Types.ObjectId],
-
-         addressData: { type: Object }
-
+        // --- NOVO CAMPO ADICIONADO ---
+        // Guarda a lista de IDs dos pedidos que o cliente está a escolher.
+        pendingOrderIds: [mongoose.Schema.Types.ObjectId]
     },
     activeContext: {
         type: mongoose.Schema.Types.ObjectId,
@@ -55,6 +47,13 @@ password: {
     },
     activationTokenExpires: {
         type: Date
+    },
+    googleTokens: {
+        access_token: String,
+        refresh_token: String,
+        scope: String,
+        token_type: String,
+        expiry_date: Number,
     }
 }, {
     timestamps: true

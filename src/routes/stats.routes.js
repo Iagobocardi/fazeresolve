@@ -26,4 +26,6 @@ router.get('/top-servicos', statsController.getTopServicos);
 // =======================================================
 router.get('/top-clientes', statsController.getTopClientes);
 
+router.get('/demand-by-neighborhood', statsController.getDemandByNeighborhood);
+
 module.exports = router;

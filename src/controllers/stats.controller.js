@@ -3,6 +3,7 @@
 
 const Orcamento = require('../models/orcamento.model');
 const Despesa = require('../models/despesa.model');
+const Cliente = require('../models/cliente.model');
 
 // Função para os cards do Dashboard principal (NÃO FOI ALTERADA)
 const getDashboardStats = async (req, res) => {
@@ -270,6 +271,35 @@ const getTopClientes = async (req, res) => {
 
 
 
+const getDemandByNeighborhood = async (req, res) => {
+    try {
+        const demand = await Cliente.aggregate([
+            {
+                $match: {
+                    'currentDemand.addressData.bairro': { $exists: true, $ne: null }
+                }
+            },
+            {
+                $group: {
+                    _id: '$currentDemand.addressData.bairro',
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    bairro: '$_id',
+                    count: 1
+                }
+            }
+        ]);
+        res.status(200).json(demand);
+    } catch (error) {
+        console.error("Erro ao buscar demanda por bairro:", error);
+        res.status(500).json({ message: 'Erro interno ao buscar dados de demanda.' });
+    }
+};
+
 // Exportação correta de TODAS as funções
 module.exports = {
     getDashboardStats,
@@ -277,5 +307,6 @@ module.exports = {
     getResumoFinanceiro,
     getHistoricoFinanceiro,
     getTopServicos,
-     getTopClientes
+     getTopClientes,
+     getDemandByNeighborhood
 };
