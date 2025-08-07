@@ -1,5 +1,6 @@
 // Arquivo: src/controllers/orcamentos.controller.js
 
+const mongoose = require('mongoose');
 const Orcamento = require('../models/orcamento.model');
 const { validationResult, body } = require('express-validator');
 const whatsappService = require('../services/whatsapp.service');
@@ -114,13 +115,97 @@ const getAllOrcamentos = async (req, res) => {
 // Obtém um orçamento por ID
 const getOrcamentoById = async (req, res) => {
     try {
-        const orcamento = await Orcamento.findById(req.params.id).populate('cliente', 'nome telefone');
+        const orcamento = await Orcamento.findById(req.params.id)
+            .populate('cliente', 'nome telefone')
+            .populate('materiaisUsados.produto'); // Popula os detalhes do produto
+
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado.' });
         }
         res.status(200).json(orcamento);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao buscar orçamento.' });
+    }
+};
+
+const calcularPrecoSugerido = async (req, res) => {
+    try {
+        const { pedidoId } = req.params;
+        const { horasEstimadas, custoHora, margemLucro, custosTerceiros } = req.body;
+
+        // --- INÍCIO DA CORREÇÃO ---
+        // Busca o orçamento e já calcula o custo dos materiais via agregação, que é mais eficiente.
+        const aggregationResult = await Orcamento.aggregate([
+            { $match: { _id: new mongoose.Types.ObjectId(pedidoId) } },
+            {
+                $project: {
+                    custoTotalMateriais: {
+                        $add: [
+                            { // Soma os custos dos produtos de estoque usados
+                                $sum: {
+                                    $map: {
+                                        input: '$materiaisUsados',
+                                        as: 'item',
+                                        in: { $multiply: [ '$$item.custoNoMomento', '$$item.quantidade' ] }
+                                    }
+                                }
+                            },
+                            { // Soma os custos manuais/avulsos
+                                $sum: {
+                                    $map: {
+                                        input: '$custosMateriais',
+                                        as: 'custo',
+                                        in: { $toDouble: '$$custo.valor' }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        ]);
+
+        if (!aggregationResult || aggregationResult.length === 0) {
+            return res.status(404).json({ message: "Pedido não encontrado." });
+        }
+
+        const orcamento = aggregationResult[0];
+        const custoTotalMateriais = orcamento.custoTotalMateriais || 0;
+
+        // 2. Calcula os outros custos
+        const custoMaoDeObra = Number(horasEstimadas || 0) * Number(custoHora || 0);
+        const custoTotalTerceiros = Number(custosTerceiros || 0);
+
+        // 3. Soma todos os custos
+        const custoTotal = custoTotalMateriais + custoMaoDeObra + custoTotalTerceiros;
+
+        // 4. LÓGICA DE CÁLCULO CORRIGIDA (LUCRO SOBRE O CUSTO)
+        const margemDecimal = Number(margemLucro || 0) / 100;
+        
+        // A fórmula agora é Custo Total + (Custo Total * Margem)
+        const precoSugerido = custoTotal * (1 + margemDecimal);
+        // --- FIM DA CORREÇÃO ---
+
+        let sugestaoCustoTerceiros = 0;
+        if (custoTotalTerceiros === 0 && (custoTotalMateriais > 0 || custoMaoDeObra > 0)) {
+            sugestaoCustoTerceiros = (custoTotalMateriais + custoMaoDeObra) * 0.20; // Sugere 20%
+        }
+
+        // (Opcional) Guarda os dados do cálculo para referência
+        await Orcamento.findByIdAndUpdate(pedidoId, {
+            horasEstimadas: Number(horasEstimadas || 0),
+            custoHora: Number(custoHora || 0),
+            margemLucro: Number(margemLucro || 0)
+        });
+
+        res.status(200).json({ 
+            precoSugerido: precoSugerido.toFixed(2),
+            sugestaoCustoTerceiros: sugestaoCustoTerceiros.toFixed(2)
+        });
+
+    } catch (error) {
+        console.error("Erro ao calcular preço sugerido:", error);
+        res.status(500).json({ message: 'Erro ao processar a sugestão de preço.' });
     }
 };
 
@@ -330,37 +415,34 @@ const registrarAvaliacao = async (req, res) => {
 // Adicione esta nova função ao seu orcamentos.controller.js
 
 const getAgendamentosParaCalendario = async (req, res) => {
-     try {
-        // 1. Busca todos os orçamentos que estão com o status "Agendado"
-        const agendamentos = await Orcamento.find({
+    try {
+        const orcamentosAgendados = await Orcamento.find({
             status: 'Agendado',
-            dataAgendamento: { $exists: true, $ne: null } // Garante que a data existe
-        }).populate('cliente', 'nome'); // Puxa o nome do cliente para o título
+            dataAgendamento: { $exists: true, $ne: null }
+        })
+        .populate('cliente', 'nome telefone')
+        .select('dataAgendamento descricao cliente');
 
-        if (!agendamentos) {
-            return res.status(200).json([]);
-        }
+        // ✅ FILTRO DE SEGURANÇA ADICIONADO AQUI
+        // Antes de tentar formatar os dados, nós garantimos que não há nenhum pedido
+        // com cliente ou data faltando, prevenindo o erro.
+        const eventos = orcamentosAgendados
+            .filter(orcamento => orcamento && orcamento.cliente && orcamento.dataAgendamento)
+            .map(orcamento => {
+                const tituloEvento = `Serviço para: ${orcamento.cliente.nome || 'Cliente Removido'}`;
 
-        // 2. Transforma os dados para o formato que o FullCalendar (no frontend) entende
-        const eventosFormatados = agendamentos.map(agendamento => {
-            // Define um tempo final padrão de 1 hora após o início
-            const start = new Date(agendamento.dataAgendamento);
-            const end = new Date(start.getTime() + (60 * 60 * 1000)); // Adiciona 1 hora
+                return {
+                    id: orcamento._id,
+                    title: tituloEvento,
+                    start: orcamento.dataAgendamento,
+                };
+            });
 
-            return {
-                id: agendamento._id, // O ID do pedido
-                title: `#${agendamento.shortId} - ${agendamento.cliente?.nome || 'Cliente'}`, // O título do evento
-                start: start.toISOString(), // Data de início em formato ISO
-                end: end.toISOString(),     // Data de fim em formato ISO
-                allDay: false // Indica que é um evento com hora marcada
-            };
-        });
-
-        res.status(200).json(eventosFormatados);
+        res.status(200).json(eventos);
 
     } catch (error) {
-        console.error("Erro ao buscar agendamentos para o calendário:", error);
-        res.status(500).json({ message: 'Erro ao carregar os dados da agenda.' });
+        console.error("ERRO em getAgendamentosParaCalendario:", error);
+        res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
     }
 };
 const adicionarMaterialAoPedido = async (req, res) => {
@@ -662,6 +744,74 @@ const removerPagamento = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao remover pagamento.' });
     }
 };
+
+const removeCustoMaterial = async (req, res) => {
+    try {
+        const { orcamentoId, custoId } = req.params;
+
+        const orcamento = await Orcamento.findById(orcamentoId);
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado.' });
+        }
+
+        // Acha o custo específico que será removido para pegar seus detalhes
+        const custo = orcamento.custosMateriais.id(custoId);
+        if (!custo) {
+            return res.status(404).json({ message: 'Custo específico não encontrado no pedido.' });
+        }
+
+        // Deleta a Despesa correspondente. Esta é a lógica que faltava.
+        // É uma abordagem "best-effort" baseada nos dados que temos.
+        const despesaDescricao = `Material para pedido #${orcamento.shortId}: ${custo.descricao}`;
+        await Despesa.findOneAndDelete({
+            orcamentoAssociado: orcamentoId,
+            descricao: despesaDescricao,
+            valor: custo.valor
+        });
+
+        // Remove o custo do array no orçamento
+        orcamento.custosMateriais.pull({ _id: custoId });
+        await orcamento.save();
+
+        res.status(200).json(orcamento);
+
+    } catch (error) {
+        console.error("Erro ao remover custo de material:", error);
+        res.status(500).json({ message: 'Erro interno ao remover custo de material.' });
+    }
+};
+
+const getAgendadosParaCalendario = async (req, res) => {
+    try {
+        // 1. Busca no banco todos os orçamentos com status 'Agendado' e que tenham uma data
+        const orcamentosAgendados = await Orcamento.find({
+    status: 'Agendado',
+    dataAgendamento: { $exists: true, $ne: null }
+})
+.populate('cliente', 'nome telefone')
+.select('dataAgendamento descricao cliente');
+
+        // 2. Transforma os dados do MongoDB para o formato que o FullCalendar espera
+        const eventos = orcamentosAgendados.map(orcamento => {
+            // Monta um título descritivo para o evento no calendário
+            const tituloEvento = `Serviço para: ${orcamento.cliente?.nome || 'Cliente não identificado'}`;
+
+            return {
+                id: orcamento._id,          // ID do evento
+                title: tituloEvento,        // O que vai aparecer escrito no evento
+                start: orcamento.dataAgendamento, // Data e hora de início
+                // end: ...  // Você pode adicionar uma data de término se tiver essa informação
+            };
+        });
+
+        // 3. Envia a lista de eventos formatada como resposta
+        res.status(200).json(eventos);
+
+    } catch (error) {
+        console.error("Erro ao buscar eventos para o calendário:", error);
+        res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
+    }
+};
 const marcarComoPago = async (req, res) => {
     try {
         const pedido = await Orcamento.findById(req.params.id);
@@ -733,69 +883,20 @@ const getPedidosPorCliente = async (req, res) => {
         res.status(500).json({ message: "Erro ao buscar os pedidos do cliente." });
     }
 };
-// --- NOVA FUNÇÃO PARA CALCULAR O PREÇO SUGERIDO ---
-const calcularPrecoSugerido = async (req, res) => {
+const removerMaterialDoPedido = async (req, res) => {
     try {
-        const { pedidoId } = req.params;
-        const { horasEstimadas, custoHora, margemLucro } = req.body;
+        const { orcamentoId, materialUsadoId } = req.params;
 
-        console.log("A. [BACKEND] Dados recebidos:", req.body);
+        // A lógica de negócio foi movida para o serviço
+        const orcamentoAtualizado = await orcamentoService.removerMaterial(orcamentoId, materialUsadoId);
 
-        const orcamento = await Orcamento.findById(pedidoId).populate('materiaisUsados.produto');
-        if (!orcamento) {
-            return res.status(404).json({ message: "Pedido não encontrado." });
-        }
-
-        const custoTotalMateriais = orcamento.materiaisUsados.reduce((acc, item) => {
-            return acc + (item.custoNoMomento * item.quantidade);
-        }, 0);
-        console.log("B. [BACKEND] Custo de materiais calculado:", custoTotalMateriais);
-
-        const custoMaoDeObra = (Number(horasEstimadas) || 0) * (Number(custoHora) || 0);
-        console.log("C. [BACKEND] Custo de mão de obra calculado:", custoMaoDeObra);
-
-        const custoTotal = custoTotalMateriais + custoMaoDeObra;
-        const precoSugerido = custoTotal * (1 + (Number(margemLucro) || 100) / 100);
-        console.log("D. [BACKEND] Preço final sugerido:", precoSugerido);
-
-        // ... (lógica para guardar os dados no orçamento)
-
-        // --- PONTO DE VERIFICAÇÃO PRINCIPAL ---
-        const resposta = { precoSugerido: precoSugerido.toFixed(2) };
-        console.log("E. [BACKEND] Objeto de resposta a ser enviado:", resposta);
-        // ------------------------------------
-
-        res.status(200).json(resposta);
+        res.status(200).json({ message: "Material removido com sucesso!", orcamento: orcamentoAtualizado });
 
     } catch (error) {
-        console.error("Erro ao calcular preço sugerido:", error);
-        res.status(500).json({ message: 'Erro ao processar a sugestão de preço.' });
+        console.error("ERRO na rota removerMaterialDoPedido:", error);
+        res.status(500).json({ message: 'Erro interno ao remover material do pedido.' });
     }
 };
-const removeCustoMaterial = async (req, res) => {
-    try {
-        const { orcamentoId, custoId } = req.params;
-
-        // Remove a despesa correspondente na coleção de Despesas
-        await Despesa.findByIdAndDelete(custoId);
-        
-        // Remove o custo do array dentro do Orçamento
-        const orcamento = await Orcamento.findById(orcamentoId);
-        if (!orcamento) {
-            return res.status(404).json({ message: 'Orçamento não encontrado.' });
-        }
-        
-        orcamento.custosMateriais.pull({ _id: custoId });
-        await orcamento.save();
-
-        res.status(200).json(orcamento);
-
-    } catch (error) {
-        console.error("Erro ao remover custo do material:", error);
-        res.status(500).json({ message: 'Erro interno ao remover custo.' });
-    }
-};
-
 // Exporta TODAS as funções que as rotas utilizam.
 module.exports = {
     orcamentoValidationRules,
@@ -820,9 +921,11 @@ module.exports = {
     gerarOrcamentoPDF,
     adicionarPagamento,
     removerPagamento,
+    getAgendadosParaCalendario,
     marcarComoPago,
     attachInvoice,
     getPedidosPorCliente,
     calcularPrecoSugerido,
     removeCustoMaterial,
+    removerMaterialDoPedido,
 };

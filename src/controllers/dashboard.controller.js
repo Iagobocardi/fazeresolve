@@ -69,16 +69,27 @@ exports.getDashboardData = async (req, res) => {
 exports.getProximosAgendamentos = async (req, res) => {
   try {
     const hoje = new Date();
-    
-    const proximosAgendamentos = await Orcamento.find({
+    hoje.setHours(0, 0, 0, 0); // Define para o início do dia para uma comparação justa
+
+    // 1. Busca um conjunto mais amplo de agendamentos potenciais
+    const agendamentosPotenciais = await Orcamento.find({
       status: 'Agendado',
-      dataAgendamento: { $gte: hoje }
+      dataAgendamento: { $exists: true, $ne: null }
     })
     .sort({ dataAgendamento: 1 })
-    .limit(5)
     .populate('cliente', 'nome');
 
-    res.json(proximosAgendamentos);
+    // 2. Filtra e valida os resultados no código para garantir a integridade
+    const proximosAgendamentosValidos = agendamentosPotenciais.filter(orcamento => {
+      const data = orcamento.dataAgendamento;
+      // Garante que o campo é um objeto Date válido e que não está no passado
+      return data instanceof Date && !isNaN(data) && data >= hoje;
+    });
+
+    // 3. Limita o número de resultados após a filtragem
+    const limitedResults = proximosAgendamentosValidos.slice(0, 5);
+
+    res.json(limitedResults);
 
   } catch (error) {
     console.error('Erro ao buscar próximos agendamentos:', error);

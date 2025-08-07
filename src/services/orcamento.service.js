@@ -6,6 +6,37 @@ const MovimentoEstoque = require('../models/movimentoEstoque.model');
 const googleCalendarService = require('./googleCalendar.service.js'); // O import já estava correto
 
 /**
+ * Analisa uma string de data personalizada como "DD/MM as HH horas" e a converte em um objeto Date.
+ * @param {string} dateString - A string de data personalizada.
+ * @returns {Date|null} Um objeto Date ou nulo se a análise falhar.
+ */
+const parseCustomDate = (dateString) => {
+    if (!dateString || typeof dateString !== 'string') {
+        return null;
+    }
+    
+    const regex = /(\d{1,2})\/(\d{1,2}) as (\d{1,2}) horas/;
+    const match = dateString.match(regex);
+
+    if (match) {
+        const day = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10) - 1; // Meses em JavaScript são de 0 a 11
+        const hour = parseInt(match[3], 10);
+        const year = new Date().getFullYear(); // Assume o ano corrente
+
+        return new Date(year, month, day, hour);
+    }
+    
+    const standardDate = new Date(dateString);
+    if (!isNaN(standardDate.getTime())) {
+        return standardDate;
+    }
+
+    return null;
+};
+
+
+/**
  * Contém a lógica de negócio para agendar um serviço.
  * @param {string} orcamentoId - O ID do orçamento a ser agendado.
  * @param {string|Date} dataAgendamento - A data para a qual o serviço será agendado.
@@ -18,26 +49,28 @@ const agendarServico = async (orcamentoId, dataAgendamento) => {
         throw new Error('Orçamento não encontrado.');
     }
 
-    // ... (lógica para atualizar o status e histórico do orçamento)
+    const parsedDate = parseCustomDate(dataAgendamento);
+
+    if (!parsedDate) {
+        throw new Error(`Formato de data de agendamento inválido: "${dataAgendamento}"`);
+    }
+
     orcamento.status = 'Agendado';
-    orcamento.dataAgendamento = new Date(dataAgendamento);
-    orcamento.historico.push({ evento: `Serviço agendado para ${new Date(dataAgendamento).toLocaleString('pt-BR')}.` });
+    orcamento.dataAgendamento = parsedDate;
+    orcamento.historico.push({ evento: `Serviço agendado para ${parsedDate.toLocaleString('pt-BR')}.` });
     
     const orcamentoSalvo = await orcamento.save();
 
     // --- LÓGICA DE NOTIFICAÇÃO ATUALIZADA ---
     if (orcamento.cliente && orcamento.cliente.telefone) {
-        // 1. Renderiza o template "Serviço Agendado"
         const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', orcamentoSalvo);
         
-        // 2. Se a mensagem foi renderizada com sucesso, envia-a
         if (mensagemRenderizada) {
             await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
         }
     }
 
     // --- 3. CHAMA A FUNÇÃO PARA CRIAR O EVENTO NO GOOGLE CALENDAR ---
-    // Esta chamada acontece após o agendamento ser salvo e a notificação enviada.
     googleCalendarService.createEvent(orcamentoSalvo);
     // -----------------------------------------------------------
 
@@ -170,6 +203,46 @@ const adicionarMaterial = async (orcamentoId, produtoId, quantidade) => {
     return orcamento;
 };
 
+/**
+ * Remove um material usado de um pedido e devolve-o ao estoque.
+ * @param {string} orcamentoId - O ID do orçamento.
+ * @param {string} materialUsadoId - O ID do item no array 'materiaisUsados'.
+ * @returns {Promise<Document>} O documento do orçamento atualizado.
+ */
+const removerMaterial = async (orcamentoId, materialUsadoId) => {
+    const orcamento = await Orcamento.findById(orcamentoId);
+    if (!orcamento) {
+        throw new Error("Pedido não encontrado.");
+    }
+
+    const materialUsado = orcamento.materiaisUsados.id(materialUsadoId);
+    if (!materialUsado) {
+        throw new Error("Material não encontrado no pedido.");
+    }
+
+    const produto = await Produto.findById(materialUsado.produto);
+    if (produto) {
+        produto.quantidadeEmEstoque += materialUsado.quantidade;
+        await produto.save();
+    }
+
+    // Remove o subdocumento do array
+    materialUsado.remove();
+
+    const movimento = new MovimentoEstoque({
+        produto: materialUsado.produto,
+        tipo: 'Entrada',
+        quantidade: materialUsado.quantidade,
+        motivo: `Devolução do Pedido #${orcamento.shortId}`,
+        orcamentoAssociado: orcamentoId
+    });
+
+    await orcamento.save();
+    await movimento.save();
+
+    return orcamento;
+};
+
 // Exportamos a função para que os controllers possam usá-la
 module.exports = {
     agendarServico,
@@ -177,4 +250,5 @@ module.exports = {
     submeterOrcamento,
     getClienteInfo, 
     adicionarMaterial,
+    removerMaterial,
 };

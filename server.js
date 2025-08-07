@@ -88,6 +88,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/conversas', conversaRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
+
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {
     res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');

@@ -9,6 +9,23 @@ const tarefaSchema = new Schema({
     concluida: { type: Boolean, default: false }
 });
 
+const materialUsadoSchema = new Schema({
+    produto: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Produto',
+        required: true
+    },
+    quantidade: {
+        type: Number,
+        required: true,
+        min: 1
+    },
+    custoNoMomento: { 
+        type: Number,
+        required: true
+    }
+});
+
 const orcamentoSchema = new mongoose.Schema({
     status: {
         type: String,
@@ -82,23 +99,7 @@ const orcamentoSchema = new mongoose.Schema({
      // =======================================================
     // ==> NOVOS CAMPOS ADICIONADOS AQUI <==
     // =======================================================
-       materiaisUsados: [{
-        produto: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Produto',
-            required: true
-        },
-        quantidade: {
-            type: Number,
-            required: true,
-            min: 1
-        },
-        // Guarda o custo do material no momento do uso, para relatórios financeiros precisos
-        custoNoMomento: { 
-            type: Number,
-            required: true
-        }
-    }],
+       materiaisUsados: [materialUsadoSchema],
 
       // Campo para anotações de medidas e detalhes técnicos
     anotacoesTecnicas: {
