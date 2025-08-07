@@ -5,57 +5,52 @@ const router = express.Router();
 
 const whatsappController = require('../controllers/whatsapp.controller');
 const checkPlan = require('../middlewares/checkPlan.middleware.js');
-const authMiddleware = require('../middlewares/auth.middleware.js'); // Vamos precisar de autenticação
+const authMiddleware = require('../middlewares/auth.middleware.js');
 
-// Rota do Webhook (automação) - Acesso Premium
+// Rota do Webhook (automação) - DEVE SER PÚBLICA
+// A lógica para verificar o plano Premium deve estar DENTRO do handleWhatsAppWebhook
 router.post(
     '/webhook',
-    checkPlan(['Premium']), // Apenas utilizadores Premium podem usar a automação do webhook
     whatsappController.handleWhatsAppWebhook
 );
 
-// --- Novas Rotas para Templates de Mensagem ---
+// --- Rotas para Templates de Mensagem (estas estão corretas) ---
 
 // Rota para renderizar um template com dados de um orçamento
-// Acessível a todos os utilizadores autenticados
 router.get(
     '/templates/render/:templateId/:orcamentoId',
-    authMiddleware, // Garante que o utilizador está logado
+    authMiddleware,
     whatsappController.renderTemplate
 );
 
 // Rota para listar todos os templates
-// Acessível a todos os utilizadores autenticados
 router.get(
     '/templates',
     authMiddleware,
     whatsappController.getAllTemplates
 );
 
-// Rota para criar um novo template
-// Acessível apenas para Admins
+// Rota para criar um novo template (Apenas Admin)
 router.post(
     '/templates',
     authMiddleware,
-    checkPlan(['Admin']),
+    checkPlan(['Admin', 'Premium']), // Permitir que Premium também crie templates, se desejar
     whatsappController.createTemplate
 );
 
-// Rota para atualizar um template
-// Acessível apenas para Admins
+// Rota para atualizar um template (Apenas Admin)
 router.put(
     '/templates/:id',
     authMiddleware,
-    checkPlan(['Admin']),
+    checkPlan(['Admin', 'Premium']),
     whatsappController.updateTemplate
 );
 
-// Rota para deletar um template
-// Acessível apenas para Admins
+// Rota para deletar um template (Apenas Admin)
 router.delete(
     '/templates/:id',
     authMiddleware,
-    checkPlan(['Admin']),
+    checkPlan(['Admin', 'Premium']),
     whatsappController.deleteTemplate
 );
 

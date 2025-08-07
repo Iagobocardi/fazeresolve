@@ -156,19 +156,28 @@ const sugerirAgendamento = async (req, res) => {
         const { dataSugerida } = req.body;
         const orcamento = await Orcamento.findOne({ _id: req.params.id, cliente: req.cliente.id });
 
-        if (!orcamento || orcamento.status !== 'Aceito') {
-            return res.status(400).json({ message: 'Este pedido não pode ser agendado neste momento.' });
+        // --- A CORREÇÃO ESTÁ AQUI ---
+        // Agora, permitimos a sugestão se o status for 'Aceito' OU 'Agendado'.
+        if (!orcamento || !['Aceito', 'Agendado'].includes(orcamento.status)) {
+            return res.status(400).json({ message: 'Este pedido não pode ser agendado ou reagendado neste momento.' });
         }
 
+        const isReagendamento = orcamento.status === 'Agendado';
+
         orcamento.sugestaoAgendamentoCliente = dataSugerida;
-        orcamento.historico.push({ evento: `Cliente sugeriu agendamento para: ${dataSugerida}` });
+        orcamento.historico.push({ 
+            evento: isReagendamento 
+                ? `Cliente solicitou reagendamento para: ${dataSugerida}`
+                : `Cliente sugeriu agendamento para: ${dataSugerida}`
+        });
         await orcamento.save();
 
         // Notifica o PRESTADOR sobre a sugestão do cliente
         const numeroPrestador = process.env.PRESTADOR_TELEFONE;
         if (numeroPrestador) {
-            const msg = `🗓️ Agendamento Sugerido!\n\nO cliente *${orcamento.cliente.nome}* sugeriu uma data para o pedido *#${orcamento.shortId}*:\n\n*Sugestão:* ${dataSugerida}\n\nAcesse o painel para confirmar.`;
-            await whatsappService.sendWhatsAppMessage(numeroPrestador, msg);
+            const clienteInfo = await orcamentoService.getClienteInfo(orcamento._id);
+            const msg = `🗓️ ${isReagendamento ? 'Solicitação de Reagendamento' : 'Agendamento Sugerido'}!\n\nO cliente *${clienteInfo.nome}* sugeriu uma nova data para o pedido *#${orcamento.shortId}*:\n\n*Sugestão:* ${dataSugerida}\n\nAcesse o painel para confirmar.`;
+            // await whatsappService.sendWhatsAppMessage(numeroPrestador, msg);
         }
 
         res.status(200).json(orcamento);

@@ -14,7 +14,7 @@ const whatsappTemplateSchema = new Schema({
     categoria: {
         type: String,
         required: [true, 'A categoria do template é obrigatória.'],
-        enum: ['Orçamento', 'Agendamento', 'Acompanhamento', 'Outros'],
+        enum: ['Orçamento', 'Agendamento', 'LEMBRETE', 'Acompanhamento', 'Outros', 'AVALIACAO'],
         default: 'Outros'
     }
 }, { timestamps: true });

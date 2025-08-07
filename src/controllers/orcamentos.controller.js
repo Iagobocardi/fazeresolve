@@ -330,34 +330,37 @@ const registrarAvaliacao = async (req, res) => {
 // Adicione esta nova função ao seu orcamentos.controller.js
 
 const getAgendamentosParaCalendario = async (req, res) => {
-    try {
-        const orcamentosAgendados = await Orcamento.find({
+     try {
+        // 1. Busca todos os orçamentos que estão com o status "Agendado"
+        const agendamentos = await Orcamento.find({
             status: 'Agendado',
-            dataAgendamento: { $exists: true, $ne: null }
-        })
-        .populate('cliente', 'nome telefone')
-        .select('dataAgendamento descricao cliente');
+            dataAgendamento: { $exists: true, $ne: null } // Garante que a data existe
+        }).populate('cliente', 'nome'); // Puxa o nome do cliente para o título
 
-        // ✅ FILTRO DE SEGURANÇA ADICIONADO AQUI
-        // Antes de tentar formatar os dados, nós garantimos que não há nenhum pedido
-        // com cliente ou data faltando, prevenindo o erro.
-        const eventos = orcamentosAgendados
-            .filter(orcamento => orcamento && orcamento.cliente && orcamento.dataAgendamento)
-            .map(orcamento => {
-                const tituloEvento = `Serviço para: ${orcamento.cliente.nome || 'Cliente Removido'}`;
+        if (!agendamentos) {
+            return res.status(200).json([]);
+        }
 
-                return {
-                    id: orcamento._id,
-                    title: tituloEvento,
-                    start: orcamento.dataAgendamento,
-                };
-            });
+        // 2. Transforma os dados para o formato que o FullCalendar (no frontend) entende
+        const eventosFormatados = agendamentos.map(agendamento => {
+            // Define um tempo final padrão de 1 hora após o início
+            const start = new Date(agendamento.dataAgendamento);
+            const end = new Date(start.getTime() + (60 * 60 * 1000)); // Adiciona 1 hora
 
-        res.status(200).json(eventos);
+            return {
+                id: agendamento._id, // O ID do pedido
+                title: `#${agendamento.shortId} - ${agendamento.cliente?.nome || 'Cliente'}`, // O título do evento
+                start: start.toISOString(), // Data de início em formato ISO
+                end: end.toISOString(),     // Data de fim em formato ISO
+                allDay: false // Indica que é um evento com hora marcada
+            };
+        });
+
+        res.status(200).json(eventosFormatados);
 
     } catch (error) {
-        console.error("ERRO em getAgendamentosParaCalendario:", error);
-        res.status(500).json({ message: 'Erro interno ao buscar agendamentos.' });
+        console.error("Erro ao buscar agendamentos para o calendário:", error);
+        res.status(500).json({ message: 'Erro ao carregar os dados da agenda.' });
     }
 };
 const adicionarMaterialAoPedido = async (req, res) => {

@@ -7,6 +7,43 @@ const commandParser = require('./commandParser.js');
 const chrono = require('chrono-node');
 const axios = require('axios');
 const Conversa = require('../models/conversa.model');
+const WhatsappTemplate = require('../models/whatsappTemplate.model.js');
+
+
+/**
+ * Renderiza uma mensagem de template com os dados de um orçamento.
+ * @param {string} tituloTemplate - O título do template a ser usado (ex: "Lembrete de Agendamento").
+ * @param {object} orcamento - O objeto completo do orçamento com os dados do cliente.
+ * @returns {Promise<string>} A mensagem final com os placeholders substituídos.
+ */
+const renderTemplate = async (tituloTemplate, orcamento) => {
+    try {
+        const template = await WhatsappTemplate.findOne({ titulo: tituloTemplate });
+        if (!template) {
+            throw new Error(`Template "${tituloTemplate}" não encontrado.`);
+        }
+
+        let mensagemRenderizada = template.mensagem;
+
+        // Substitui os placeholders. Pode adicionar mais aqui.
+        mensagemRenderizada = mensagemRenderizada.replace(/{{cliente.nome}}/g, orcamento.cliente.nome);
+        mensagemRenderizada = mensagemRenderizada.replace(/{{orcamento.shortId}}/g, orcamento.shortId);
+        
+        if (orcamento.valorProposto) {
+            const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto);
+            mensagemRenderizada = mensagemRenderizada.replace(/{{orcamento.valorProposto}}/g, valorFormatado);
+        }
+        if (orcamento.dataAgendamento) {
+            const dataFormatada = new Date(orcamento.dataAgendamento).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+            mensagemRenderizada = mensagemRenderizada.replace(/{{orcamento.dataAgendamento}}/g, dataFormatada);
+        }
+
+        return mensagemRenderizada;
+    } catch (error) {
+        console.error("Erro ao renderizar o template:", error);
+        return null; // Retorna nulo se o template não puder ser renderizado
+    }
+};
 
 // 1. Cliente Twilio e número de telefone definidos UMA VEZ no topo.
 const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -130,6 +167,9 @@ const handleCheckOrderStatus = async (user) => {
 // FUNÇÃO 4: Lidar com TODAS as mensagens que chegam do webhook
 // =======================================================
 const handleIncomingMessage = async (req) => {
+
+     const prestadorPhone = process.env.PRESTADOR_TELEFONE;
+
     try {
         const { From, ProfileName, Body, NumMedia, ButtonPayload } = req.body;
         if (!From) { return console.log("Requisição ignorada por não conter remetente 'From'."); }
@@ -142,7 +182,6 @@ const handleIncomingMessage = async (req) => {
                 mediaUrls.push(req.body[`MediaUrl${i}`]);
             }
         }
-        const prestadorPhone = process.env.PRESTADOR_TELEFONE;
          const interactiveReplyId = Body || ButtonPayload; 
 
 
@@ -372,43 +411,65 @@ if (user && user.role === 'CLIENTE_FINAL' && user.conversationState === 'AWAITIN
         await sendWhatsAppMessage(user.telefone, "Descrição recebida! 👍\n\nPara agilizar, por favor, digite o seu *CEP* (apenas números, ex: 18270000).");
         break;
 
-        case 'AWAITING_CEP': // <-- NOVA ETAPA
-        const cepRegex = /^\d{5}-?\d{3}$/;
-        if (!cepRegex.test(messageBody.trim())) {
-            await sendWhatsAppMessage(user.telefone, "CEP inválido. Por favor, envie um CEP válido, como `18270-000` ou `18270000`.");
-            return; // Continua a aguardar um CEP válido
-        }
-         try {
-            const cepLimpo = messageBody.replace(/\D/g, '');
-            const { data } = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+       case 'AWAITING_CEP':
+    const cepRegex = /^\d{5}-?\d{3}$/;
+    if (!cepRegex.test(messageBody.trim())) {
+        await sendWhatsAppMessage(user.telefone, "CEP inválido. Por favor, envie um CEP válido, como `18270-000` ou `18270000`.");
+        return;
+    }
+    
+    try {
+        const cepLimpo = messageBody.replace(/\D/g, '');
+        const { data } = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
 
-            if (data.erro) {
-                await sendWhatsAppMessage(user.telefone, 'CEP não encontrado. Por favor, verifique e envie novamente.');
-                return;
-            }
-              user.currentDemand.addressData = {
-                rua: data.logradouro,
-                bairro: data.bairro,
-                cidade: data.localidade,
-                uf: data.uf,
-            };
-              user.conversationState = 'AWAITING_NUMERO'; // Próximo passo: pedir o número
-            await user.save();
-              } catch (error) {
-            await sendWhatsAppMessage(user.telefone, 'Ocorreu um erro ao consultar o seu CEP. Por favor, tente novamente.');
+        if (data.erro) {
+            await sendWhatsAppMessage(user.telefone, 'CEP não encontrado. Por favor, verifique e envie novamente.');
+            return;
         }
-        break;
-         case 'AWAITING_NUMERO': // <-- NOVA ETAPA
-        const { rua, bairro, cidade, uf } = user.currentDemand.addressData;
-        const numeroEComplemento = messageBody;
-        const enderecoCompleto = `${rua}, ${numeroEComplemento}, ${bairro}, ${cidade} - ${uf}`;
         
-        user.currentDemand.address = enderecoCompleto;
-        user.conversationState = 'AWAITING_AVAILABILITY'; // Próximo passo: pedir a data
+        // Guarda os dados temporários
+        user.currentDemand.addressData = {
+            rua: data.logradouro,
+            bairro: data.bairro,
+            cidade: data.localidade,
+            uf: data.uf,
+        };
+        
+        // Muda para o próximo estado
+        user.conversationState = 'AWAITING_NUMERO';
         await user.save();
+        
+        // --- A RESPOSTA QUE ESTAVA EM FALTA ---
+        // Agora, o bot envia a próxima pergunta ao utilizador.
+        const proximaPergunta = `Encontrei o endereço: ${data.logradouro}, ${data.bairro}.\n\nPor favor, envie agora o *número da sua casa* e o complemento (se houver). Ex: *123, Apartamento 4B*`;
+        await sendWhatsAppMessage(user.telefone, proximaPergunta);
+        // ------------------------------------
 
-         await sendWhatsAppMessage(user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si (ex: 'amanhã à tarde', 'sábado de manhã').");
-        break;
+    } catch (error) {
+        console.error("Erro ao consultar o CEP:", error);
+        await sendWhatsAppMessage(user.telefone, 'Ocorreu um erro ao consultar o seu CEP. Por favor, tente novamente.');
+    }
+    break;
+         case 'AWAITING_NUMERO':
+                    // --- CORREÇÃO DE SEGURANÇA DEFINITIVA ---
+                    if (!user.currentDemand || !user.currentDemand.addressData || !user.currentDemand.addressData.rua) {
+                        await sendWhatsAppMessage(user.telefone, "Ops, parece que me perdi. Poderia, por favor, enviar o seu CEP novamente para eu encontrar o seu endereço?");
+                        user.conversationState = 'AWAITING_CEP'; // Reinicia o fluxo a partir do CEP
+                        await user.save();
+                        return; // Interrompe a execução
+                    }
+
+                    // Se a verificação passar, o código continua com segurança
+                    const { rua, bairro, cidade, uf } = user.currentDemand.addressData;
+                    const numeroEComplemento = messageBody;
+                    const enderecoCompleto = `${rua}, ${numeroEComplemento}, ${bairro}, ${cidade} - ${uf}`;
+                    
+                    user.currentDemand.address = enderecoCompleto;
+                    user.conversationState = 'AWAITING_AVAILABILITY';
+                    await user.save();
+
+                    await sendWhatsAppMessage(user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si (ex: 'amanhã à tarde', 'sábado de manhã').");
+                    break;
 
 
                 // CÓDIGO CORRIGIDO E INTELIGENTE
@@ -435,16 +496,16 @@ case 'AWAITING_AVAILABILITY':
     // Se chegamos aqui, 'dataParseada' é um objeto Date válido!
     user.conversationState = 'COMPLETED'; // Agora sim, mudamos o estado.
     
-    const newOrcamento = await Orcamento.create({
-    cliente: user._id,
-    tipo: 'ORCAMENTO',
-    status: 'Agendado', // ✅ <--- ADICIONE ESTA LINHA
-    descricao: user.currentDemand.description,
-    media: user.currentDemand.media,
-    address: user.currentDemand.address,
-    dataAgendamento: dataParseada,
-    historico: [{ evento: 'Pedido criado pelo cliente via WhatsApp.' }]
-});
+     const newOrcamento = await Orcamento.create({
+                        cliente: user._id,
+                        tipo: 'ORCAMENTO',
+                        status: 'Pendente', // 1. O status agora é 'Pendente', como deveria ser.
+                        descricao: user.currentDemand.description,
+                        media: user.currentDemand.media,
+                        address: user.currentDemand.address,
+                        sugestaoAgendamentoCliente: dataParseada, // 2. A data é guardada como uma SUGESTÃO.
+                        historico: [{ evento: 'Pedido criado pelo cliente via WhatsApp.' }]
+                    });
 
     user.currentDemand = {}; // Limpa a demanda atual
     await user.save();
@@ -491,7 +552,7 @@ case 'AWAITING_AVAILABILITY':
 // =======================================================
 // SEÇÃO DE CRUD PARA TEMPLATES
 // =======================================================
-const WhatsappTemplate = require('../models/whatsappTemplate.model.js');
+//const WhatsappTemplate = require('../models/whatsappTemplate.model.js');
 //const Orcamento = require('../models/orcamento.model.js');
 //const Cliente = require('../models/cliente.model.js');
 
@@ -562,5 +623,6 @@ module.exports = {
     createTemplate,
     updateTemplate,
     deleteTemplate,
-    renderTemplateMessage
+    renderTemplateMessage,
+     renderTemplate
 };

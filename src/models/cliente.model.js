@@ -31,7 +31,7 @@ password: {
     // -----------------------------------
     conversationState: {
         type: String,
-        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_RATING'],
+        enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE','AWAITING_CEP','AWAITING_NUMERO','AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_RATING'],
         default: 'NONE'
     },
     currentDemand: {
@@ -40,9 +40,10 @@ password: {
         address: String,
         availability: String,
         media: [{ url: String, sid: String }],
-        // --- NOVO CAMPO ADICIONADO ---
-        // Guarda a lista de IDs dos pedidos que o cliente está a escolher.
-        pendingOrderIds: [mongoose.Schema.Types.ObjectId]
+        pendingOrderIds: [mongoose.Schema.Types.ObjectId],
+
+         addressData: { type: Object }
+
     },
     activeContext: {
         type: mongoose.Schema.Types.ObjectId,
