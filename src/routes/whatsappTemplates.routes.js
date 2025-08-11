@@ -4,13 +4,18 @@ const router = express.Router();
 const whatsappController = require('../controllers/whatsapp.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 const checkPlan = require('../middlewares/checkPlan.middleware.js');
+const roleMiddleware = require('../middlewares/role.middleware');
+
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR']));
 
 router.get('/', whatsappController.getAllTemplates);
 router.get('/render/:templateId/:orcamentoId', whatsappController.renderTemplate);
 
 // Admin-only routes
-router.post('/', authMiddleware, checkPlan(['Admin','Premium']), whatsappController.createTemplate);
-router.put('/:id', authMiddleware, checkPlan(['Admin']), whatsappController.updateTemplate);
-router.delete('/:id', authMiddleware, checkPlan(['Admin']), whatsappController.deleteTemplate);
+router.post('/', checkPlan(['Premium']), whatsappController.createTemplate);
+router.put('/:id', whatsappController.updateTemplate);
+router.delete('/:id', whatsappController.deleteTemplate);
 
 module.exports = router;

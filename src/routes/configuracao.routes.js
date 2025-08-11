@@ -3,6 +3,12 @@
 const express = require('express');
 const router = express.Router();
 const configuracaoController = require('../controllers/configuracao.controller.js');
+const authMiddleware = require('../middlewares/auth.middleware');
+const roleMiddleware = require('../middlewares/role.middleware');
+
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR']));
 
 // Rota para OBTER a configuração
 // GET /api/configuracoes

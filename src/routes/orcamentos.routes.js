@@ -3,6 +3,12 @@
 const express = require('express');
 const router = express.Router();
 const orcamentosController = require('../controllers/orcamentos.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
+const roleMiddleware = require('../middlewares/role.middleware');
+
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR']));
 const { orcamentoValidationRules } = require('../controllers/orcamentos.controller');
 const { validate } = require('../middlewares/validation.middleware');
 const upload = require('../config/multer.config.js');

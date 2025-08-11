@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const servicosController = require('../controllers/servicos.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
+const roleMiddleware = require('../middlewares/role.middleware');
+
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR']));
 const { servicoValidationRules } = require('../controllers/servicos.controller');
 const { validate } = require('../middlewares/validation.middleware');
 
