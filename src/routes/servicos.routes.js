@@ -6,7 +6,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 const { servicoValidationRules } = require('../controllers/servicos.controller');
 const { validate } = require('../middlewares/validation.middleware');
 

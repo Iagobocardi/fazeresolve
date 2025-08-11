@@ -9,7 +9,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 
 // A rota só será acedida se o utilizador estiver autenticado, for PRESTADOR E tiver o plano 'Profissional' ou 'Premium'
 router.post('/add-batch', checkPlan(['Profissional', 'Premium']), estoqueController.addItemsInBatch);

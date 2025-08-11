@@ -15,7 +15,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 
 // POST /api/upload/product-image
 router.post(

@@ -12,7 +12,7 @@ const adminData = {
     email: "iago.bocardi@fazeresolve.com",
     password: "Senha44169556_@",
     telefone: "+5515998595422",
-    role: 'PRESTADOR',
+    role: 'ADMIN',
     plano: 'Premium'
 };
 // ------------------------------------

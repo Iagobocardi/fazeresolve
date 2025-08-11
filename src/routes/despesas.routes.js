@@ -8,7 +8,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 
 // Rota para criar uma nova despesa
 router.post('/', despesasController.createDespesa);
