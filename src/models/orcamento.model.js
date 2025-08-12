@@ -36,6 +36,7 @@ const orcamentoSchema = new mongoose.Schema({
     data: { type: Date, default: Date.now },
     valorProposto: { type: Number, min: 0, default: 0 },
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
+    prestadorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
     descricao: { type: String },
     media: [{ url: String, sid: String }],
     tipo: {

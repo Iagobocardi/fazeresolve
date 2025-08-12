@@ -216,7 +216,16 @@ const createOrcamento = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
     try {
-        const novoOrcamento = new Orcamento(req.body);
+        // Pega o ID do prestador logado a partir do token (adicionado pelo authMiddleware)
+        const prestadorId = req.user.id;
+
+        // Cria um novo objeto de orçamento combinando o corpo da requisição com o ID do prestador
+        const dadosOrcamento = {
+            ...req.body,
+            prestadorId: prestadorId
+        };
+
+        const novoOrcamento = new Orcamento(dadosOrcamento);
         const orcamentoSalvo = await novoOrcamento.save();
         res.status(201).json(orcamentoSalvo);
     } catch (error) {
