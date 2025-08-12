@@ -13,10 +13,13 @@ exports.loginAdmin = async (req, res) => {
         }
 
         // Busca o utilizador pelo telefone OU email, que seja PRESTADOR ou ADMIN
-        let usuario = await Cliente.findOne({ telefone: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password');
+        let usuario = await Cliente.findOne({ telefone: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password +plano');
         if (!usuario) {
-            usuario = await Cliente.findOne({ email: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password');
+            usuario = await Cliente.findOne({ email: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password +plano');
         }
+
+        // Adicionado para depuração
+        console.log('DEBUG: Utilizador encontrado na base de dados:', usuario);
 
         if (!usuario) {
             return res.status(401).json({ message: 'Credenciais inválidas ou conta não é de administrador.' });
