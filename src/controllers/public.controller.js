@@ -1,6 +1,49 @@
 // src/controllers/public.controller.js
 
 const Orcamento = require('../models/orcamento.model');
+const Cliente = require('../models/cliente.model');
+
+const { validationResult } = require('express-validator');
+
+const registerProvider = async (req, res) => {
+    // Lida com os erros de validação
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+        const { nome, email, telefone, password, plano } = req.body;
+
+        // Checa se o utilizador já existe
+        const existingUser = await Cliente.findOne({ $or: [{ email: email }, { telefone: telefone }] });
+        if (existingUser) {
+            return res.status(409).json({ message: 'Um utilizador com este email ou telefone já existe.' });
+        }
+
+        // Cria o novo prestador
+        const novoPrestador = new Cliente({
+            nome,
+            email,
+            telefone,
+            password, // O pre-save hook no modelo irá encriptar
+            plano,
+            role: 'PRESTADOR' // Define a função como PRESTADOR
+        });
+
+        await novoPrestador.save();
+
+        // Remove a senha do objeto antes de o enviar de volta
+        const prestadorParaRetornar = novoPrestador.toObject();
+        delete prestadorParaRetornar.password;
+
+        res.status(201).json({ message: 'Prestador registado com sucesso!', usuario: prestadorParaRetornar });
+
+    } catch (error) {
+        console.error("Erro ao registrar novo prestador:", error);
+        res.status(500).json({ message: 'Ocorreu um erro interno ao tentar registar o prestador.' });
+    }
+};
 
 const getPedidoByPublicId = async (req, res) => {
     try {
@@ -76,4 +119,5 @@ module.exports = {
     aprovarOrcamentoPublico,
     rejeitarOrcamentoPublico,
     sugerirAgendamentoPublico,
+    registerProvider,
 };
