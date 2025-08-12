@@ -13,12 +13,19 @@ const oauth2Client = new google.auth.OAuth2(
 // Função para obter a configuração atual (ou criar uma se não existir)
 exports.getConfiguracao = async (req, res) => {
     try {
-        const config = await Configuracao.obterConfiguracao();
+        const configFromDb = await Configuracao.obterConfiguracao();
+
+        // Converte para um objeto simples para podermos adicionar propriedades
+        const config = configFromDb.toObject ? configFromDb.toObject() : {};
+
+        // Adiciona a chave da API do Google Maps do ambiente
+        config.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+
         res.status(200).json(config);
     } catch (error) {
         console.error("Erro ao obter a configuração:", error);
         res.status(500).json({ message: "Ocorreu um erro ao buscar as configurações." });
-    }exports.connectGoogleCalendar
+    }
 };
 
 // Função para atualizar a configuração
