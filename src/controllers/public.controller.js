@@ -3,7 +3,61 @@
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
 
+const { google } = require('googleapis');
+const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
+
+// Instancia o cliente OAuth2 para a troca de código
+const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    'postmessage' // Essencial para o fluxo de "one-time code" do frontend
+);
+
+const googleLogin = async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) {
+            return res.status(400).json({ message: 'O código de autorização do Google é obrigatório.' });
+        }
+
+        // Troca o código por tokens
+        const { tokens } = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+
+        // Obtém as informações do perfil do utilizador
+        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+        const { data } = await oauth2.userinfo.get();
+
+        // Procura um utilizador na base de dados com o email do Google
+        const usuario = await Cliente.findOne({ email: data.email });
+
+        // Se o utilizador não for encontrado, retorna um erro
+        if (!usuario) {
+            return res.status(404).json({ message: 'Utilizador não encontrado. Por favor, registe-se primeiro.' });
+        }
+
+        // Se o utilizador for encontrado, gera um token JWT para ele
+        const payload = {
+            id: usuario._id,
+            nome: usuario.nome,
+            role: usuario.role,
+            plano: usuario.plano
+        };
+
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+        res.status(200).json({
+            message: 'Login com Google bem-sucedido!',
+            token,
+            usuario: payload
+        });
+
+    } catch (error) {
+        console.error("Erro no login com Google:", error);
+        res.status(500).json({ message: 'Ocorreu um erro interno durante o login com o Google.' });
+    }
+};
 
 const registerProvider = async (req, res) => {
     // Lida com os erros de validação
@@ -120,4 +174,5 @@ module.exports = {
     rejeitarOrcamentoPublico,
     sugerirAgendamentoPublico,
     registerProvider,
+    googleLogin,
 };

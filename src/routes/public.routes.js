@@ -33,5 +33,8 @@ const registerProviderRules = [
 // Rota para registrar um novo prestador de serviço, com validação
 router.post('/register', registerProviderRules, validate, publicController.registerProvider);
 
+// Rota para o login social com o Google
+router.post('/google-login', publicController.googleLogin);
+
 
 module.exports = router;
