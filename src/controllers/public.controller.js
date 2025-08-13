@@ -69,6 +69,9 @@ const registerProvider = async (req, res) => {
     try {
         const { nome, email, telefone, password, plano } = req.body;
 
+        // Adicionado para depuração
+        console.log(`DEBUG: Tentativa de registo com a senha: "${password}"`);
+
         // Checa se o utilizador já existe
         const existingUser = await Cliente.findOne({ $or: [{ email: email }, { telefone: telefone }] });
         if (existingUser) {

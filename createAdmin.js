@@ -38,7 +38,7 @@ const createAdminUser = async () => {
 
         console.log('✅ Utilizador Administrador criado com sucesso!');
         console.log(`   -> Email: ${adminData.email}`);
-        console.log(`   -> Senha: (a que você definiu no script)`);
+        console.log(`   -> Senha (PARA DEPURAÇÃO): ${adminData.password}`);
 
     } catch (error) {
         console.error('❌ Ocorreu um erro:', error);
