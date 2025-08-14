@@ -1,25 +1,27 @@
 // Em: createAdmin.js
 
-// Carrega as variáveis de ambiente (como a sua string de conexão do MongoDB)
 require('dotenv').config(); 
 const mongoose = require('mongoose');
-const Cliente = require('./src/models/cliente.model.js'); // Importa o seu modelo de cliente
+const Cliente = require('./src/models/cliente.model.js');
+// Importa a função de conexão partilhada
+const connectDB = require('./src/config/database.js');
 
 // --- PREENCHA OS SEUS DADOS AQUI ---
 const adminData = {
-    nome: "Administrador", // O seu nome
-    email: "iago.bocardi@fazeresolve.com", // O seu email de login
-    password: "Senha44169556_@", // Escolha uma senha forte
-    telefone: "+5515998595422", // O seu telefone
-    role: 'PRESTADOR', // Define esta conta como administrador
-    plano: 'Premium' // Define o seu plano inicial
+    nome: "Administrador",
+    email: "iago.bocardi@fazeresolve.com",
+    password: "Senha44169556_@",
+    telefone: "+5515998595422",
+    role: 'ADMIN',
+    plano: 'Premium'
 };
 // ------------------------------------
 
 const createAdminUser = async () => {
     try {
-        console.log('A ligar à base de dados...');
-        await mongoose.connect(process.env.MONGODB_URI);
+        console.log('A ligar à base de dados usando a função partilhada...');
+        // Usa a função de conexão partilhada
+        await connectDB();
         console.log('Ligado com sucesso!');
 
         console.log('A verificar se o utilizador já existe...');
@@ -32,11 +34,11 @@ const createAdminUser = async () => {
 
         console.log('A criar o novo utilizador administrador...');
         const novoAdmin = new Cliente(adminData);
-        await novoAdmin.save(); // O hook 'pre-save' no seu modelo irá encriptar a senha automaticamente
+        await novoAdmin.save();
 
         console.log('✅ Utilizador Administrador criado com sucesso!');
         console.log(`   -> Email: ${adminData.email}`);
-        console.log(`   -> Senha: (a que você definiu no script)`);
+        console.log(`   -> Senha (PARA DEPURAÇÃO): ${adminData.password}`);
 
     } catch (error) {
         console.error('❌ Ocorreu um erro:', error);

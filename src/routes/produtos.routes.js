@@ -3,6 +3,12 @@
 const express = require('express');
 const router = express.Router();
 const produtosController = require('../controllers/produtos.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
+const roleMiddleware = require('../middlewares/role.middleware');
+
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 
 // Rotas para o CRUD de produtos
 router.post('/', produtosController.createProduto);

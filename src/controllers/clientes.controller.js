@@ -4,25 +4,49 @@ const crypto = require('crypto');
 const whatsappService = require('../services/whatsapp.service');
 const mongoose = require('mongoose');
 
-// Função para listar todos os clientes e contar os seus pedidos
+// Função para listar todos os clientes de um prestador específico
 const getAllClientes = async (req, res) => {
     try {
-        const clientesComDados = await Cliente.aggregate([
+        const prestadorId = new mongoose.Types.ObjectId(req.user.id);
+
+        const clientesDoPrestador = await Orcamento.aggregate([
+            // 1. Encontrar todos os orçamentos que pertencem ao prestador logado
             {
-                // 1. Juntar os clientes com os seus respetivos pedidos (orçamentos)
+                $match: { prestadorId: prestadorId }
+            },
+            // 2. Agrupar por cliente para obter uma lista de clientes únicos
+            {
+                $group: {
+                    _id: '$cliente',
+                    // Opcional: pode-se coletar mais dados aqui se necessário
+                }
+            },
+            // 3. Juntar com a coleção de clientes para obter os seus detalhes
+            {
                 $lookup: {
-                    from: Orcamento.collection.name,
+                    from: 'clientes', // nome da collection de clientes
                     localField: '_id',
+                    foreignField: '_id',
+                    as: 'clienteInfo'
+                }
+            },
+            // 4. Desconstruir o array clienteInfo
+            {
+                $unwind: '$clienteInfo'
+            },
+            // 5. Juntar novamente com os orçamentos para calcular os totais, mas agora apenas para os clientes deste prestador
+            {
+                $lookup: {
+                    from: 'orcamentos',
+                    localField: 'clienteInfo._id',
                     foreignField: 'cliente',
                     as: 'pedidos'
                 }
             },
+            // 6. Calcular os totais para cada cliente
             {
-                // 2. Adicionar novos campos para calcular os totais
                 $addFields: {
-                    // Conta o número total de pedidos
                     totalPedidos: { $size: '$pedidos' },
-                    // Calcula o valor total gasto apenas em pedidos 'Finalizado'
                     valorTotalGasto: {
                         $sum: {
                             $map: {
@@ -40,27 +64,27 @@ const getAllClientes = async (req, res) => {
                     }
                 }
             },
+            // 7. Formatar a saída final
             {
-                // 3. Definir quais campos queremos na resposta final
                 $project: {
-                    nome: 1,
-                    telefone: 1,
+                    _id: '$clienteInfo._id',
+                    nome: '$clienteInfo.nome',
+                    telefone: '$clienteInfo.telefone',
                     totalPedidos: 1,
-                    valorTotalGasto: 1,
-                    // pode adicionar outros campos do cliente aqui se necessário
+                    valorTotalGasto: 1
                 }
             },
+            // 8. Ordenar
             {
-                // 4. Ordenar por quem gastou mais
                 $sort: {
                     valorTotalGasto: -1
                 }
             }
         ]);
 
-        res.status(200).json(clientesComDados);
+        res.status(200).json(clientesDoPrestador);
     } catch (error) {
-        console.error("Erro ao buscar clientes com dados agregados:", error);
+        console.error("Erro ao buscar clientes do prestador:", error);
         res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
     }
 };

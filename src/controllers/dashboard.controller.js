@@ -51,7 +51,7 @@ exports.getDashboardData = async (req, res) => {
                 });
             }
         });
-        
+
         const recentesClientes = Array.from(clientesUnicos.values()).slice(0, 5);
 
         // --- 3. Enviar Resposta Completa ---
@@ -132,16 +132,16 @@ exports.getTopRegioes = async (req, res) => {
     const topRegioes = await Orcamento.aggregate([
       // 1. Considerar apenas pedidos que tenham um endereço
       { $match: { address: { $exists: true, $ne: "" } } },
-      
+
       // 2. Agrupar por endereço e contar as ocorrências
       { $group: {
           _id: '$address', // Agrupa pelo campo do endereço
           count: { $sum: 1 }
       }},
-      
+
       // 3. Ordenar pelos mais populares
       { $sort: { count: -1 } },
-      
+
       // 4. Limitar ao Top 5
       { $limit: 5 },
 
@@ -164,7 +164,7 @@ exports.getPedidosCoordenadas = async (req, res) => {
     // 1. Buscar todos os pedidos que têm um endereço
     const pedidosComEndereco = await Orcamento.find({
       address: { $exists: true, $ne: null, $ne: "" }
-    }).select('address shortId'); 
+    }).select('address shortId');
 
     // 2. Extrair apenas os endereços para um array
     const enderecos = pedidosComEndereco.map(p => p.address);
@@ -173,7 +173,7 @@ exports.getPedidosCoordenadas = async (req, res) => {
       return res.json([]);
     }
 
-   
+
     const geocodedData = await geocoder.batchGeocode(enderecos);
 
     const resultados = pedidosComEndereco.map((pedido, index) => {

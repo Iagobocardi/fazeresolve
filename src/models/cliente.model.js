@@ -21,7 +21,8 @@ password: {
     select: false
 },
 
-    role: { type: String, required: true, enum: ['CLIENTE_FINAL', 'PRESTADOR'], default: 'CLIENTE_FINAL' },
+    role: { type: String, required: true, enum: ['CLIENTE_FINAL', 'PRESTADOR', 'ADMIN'], default: 'CLIENTE_FINAL' },
+    plano: { type: String, enum: ['Essencial', 'Profissional', 'Premium'], default: 'Essencial' },
     conversationState: {
         type: String,
         enum: ['NONE', 'AWAITING_REQUEST_TYPE', 'AWAITING_SERVICE_TYPE', 'AWAITING_ADDRESS', 'AWAITING_AVAILABILITY', 'COMPLETED', 'AWAITING_ORDER_SELECTION', 'AWAITING_RATING'],

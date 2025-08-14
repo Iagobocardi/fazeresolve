@@ -6,11 +6,11 @@ const connectDB = require('./src/config/database'); // Importa a sua função de
 
 // --- CONFIGURE OS SEUS DADOS AQUI ---
 const providerData = {
-    nome: "Prestador Principal",
+    nome: "Prestador Pri",
     // Use o mesmo número de telefone que está no seu .env para os testes do WhatsApp
-    telefone: "5515998595422", // Ex: "5515999998888"
+    telefone: "5515997687850", // Ex: "5515999998888"
     // Defina uma senha que você usará APENAS para obter o token de teste via Postman
-    password: "SenhaSuperForteParaTestes123", 
+    password: "SenhaSuperForteParaTestes1234", 
     role: "PRESTADOR"
 };
 // ------------------------------------

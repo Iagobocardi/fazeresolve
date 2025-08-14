@@ -6,14 +6,20 @@ const bcrypt = require('bcryptjs');
 
 exports.loginAdmin = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { login, password } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
+        if (!login || !password) {
+            return res.status(400).json({ message: 'Login e senha são obrigatórios.' });
         }
 
-        // Busca o utilizador COM o campo 'plano' e a 'password'
-        const usuario = await Cliente.findOne({ email, role: 'PRESTADOR' }).select('+password');
+        // Busca o utilizador pelo telefone OU email, que seja PRESTADOR ou ADMIN
+        let usuario = await Cliente.findOne({ telefone: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password +plano');
+        if (!usuario) {
+            usuario = await Cliente.findOne({ email: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password +plano');
+        }
+
+        // Adicionado para depuração
+        console.log('DEBUG: Utilizador encontrado na base de dados:', usuario);
 
         if (!usuario) {
             return res.status(401).json({ message: 'Credenciais inválidas ou conta não é de administrador.' });

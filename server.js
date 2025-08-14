@@ -41,12 +41,19 @@ const adminRoutes = require('./src/routes/admin.routes.js');
 const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js');
 // Importação do Middleware de Erro
 const errorMiddleware = require('./src/middlewares/error.middleware');
-
+const adminAuth = require('./src/middlewares/adminAuth.middleware.js');
 // PASSO 3: Inicialização da Aplicação Express
 const app = express();
 
 // PASSO 4: Conectar à Base de Dados
 connectDB();
+
+// Configuração de CORS - ISTO É O MAIS IMPORTANTE
+const corsOptions = {
+  origin: 'http://localhost:3001', // Endereço do seu frontend
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
 app.use(cors()); // Habilita o CORS para todas as rotas
@@ -54,7 +61,7 @@ app.use(express.json()); // Habilita o parsing de JSON no corpo das requisiçõe
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
 app.use(express.static('public')); // Serve arquivos estáticos da pasta public
-
+app.use(cors(corsOptions)); 
 // Configuração da Sessão (unificada)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'SEU_SEGREDO_DE_SESSAO_SUPER_SECRETO', // Use uma variável de ambiente!
@@ -65,29 +72,30 @@ app.use(session({
 
 // PASSO 6: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
-app.use('/api/clientes', clienteRoutes);
+app.use('/api/clientes', adminAuth, clienteRoutes);
 app.use('/api/financeiro', financeiroRoutes);
-app.use('/api/orcamentos', orcamentoRoutes);
+app.use('/api/orcamentos', adminAuth, orcamentoRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/servicos', servicoRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
-app.use('/api/stats', statsRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/stats', adminAuth, statsRoutes);
+app.use('/api/dashboard', adminAuth, dashboardRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/despesas', despesasRoutes);
 app.use('/api/produtos', produtosRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/portal-cliente', portalClienteRoutes);
 app.use('/api/fornecedores', fornecedorRoutes);
-app.use('/api/configuracoes', configuracaoRoutes);
+app.use('/api/configuracoes', adminAuth, configuracaoRoutes);
 app.use('/api/produtos-fornecedor', produtosFornecedorRoutes); // Rota corrigida para evitar conflito
 app.use('/api/checklist', checklistRoutes); // Rota corrigida para evitar conflito
 app.use('/api/google', googleRoutes);
 app.use('/api/estoque', estoqueRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/conversas', conversaRoutes);
+app.use('/api/conversas', adminAuth, conversaRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
+
 
 // Rota de teste para verificar se o servidor está online
 app.get('/', (req, res) => {

@@ -2,10 +2,15 @@ const express = require('express');
 const router = express.Router();
 const membroController = require('../controllers/membro.controller.js');
 const checkUserLimit = require('../middlewares/checkUserLimit.middleware.js');
-const authMiddleware = require('../middlewares/auth.middleware.js'); // O seu middleware de autenticação
+const authMiddleware = require('../middlewares/auth.middleware.js');
+const roleMiddleware = require('../middlewares/role.middleware');
 
-// Protege a rota de criação com a autenticação e a verificação de limite
-router.post('/', authMiddleware, checkUserLimit, membroController.criarMembro);
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
+
+// Protege a rota de criação com a verificação de limite (autenticação e função já aplicadas acima)
+router.post('/', checkUserLimit, membroController.criarMembro);
 
 // ... outras rotas (listar membros, apagar, etc.)
 

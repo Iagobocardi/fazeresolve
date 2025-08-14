@@ -3,6 +3,12 @@ const router = express.Router();
 const clientesController = require('../controllers/clientes.controller');
 const { body } = require('express-validator');
 const { validate } = require('../middlewares/validation.middleware');
+const authMiddleware = require('../middlewares/auth.middleware');
+const roleMiddleware = require('../middlewares/role.middleware');
+
+// Aplica o middleware de autenticação e verificação de função a todas as rotas
+router.use(authMiddleware);
+router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 
 // Regras de validação
 const createClienteRules = [
