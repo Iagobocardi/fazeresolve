@@ -51,7 +51,6 @@ router.delete('/:orcamentoId/materiais/:materialUsadoId', orcamentosController.r
 //  Rota para a ação rápida de marcar como pago
 router.post('/:id/marcar-pago', orcamentosController.marcarComoPago);
 
-// PATCH /api/orcamentos/:id/attach-invoice
 router.patch('/:id/attach-invoice', orcamentosController.attachInvoice);
 
 router.delete('/:orcamentoId/custos/:custoId', orcamentosController.removeCustoMaterial);

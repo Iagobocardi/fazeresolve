@@ -11,11 +11,9 @@ router.use(authMiddleware);
 router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
 
 // Rota para listar produtos de UM fornecedor
-// GET /api/fornecedores/:fornecedorId/produtos
 router.get('/:fornecedorId/produtos', produtoController.listarProdutosPorFornecedor);
 
 // Rota para CRIAR um novo produto para um fornecedor
-// POST /api/fornecedores/:fornecedorId/produtos
 router.post('/:fornecedorId/produtos', produtoController.criarProduto);
 
 module.exports = router;

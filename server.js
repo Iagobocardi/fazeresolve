@@ -69,7 +69,6 @@ const corsOptions = {
 };
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
-app.options('*', cors(corsOptions)); // Habilita pre-flight para todas as rotas
 app.use(cors(corsOptions)); 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
