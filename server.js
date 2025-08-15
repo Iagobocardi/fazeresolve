@@ -39,9 +39,12 @@ const uploadRoutes = require('./src/routes/upload.routes.js');
 const conversaRoutes = require('./src/routes/conversa.routes.js');
 const adminRoutes = require('./src/routes/admin.routes.js');
 const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js');
+const subscriptionRoutes = require('./src/routes/subscription.routes.js');
+const mercadoPagoRoutes = require('./src/routes/mercadoPago.routes.js');
 // Importação do Middleware de Erro
 const errorMiddleware = require('./src/middlewares/error.middleware');
 const adminAuth = require('./src/middlewares/adminAuth.middleware.js');
+const checkSubscription = require('./src/middlewares/checkSubscription.middleware.js');
 // PASSO 3: Inicialização da Aplicação Express
 const app = express();
 
@@ -56,12 +59,11 @@ const corsOptions = {
 };
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
-app.use(cors()); // Habilita o CORS para todas as rotas
+app.use(cors(corsOptions)); 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
 app.use(express.static('public')); // Serve arquivos estáticos da pasta public
-app.use(cors(corsOptions)); 
 // Configuração da Sessão (unificada)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'SEU_SEGREDO_DE_SESSAO_SUPER_SECRETO', // Use uma variável de ambiente!
@@ -72,9 +74,9 @@ app.use(session({
 
 // PASSO 6: Utilização das Rotas na API
 app.use('/api/agendamentos', agendamentoRoutes);
-app.use('/api/clientes', adminAuth, clienteRoutes);
+app.use('/api/clientes', adminAuth, checkSubscription, clienteRoutes);
 app.use('/api/financeiro', financeiroRoutes);
-app.use('/api/orcamentos', adminAuth, orcamentoRoutes);
+app.use('/api/orcamentos', adminAuth, checkSubscription, orcamentoRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 app.use('/api/servicos', servicoRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
@@ -95,6 +97,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/conversas', adminAuth, conversaRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/mercado-pago', mercadoPagoRoutes);
 
 
 // Rota de teste para verificar se o servidor está online
