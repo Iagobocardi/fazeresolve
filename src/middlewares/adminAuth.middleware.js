@@ -15,8 +15,8 @@ const adminAuth = (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // AGORA, A VERIFICAÇÃO DE AUTORIZAÇÃO (A CORREÇÃO)
-        // Verificamos se a "função" (role) do utilizador é 'PRESTADOR'
-        if (decoded.role !== 'PRESTADOR') {
+        // Verificamos se a "função" (role) do utilizador é 'PRESTADOR' ou 'ADMIN'
+        if (!['PRESTADOR', 'ADMIN'].includes(decoded.role)) {
             // Se não for, devolvemos o erro 403 Forbidden
             return res.status(403).json({ message: 'Acesso proibido. Permissões insuficientes.' });
         }
