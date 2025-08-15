@@ -52,8 +52,18 @@ const app = express();
 connectDB();
 
 // Configuração de CORS - ISTO É O MAIS IMPORTANTE
+const allowedOrigins = ['http://localhost:3001', 'https://painel-faz-e-resolve.netlify.app'];
+
 const corsOptions = {
-  origin: ['http://localhost:3001', 'https://painel-faz-e-resolve.netlify.app'], // Endereços permitidos
+  origin: function (origin, callback) {
+    // Permite requisições sem 'origin' (como de apps mobile ou curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'A política de CORS para este site não permite acesso da Origem especificada.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
