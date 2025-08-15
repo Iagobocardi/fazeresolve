@@ -53,12 +53,13 @@ connectDB();
 
 // Configuração de CORS - ISTO É O MAIS IMPORTANTE
 const corsOptions = {
-  origin: 'http://localhost:3001', // Endereço do seu frontend
+  origin: ['http://localhost:3001', 'https://painel-faz-e-resolve.netlify.app'], // Endereços permitidos
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
+app.options('*', cors(corsOptions)); // Habilita pre-flight para todas as rotas
 app.use(cors(corsOptions)); 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
