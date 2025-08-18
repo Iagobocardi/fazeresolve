@@ -106,7 +106,9 @@ const loginCliente = async (req, res) => {
         const payload = {
             id: cliente._id,
             nome: cliente.nome,
-            role: cliente.role
+            email: cliente.email, // ADICIONADO O EMAIL AO TOKEN
+            role: cliente.role,
+            status: cliente.status
         };
 
         const token = jwt.sign(
@@ -164,11 +166,31 @@ const registerProvider = async (req, res) => {
 
         await novoPrestador.save();
 
+        // Gera o token JWT para o novo utilizador
+        const payload = {
+            id: novoPrestador._id,
+            nome: novoPrestador.nome,
+            email: novoPrestador.email, // ADICIONADO O EMAIL AO TOKEN
+            role: novoPrestador.role,
+            plano: novoPrestador.plano,
+            status: novoPrestador.status
+        };
+
+        const token = jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
         // Remove a senha do objeto antes de o enviar de volta
         const prestadorParaRetornar = novoPrestador.toObject();
         delete prestadorParaRetornar.password;
 
-        res.status(201).json({ message: 'Prestador registado com sucesso!', usuario: prestadorParaRetornar });
+        res.status(201).json({
+            message: 'Prestador registado com sucesso!',
+            token,
+            usuario: prestadorParaRetornar
+        });
 
     } catch (error) {
         console.error("Erro ao registrar novo prestador:", error);
