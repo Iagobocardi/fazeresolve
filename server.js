@@ -4,6 +4,11 @@ require('./src/jobs/lembretes.job');
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
+
+// --- DEBUGGING MERCADO PAGO ---
+console.log('[DEBUG] MP_ACCESS_TOKEN carregado:', process.env.MP_ACCESS_TOKEN);
+// --- FIM DO DEBUG ---
+
 console.log('Número do Prestador carregado:', process.env.PRESTADOR_TELEFONE);
 console.log('====================================');
 
