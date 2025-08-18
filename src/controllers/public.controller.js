@@ -41,7 +41,9 @@ const googleLogin = async (req, res) => {
         const payload = {
             id: usuario._id,
             nome: usuario.nome,
+            email: usuario.email,
             role: usuario.role,
+            status: usuario.status,
             plano: usuario.plano
         };
 
