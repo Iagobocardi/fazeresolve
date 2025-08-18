@@ -106,7 +106,8 @@ const loginCliente = async (req, res) => {
         const payload = {
             id: cliente._id,
             nome: cliente.nome,
-            role: cliente.role
+            role: cliente.role,
+            status: cliente.status // ADICIONADO O STATUS AO TOKEN
         };
 
         const token = jwt.sign(
@@ -131,8 +132,72 @@ const loginCliente = async (req, res) => {
 };
 
 
+const { validationResult } = require('express-validator');
+
+const registerProvider = async (req, res) => {
+    // Lida com os erros de validação
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+        const { nome, email, telefone, password, plano } = req.body;
+
+        // Adicionado para depuração
+        console.log(`DEBUG: Tentativa de registo com a senha: "${password}"`);
+
+        // Checa se o utilizador já existe
+        const existingUser = await Cliente.findOne({ $or: [{ email: email }, { telefone: telefone }] });
+        if (existingUser) {
+            return res.status(409).json({ message: 'Um utilizador com este email ou telefone já existe.' });
+        }
+
+        // Cria o novo prestador
+        const novoPrestador = new Cliente({
+            nome,
+            email,
+            telefone,
+            password, // O pre-save hook no modelo irá encriptar
+            plano,
+            role: 'PRESTADOR' // Define a função como PRESTADOR
+        });
+
+        await novoPrestador.save();
+
+        // Gera o token JWT para o novo utilizador
+        const payload = {
+            id: novoPrestador._id,
+            nome: novoPrestador.nome,
+            role: novoPrestador.role,
+            plano: novoPrestador.plano
+        };
+
+        const token = jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        // Remove a senha do objeto antes de o enviar de volta
+        const prestadorParaRetornar = novoPrestador.toObject();
+        delete prestadorParaRetornar.password;
+
+        res.status(201).json({
+            message: 'Prestador registado com sucesso!',
+            token,
+            usuario: prestadorParaRetornar
+        });
+
+    } catch (error) {
+        console.error("Erro ao registrar novo prestador:", error);
+        res.status(500).json({ message: 'Ocorreu um erro interno ao tentar registar o prestador.' });
+    }
+};
+
 module.exports = {
     loginCliente,
     handleGoogleCallback,
-     iniciarAuthGoogle
+     iniciarAuthGoogle,
+     registerProvider
 };

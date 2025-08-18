@@ -1,6 +1,7 @@
 const { MercadoPagoConfig, PreApproval } = require('mercadopago');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js');
 const Subscription = require('../models/subscription.model.js');
+const Cliente = require('../models/cliente.model.js'); // Importar o modelo do Cliente
 
 const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
 
@@ -21,6 +22,15 @@ const handleWebhook = async (req, res) => {
                 
                 if (subscriptionData.status === 'authorized') {
                     localSubscription.lastPaymentDate = new Date();
+
+                    // --- LÓGICA ADICIONADA ---
+                    // Se a assinatura for autorizada, atualiza o status do usuário para 'ATIVO'
+                    const user = await Cliente.findById(localSubscription.userId);
+                    if (user && user.status !== 'ATIVO') {
+                        user.status = 'ATIVO';
+                        await user.save();
+                        console.log(`Usuário ${user.nome} (ID: ${user._id}) ativado com sucesso.`);
+                    }
                 }
 
                 await localSubscription.save();

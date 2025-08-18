@@ -15,4 +15,19 @@ router.get('/google', authMiddleware, authController.iniciarAuthGoogle);
 router.get('/google/callback', authController.handleGoogleCallback);
 
 
+const { body } = require('express-validator');
+const { validate } = require('../middlewares/validation.middleware');
+
+// Regras de validação para o registo de prestador
+const registerProviderRules = [
+    body('nome').notEmpty().withMessage('O nome é obrigatório.').trim(),
+    body('email').isEmail().withMessage('Por favor, forneça um email válido.').normalizeEmail(),
+    body('telefone').notEmpty().withMessage('O telefone é obrigatório.').trim(),
+    body('password').isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
+    body('plano').isIn(['Essencial', 'Profissional', 'Premium']).withMessage('O plano selecionado é inválido.')
+];
+
+// Rota para registrar um novo prestador de serviço, com validação
+router.post('/register', registerProviderRules, validate, authController.registerProvider);
+
 module.exports = router;

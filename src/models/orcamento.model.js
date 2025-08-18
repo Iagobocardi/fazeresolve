@@ -120,7 +120,8 @@ const orcamentoSchema = new mongoose.Schema({
     custosMateriais: [{
         descricao: { type: String, required: true },
         valor: { type: 'Decimal128', required: true, get: v => parseFloat(v.toString()) },
-        data: { type: Date, default: Date.now }
+        data: { type: Date, default: Date.now },
+        tipo: { type: String, enum: ['Fixo', 'Estimado'], default: 'Fixo' }
     }],
     // Campos para o cálculo do preço sugerido
     horasEstimadas: {

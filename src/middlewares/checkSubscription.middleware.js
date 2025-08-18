@@ -2,6 +2,11 @@ const Subscription = require('../models/subscription.model.js');
 
 const checkSubscription = async (req, res, next) => {
     try {
+        // Se o usuário for um ADMIN, ele não precisa de assinatura. Pula a verificação.
+        if (req.user && req.user.role === 'ADMIN') {
+            return next();
+        }
+
         const userId = req.user.id; // Supondo que o middleware de autenticação adiciona o usuário a req.user
 
         if (!userId) {

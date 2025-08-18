@@ -14,11 +14,15 @@ const adminAuth = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // AGORA, A VERIFICAÇÃO DE AUTORIZAÇÃO (A CORREÇÃO)
-        // Verificamos se a "função" (role) do utilizador é 'PRESTADOR' ou 'ADMIN'
+        // 1. VERIFICAÇÃO DE PERFIL (ROLE)
         if (!['PRESTADOR', 'ADMIN'].includes(decoded.role)) {
-            // Se não for, devolvemos o erro 403 Forbidden
             return res.status(403).json({ message: 'Acesso proibido. Permissões insuficientes.' });
+        }
+
+        // 2. VERIFICAÇÃO DE STATUS (NOVA)
+        // Bloqueia o acesso se a conta ainda estiver pendente de pagamento
+        if (decoded.status === 'PENDENTE') {
+            return res.status(403).json({ message: 'A sua conta está pendente de confirmação de pagamento.' });
         }
 
         // Se tudo estiver correto, anexa os dados do utilizador à requisição e continua

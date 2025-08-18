@@ -15,11 +15,16 @@ const authMiddleware = (req, res, next) => {
         // 3. Verificar a validade do token com a sua chave secreta
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 4. Anexar os dados do utilizador (do token) à requisição para uso posterior
-        // O seu controller de conversa espera req.user, então usamos esse nome.
-        req.user = decoded; 
+        // 4. Anexar os dados do utilizador (do token) à requisição
+        req.user = decoded;
 
-        next(); // Se tudo estiver correto, prossegue para a próxima função (o controller)
+        // 5. VERIFICAÇÃO DE STATUS (NOVA)
+        // Bloqueia o acesso se a conta ainda estiver pendente de pagamento
+        if (req.user.status === 'PENDENTE') {
+            return res.status(403).json({ message: 'A sua conta está pendente de confirmação de pagamento.' });
+        }
+
+        next(); // Se tudo estiver correto, prossegue para a próxima função
     } catch (error) {
         res.status(403).json({ message: 'Token inválido ou expirado.' });
     }
