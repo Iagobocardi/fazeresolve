@@ -1,5 +1,5 @@
+const jwt = require('jsonwebtoken');
 const subscriptionService = require('../services/subscription.service.js');
-// Importe o seu modelo de Cliente/Utilizador
 const Cliente = require('../models/cliente.model.js');
 
 /**
@@ -27,33 +27,51 @@ const handleCreatePlan = async (req, res) => {
  */
 const handleSubscribe = async (req, res) => {
     try {
-        const { planId, cardTokenId } = req.body;
-        // O ID do utilizador é extraído do token pelo middleware
-        const userId = req.user.id; 
+        const { cardTokenId } = req.body;
+        const userId = req.user.id;
 
-        if (!planId || !cardTokenId) {
-            return res.status(400).json({ error: 'O ID do plano e o token do cartão são obrigatórios.' });
+        if (!cardTokenId) {
+            return res.status(400).json({ error: 'O token do cartão é obrigatório.' });
         }
 
-        // =======================================================
-        // ==> A CORREÇÃO ESTÁ AQUI <==
-        // Buscamos o utilizador completo na base de dados para garantir
-        // que temos todos os dados necessários (como email e nome).
-        // =======================================================
         const user = await Cliente.findById(userId);
         if (!user) {
             return res.status(404).json({ error: 'Utilizador não encontrado.' });
         }
-        // -------------------------------------------------------
 
-        // Agora passamos o objeto completo do utilizador para o serviço
-        const subscription = await subscriptionService.createSubscription(planId, user, cardTokenId);
+        if (user.status !== 'AGUARDANDO_PAGAMENTO') {
+            return res.status(400).json({ error: 'Este utilizador não está aguardando pagamento.' });
+        }
 
-        res.status(201).json(subscription);
+        const subscription = await subscriptionService.createSubscription(user.planId, user, cardTokenId);
+
+        // Atualiza o status do usuário e armazena o ID da assinatura
+        user.status = 'ATIVO';
+        user.mercadoPagoSubscriptionId = subscription.id;
+        await user.save();
+
+        // Gera um novo token JWT definitivo
+        const payload = {
+            id: user._id,
+            nome: user.nome,
+            email: user.email,
+            role: user.role,
+            status: user.status
+        };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+        const userToReturn = user.toObject();
+        delete userToReturn.password;
+
+        res.status(201).json({
+            message: 'Assinatura criada com sucesso!',
+            token,
+            usuario: userToReturn
+        });
+
     } catch (error) {
-        // Adicionamos um log mais detalhado para facilitar a depuração no futuro
         console.error('Erro detalhado no handleSubscribe:', error);
-        res.status(500).json({ error: 'Erro ao criar a assinatura.' });
+        res.status(400).json({ error: 'Erro ao criar a assinatura.', details: error.message });
     }
 };
 
