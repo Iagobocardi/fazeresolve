@@ -56,30 +56,9 @@ const app = express();
 // PASSO 4: Conectar à Base de Dados
 connectDB();
 
-// Configuração de CORS - ISTO É O MAIS IMPORTANTE
-const allowedOrigins = [
-  'http://localhost:3001',
-  'http://127.0.0.1:3001',
-  'https://painel-faz-e-resolve.netlify.app',
-  'https://fazeresolve.onrender.com'
-];
+app.use(cors())
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Permite requisições sem 'origin' (como de apps mobile ou curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'A política de CORS para este site não permite acesso da Origem especificada.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
-
-// PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
-app.use(cors(corsOptions)); 
+// PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS) 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
