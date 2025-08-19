@@ -40,6 +40,15 @@ const createPlan = async (planData) => {
  * @returns {Promise<object>} O objeto da assinatura criada.
  */
 const createSubscription = async (planId, user, cardTokenId) => {
+    // =======================================================
+    // ==> LOGS DE DEPURAÇÃO ADICIONADOS AQUI <==
+    // =======================================================
+    console.log("--- [DEBUG] Iniciando criação de assinatura ---");
+    console.log("Plan ID recebido:", planId);
+    console.log("Card Token ID recebido:", cardTokenId);
+    console.log("Objeto User recebido:", JSON.stringify(user, null, 2));
+    // -------------------------------------------------------
+
     try {
         const subscription = new PreApproval(client);
 
@@ -50,6 +59,11 @@ const createSubscription = async (planId, user, cardTokenId) => {
             card_token_id: cardTokenId,
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
         };
+
+        // Log do corpo da requisição que será enviado para o Mercado Pago
+        console.log("--- [DEBUG] Corpo da requisição para o Mercado Pago ---");
+        console.log(JSON.stringify(body, null, 2));
+        console.log("----------------------------------------------------");
 
         const result = await subscription.create({ body });
 
@@ -65,7 +79,10 @@ const createSubscription = async (planId, user, cardTokenId) => {
 
         return result;
     } catch (error) {
-        console.error('Erro ao criar assinatura:', error);
+        // Log do erro exato vindo do Mercado Pago
+        console.error("--- [DEBUG] ERRO da API do Mercado Pago ---");
+        console.error(error);
+        console.error("-------------------------------------------");
         throw new Error('Erro ao criar assinatura no Mercado Pago.');
     }
 };
