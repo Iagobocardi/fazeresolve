@@ -14,6 +14,44 @@ router.post(
     whatsappController.handleWhatsAppWebhook
 );
 
-// As rotas de templates foram movidas para o arquivo whatsappTemplates.routes.js
+// --- Rotas para Templates de Mensagem (estas estão corretas) ---
+
+// Rota para renderizar um template com dados de um orçamento
+router.get(
+    '/templates/render/:templateId/:orcamentoId',
+    authMiddleware,
+    whatsappController.renderTemplate
+);
+
+// Rota para listar todos os templates
+router.get(
+    '/templates',
+    authMiddleware,
+    whatsappController.getAllTemplates
+);
+
+// Rota para criar um novo template (Apenas Admin)
+router.post(
+    '/templates',
+    authMiddleware,
+    checkPlan(['Admin', 'Premium']), // Permitir que Premium também crie templates, se desejar
+    whatsappController.createTemplate
+);
+
+// Rota para atualizar um template (Apenas Admin)
+router.put(
+    '/templates/:id',
+    authMiddleware,
+    checkPlan(['Admin', 'Premium']),
+    whatsappController.updateTemplate
+);
+
+// Rota para deletar um template (Apenas Admin)
+router.delete(
+    '/templates/:id',
+    authMiddleware,
+    checkPlan(['Admin', 'Premium']),
+    whatsappController.deleteTemplate
+);
 
 module.exports = router;
