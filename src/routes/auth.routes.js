@@ -23,8 +23,8 @@ const registerRules = [
     body('nome').notEmpty().withMessage('O nome é obrigatório.').trim(),
     body('email').isEmail().withMessage('Por favor, forneça um email válido.').normalizeEmail(),
     body('telefone').notEmpty().withMessage('O telefone é obrigatório.').trim(),
-    body('password').isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
-    body('planId').notEmpty().withMessage('O ID do plano é obrigatório.').trim()
+    body('senha').isLength({ min: 8 }).withMessage('A senha deve ter pelo menos 8 caracteres.'),
+    body('planoId').notEmpty().withMessage('O ID do plano é obrigatório.').trim()
 ];
 
 // Rota para registrar um novo utilizador, com validação
