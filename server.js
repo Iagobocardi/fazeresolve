@@ -57,11 +57,21 @@ const app = express();
 connectDB();
 
 // Configuração do CORS
+const allowedOrigins = ['https://painel-faz-e-resolve.netlify.app'];
 const corsOptions = {
-    origin: 'https://painel-faz-e-resolve.netlify.app', // Permite o domínio do frontend
+    origin: function (origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-    credentials: true, // Permite o envio de cookies e outros cabeçalhos de autorização
-    optionsSuccessStatus: 204, // Retorna 204 para requisições pre-flight
+    credentials: true,
+    optionsSuccessStatus: 204,
     allowedHeaders: "Content-Type,Authorization,X-Requested-With"
 };
 
