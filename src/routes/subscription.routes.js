@@ -3,13 +3,12 @@ const router = express.Router();
 const subscriptionController = require('../controllers/subscription.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 const roleMiddleware = require('../middlewares/role.middleware.js');
-
-// Proteger todas as rotas de assinatura com autenticação
-router.use(authMiddleware);
+const provisionalAuthMiddleware = require('../middlewares/provisionalAuth.middleware.js');
 
 // Rota para administradores criarem planos
 router.post(
     '/plans',
+    authMiddleware,
     roleMiddleware(['ADMIN']),
     subscriptionController.handleCreatePlan
 );
@@ -17,7 +16,7 @@ router.post(
 // Rota para prestadores se inscreverem em um plano
 router.post(
     '/subscribe',
-    roleMiddleware(['PRESTADOR']),
+    provisionalAuthMiddleware,
     subscriptionController.handleSubscribe
 );
 
