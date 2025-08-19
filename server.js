@@ -55,7 +55,6 @@ connectDB();
 const allowedOrigins = [
   'http://localhost:3001',
   'http://127.0.0.1:3001',
-  'http://localhost:3000',
   'https://painel-faz-e-resolve.netlify.app',
   'https://fazeresolve.onrender.com'
 ];
@@ -75,7 +74,7 @@ const corsOptions = {
 };
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
-app.use(cors()); 
+app.use(cors(corsOptions)); 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
