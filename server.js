@@ -56,7 +56,19 @@ const app = express();
 // PASSO 4: Conectar à Base de Dados
 connectDB();
 
-app.use(cors())
+// Configuração do CORS
+const corsOptions = {
+    origin: '*', // Permite todas as origens. Em produção, restrinja para o seu domínio.
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    credentials: true, // Permite o envio de cookies e outros cabeçalhos de autorização
+    optionsSuccessStatus: 204, // Retorna 204 para requisições pre-flight
+    allowedHeaders: "Content-Type,Authorization,X-Requested-With"
+};
+
+app.use(cors(corsOptions));
+
+// Adiciona um handler para as requisições OPTIONS
+app.options('*', cors(corsOptions));
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS) 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
