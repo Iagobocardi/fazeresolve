@@ -4,11 +4,6 @@ require('./src/jobs/lembretes.job');
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
-
-// --- DEBUGGING MERCADO PAGO ---
-console.log('[DEBUG] MP_ACCESS_TOKEN carregado:', process.env.MP_ACCESS_TOKEN);
-// --- FIM DO DEBUG ---
-
 console.log('Número do Prestador carregado:', process.env.PRESTADOR_TELEFONE);
 console.log('====================================');
 
@@ -56,21 +51,30 @@ const app = express();
 // PASSO 4: Conectar à Base de Dados
 connectDB();
 
-// Configuração do CORS
+// Configuração de CORS - ISTO É O MAIS IMPORTANTE
+const allowedOrigins = [
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'https://painel-faz-e-resolve.netlify.app',
+  'https://fazeresolve.onrender.com'
+];
+
 const corsOptions = {
-    origin: 'https://painel-faz-e-resolve.netlify.app', // Permite o domínio do frontend
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-    credentials: true, // Permite o envio de cookies e outros cabeçalhos de autorização
-    optionsSuccessStatus: 204, // Retorna 204 para requisições pre-flight
-    allowedHeaders: "Content-Type,Authorization,X-Requested-With"
+  origin: function (origin, callback) {
+    // Permite requisições sem 'origin' (como de apps mobile ou curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'A política de CORS para este site não permite acesso da Origem especificada.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-app.use(cors(corsOptions));
-
-// Adiciona um handler para as requisições OPTIONS
-app.options('*', cors(corsOptions));
-
-// PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS) 
+// PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
+app.use(cors(corsOptions)); 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
