@@ -143,7 +143,7 @@ const register = async (req, res) => {
     }
 
     try {
-        const { nome, email, telefone, senha, planoId } = req.body;
+        const { nome, email, telefone, password, planoId } = req.body;
 
         // Checa se o utilizador já existe
         const existingUser = await Cliente.findOne({ $or: [{ email: email }, { telefone: telefone }] });
@@ -156,7 +156,7 @@ const register = async (req, res) => {
             nome,
             email,
             telefone,
-            password: senha, // O pre-save hook no modelo irá encriptar
+            password: password, // O pre-save hook no modelo irá encriptar
             planId: planoId,
             role: 'PRESTADOR' // Define a função como PRESTADOR
         });
