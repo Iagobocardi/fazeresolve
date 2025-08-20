@@ -39,13 +39,14 @@ const createPlan = async (planData) => {
  * @param {string} cardTokenId - O ID do token do cartão gerado no frontend.
  * @returns {Promise<object>} O objeto da assinatura criada.
  */
-const createSubscription = async (planId, user, cardTokenId) => {
+const createSubscription = async (planId, user, cardTokenId, deviceId) => {
     // =======================================================
     // ==> LOGS DE DEPURAÇÃO ADICIONADOS AQUI <==
     // =======================================================
     console.log("--- [DEBUG] Iniciando criação de assinatura ---");
     console.log("Plan ID recebido:", planId);
     console.log("Card Token ID recebido:", cardTokenId);
+    console.log("Device ID recebido:", deviceId);
     console.log("Objeto User recebido:", JSON.stringify(user, null, 2));
     // -------------------------------------------------------
 
@@ -60,12 +61,20 @@ const createSubscription = async (planId, user, cardTokenId) => {
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
         };
 
+        const requestOptions = {
+            headers: {
+                'X-meli-session-id': deviceId
+            }
+        };
+
         // Log do corpo da requisição que será enviado para o Mercado Pago
         console.log("--- [DEBUG] Corpo da requisição para o Mercado Pago ---");
         console.log(JSON.stringify(body, null, 2));
+        console.log("--- [DEBUG] Cabeçalhos da requisição ---");
+        console.log(JSON.stringify(requestOptions.headers, null, 2));
         console.log("----------------------------------------------------");
 
-        const result = await subscription.create({ body });
+        const result = await subscription.create({ body, requestOptions });
 
         // Salva a referência da assinatura no banco de dados local
         const newSubscription = new Subscription({
