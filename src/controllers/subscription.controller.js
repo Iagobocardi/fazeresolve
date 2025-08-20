@@ -27,7 +27,7 @@ const handleCreatePlan = async (req, res) => {
  */
 const handleSubscribe = async (req, res) => {
     try {
-        const { cardTokenId } = req.body;
+        const { cardTokenId, deviceId } = req.body;
         const userId = req.user.id;
 
         if (!cardTokenId) {
@@ -43,7 +43,7 @@ const handleSubscribe = async (req, res) => {
             return res.status(400).json({ error: 'Este utilizador não está aguardando pagamento.' });
         }
 
-        const subscription = await subscriptionService.createSubscription(user.planId, user, cardTokenId);
+        const subscription = await subscriptionService.createSubscription(user.planId, user, cardTokenId, deviceId);
 
         // Atualiza o status do usuário e armazena o ID da assinatura
         user.status = 'ATIVO';
