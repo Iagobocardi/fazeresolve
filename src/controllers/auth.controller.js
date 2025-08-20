@@ -192,7 +192,7 @@ const register = async (req, res) => {
 
     } catch (error) {
         console.error("Erro ao registrar novo utilizador:", error);
-
+        
         if (error.message.includes('duplicate key')) {
             return res.status(409).json({ message: 'Um utilizador com este email ou telefone já existe.' });
         }
