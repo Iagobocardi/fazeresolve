@@ -52,7 +52,7 @@ const app = express();
 connectDB();
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
-app.use(cors());
+app.use(cors()); 
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
