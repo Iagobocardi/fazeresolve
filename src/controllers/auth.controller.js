@@ -164,6 +164,11 @@ const register = async (req, res) => {
         await novoUsuario.save();
 
         // Gera o token JWT provisório para o novo utilizador
+        if (!process.env.JWT_SECRET) {
+            console.error('Erro Crítico: A variável de ambiente JWT_SECRET não está definida.');
+            throw new Error('A configuração do servidor está incompleta.');
+        }
+
         const payload = {
             id: novoUsuario._id,
             status: novoUsuario.status
@@ -187,6 +192,15 @@ const register = async (req, res) => {
 
     } catch (error) {
         console.error("Erro ao registrar novo utilizador:", error);
+
+        if (error.message.includes('duplicate key')) {
+            return res.status(409).json({ message: 'Um utilizador com este email ou telefone já existe.' });
+        }
+
+        if (error.message.includes('configuração do servidor')) {
+            return res.status(500).json({ message: 'Erro de configuração do servidor. Por favor, contacte o suporte.' });
+        }
+
         res.status(500).json({ message: 'Ocorreu um erro interno ao tentar registar o utilizador.' });
     }
 };
