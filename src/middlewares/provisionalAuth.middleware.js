@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
 const provisionalAuthMiddleware = (req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
