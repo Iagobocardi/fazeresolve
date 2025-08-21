@@ -71,8 +71,18 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         console.log("--- [DEBUG] Corpo da requisição para o Mercado Pago ---");
         console.log(JSON.stringify(body, null, 2));
 
+        // Prepara as opções da requisição, incluindo o deviceId como cabeçalho.
+        const requestOptions = {
+            headers: {
+                'X-meli-session-id': deviceId
+            }
+        };
+
+        console.log("--- [DEBUG] Opções da requisição (cabeçalhos) ---");
+        console.log(JSON.stringify(requestOptions, null, 2));
+
         // O SDK lida com os cabeçalhos de autorização automaticamente através do 'client'
-        const result = await subscription.create({ body });
+        const result = await subscription.create({ body, requestOptions });
 
         // Salva a referência da assinatura no banco de dados local
         const newSubscription = new Subscription({
