@@ -1,113 +1,82 @@
-const { MercadoPagoConfig, PreApprovalPlan, PreApproval } = require('mercadopago');
-const mercadoPagoConfig = require('../config/mercadoPago.config.js');
-const Subscription = require('../models/subscription.model.js');
-
-const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+const jwt = require('jsonwebtoken');
+const subscriptionService = require('../services/subscription.service.js');
+const Cliente = require('../models/cliente.model.js');
 
 /**
- * Cria um novo plano de assinatura no Mercado Pago.
- * @param {object} planData - Os dados do plano (nome, preço, frequência).
- * @returns {Promise<object>} O objeto do plano criado.
+ * Controller para criar um novo plano de assinatura.
+ * Acessível apenas para Admins.
  */
-const createPlan = async (planData) => {
+const handleCreatePlan = async (req, res) => {
     try {
-        const plan = new PreApprovalPlan(client);
+        const { name, price } = req.body;
+        if (!name || !price) {
+            return res.status(400).json({ error: 'Nome e preço do plano são obrigatórios.' });
+        }
 
-        const body = {
-            reason: planData.name,
-            auto_recurring: {
-                frequency: 1,
-                frequency_type: 'months',
-                transaction_amount: planData.price,
-                currency_id: 'BRL',
-            },
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-        };
+        const planData = { name, price };
+        const plan = await subscriptionService.createPlan(planData);
 
-        const result = await plan.create({ body });
-        return result;
+        res.status(201).json(plan);
     } catch (error) {
-        console.error('Erro ao criar plano de assinatura:', error);
-        throw new Error('Erro ao criar plano de assinatura no Mercado Pago.');
+        res.status(500).json({ error: 'Erro ao criar o plano de assinatura.' });
     }
 };
 
 /**
- * Cria uma nova assinatura para um usuário.
- * @param {string} planId - O ID do plano do Mercado Pago.
- * @param {object} user - O objeto do usuário (prestador).
- * @param {string} cardTokenId - O ID do token do cartão gerado no frontend.
- * @returns {Promise<object>} O objeto da assinatura criada.
+ * Controller para um prestador se inscrever em um plano.
  */
-const createSubscription = async (planId, user, cardTokenId, deviceId) => {
-    console.log("--- [DEBUG] Iniciando criação de assinatura ---");
-    console.log("Plan ID recebido:", planId);
-    console.log("Card Token ID recebido:", cardTokenId);
-
+const handleSubscribe = async (req, res) => {
     try {
-        // =======================================================
-        // ==> MUDANÇA PRINCIPAL: INICIALIZE O CLIENTE AQUI DENTRO <==
-        // =======================================================
-        const accessToken = mercadoPagoConfig.accessToken;
-        
-        // Verificação de segurança para garantir que o token não está vazio
-        if (!accessToken) {
-            console.error("--- [DEBUG] ERRO CRÍTICO: Access Token do Mercado Pago não encontrado! ---");
-            throw new Error('Access Token do Mercado Pago não está configurado.');
+        const { cardTokenId } = req.body;
+        const deviceId = req.header('X-meli-session-id');
+        const userId = req.user.id;
+
+        if (!cardTokenId) {
+            return res.status(400).json({ error: 'O token do cartão é obrigatório.' });
         }
 
-        const client = new MercadoPagoConfig({ accessToken });
-        const subscription = new PreApproval(client);
-        // -------------------------------------------------------
+        const user = await Cliente.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'Utilizador não encontrado.' });
+        }
 
-        const body = {
-            preapproval_plan_id: planId,
-            reason: `Assinatura do plano para ${user.nome}`,
-            payer_email: user.email,
-            card_token_id: cardTokenId,
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
+        if (user.status !== 'AGUARDANDO_PAGAMENTO') {
+            return res.status(400).json({ error: 'Este utilizador não está aguardando pagamento.' });
+        }
+
+        const subscription = await subscriptionService.createSubscription(user.planId, user, cardTokenId, deviceId);
+
+        // Atualiza o status do usuário e armazena o ID da assinatura
+        user.status = 'ATIVO';
+        user.mercadoPagoSubscriptionId = subscription.id;
+        await user.save();
+
+        // Gera um novo token JWT definitivo
+        const payload = {
+            id: user._id,
+            nome: user.nome,
+            email: user.email,
+            role: user.role,
+            status: user.status
         };
-        
-        console.log("--- [DEBUG] Corpo da requisição para o Mercado Pago ---");
-        console.log(JSON.stringify(body, null, 2));
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-        // Prepara as opções da requisição, incluindo o deviceId como cabeçalho.
-        const requestOptions = {
-            headers: {
-                'X-meli-session-id': deviceId
-            }
-        };
+        const userToReturn = user.toObject();
+        delete userToReturn.password;
 
-        console.log("--- [DEBUG] Opções da requisição (cabeçalhos) ---");
-        console.log(JSON.stringify(requestOptions, null, 2));
-
-        // O SDK lida com os cabeçalhos de autorização automaticamente através do 'client'
-        const result = await subscription.create({ body, requestOptions });
-
-        // Salva a referência da assinatura no banco de dados local
-        const newSubscription = new Subscription({
-            userId: user._id,
-            planId: planId,
-            subscriptionId: result.id,
-            status: result.status,
-            nextPaymentDate: result.next_payment_date,
+        res.status(201).json({
+            message: 'Assinatura criada com sucesso!',
+            token,
+            usuario: userToReturn
         });
-        await newSubscription.save();
-
-        console.log("--- [DEBUG] Assinatura criada com sucesso ---", result);
-        return result;
 
     } catch (error) {
-        console.error("--- [DEBUG] ERRO da API do Mercado Pago ---");
-        // A API do SDK pode encapsular o erro. Vamos verificar as duas possibilidades.
-        const errorResponse = error.cause?.body || error.response?.data || error.message;
-        console.error(errorResponse);
-        console.error("-------------------------------------------");
-        throw new Error('Erro ao criar assinatura no Mercado Pago.');
+        console.error('Erro detalhado no handleSubscribe:', error);
+        res.status(400).json({ error: 'Erro ao criar a assinatura.', details: error.message });
     }
 };
 
 module.exports = {
-    createPlan,
-    createSubscription,
+    handleCreatePlan,
+    handleSubscribe,
 };
