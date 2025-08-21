@@ -27,7 +27,8 @@ const handleCreatePlan = async (req, res) => {
  */
 const handleSubscribe = async (req, res) => {
     try {
-        const { cardTokenId, deviceId } = req.body;
+        const { cardTokenId } = req.body;
+        const deviceId = req.header('X-meli-session-id');
         const userId = req.user.id;
 
         if (!cardTokenId) {
