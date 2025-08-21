@@ -55,6 +55,7 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             payer_email: user.email,
             card_token_id: cardTokenId,
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
+            status: "authorized",
         };
 
         const requestOptions = {
