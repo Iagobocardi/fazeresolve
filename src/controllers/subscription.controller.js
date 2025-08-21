@@ -27,6 +27,9 @@ const handleCreatePlan = async (req, res) => {
  */
 const handleSubscribe = async (req, res) => {
     try {
+        console.log("--- [DEBUG] Corpo da requisição recebido no backend ---");
+        console.log(JSON.stringify(req.body, null, 2));
+
         const { cardTokenId, deviceId } = req.body;
         const userId = req.user.id;
 
