@@ -52,7 +52,29 @@ const app = express();
 connectDB();
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
-app.use(cors()); 
+const allowedOrigins = [
+    'https://app.fazeresolve.com',
+    'https://painel-faz-e-resolve.netlify.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+];
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Permitir requisições sem 'origin' (como Postman ou apps mobile)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'A política de CORS para este site não permite acesso da origem especificada.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
