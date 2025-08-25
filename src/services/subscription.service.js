@@ -45,6 +45,7 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         const accessToken = mercadoPagoConfig.accessToken;
 
         // 2. Verificação de segurança crucial.
+        console.log("--- USING ACCESS TOKEN ---", accessToken); // Imprime o token
         if (!accessToken) {
             console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
             throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
