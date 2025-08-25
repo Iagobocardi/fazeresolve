@@ -59,10 +59,12 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         };
 
         const requestOptions = {
-            headers: {
-                'X-meli-session-id': deviceId
-            }
+            headers: {}
         };
+
+        if (deviceId) {
+            requestOptions.headers['X-meli-session-id'] = deviceId;
+        }
 
         const result = await subscription.create({ body, requestOptions });
 
