@@ -41,11 +41,16 @@ const createPlan = async (planData) => {
  */
 const createSubscription = async (planId, user, cardTokenId, deviceId) => {
     try {
+        // 1. Obtemos o token diretamente da configuração.
         const accessToken = mercadoPagoConfig.accessToken;
+
+        // 2. Verificação de segurança crucial.
         if (!accessToken) {
-            throw new Error('Access Token do Mercado Pago não está configurado.');
+            console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
+            throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
         }
 
+        // 3. Inicializamos o cliente AQUI DENTRO para garantir que ele tem o token.
         const client = new MercadoPagoConfig({ accessToken });
         const subscription = new PreApproval(client);
 
@@ -55,19 +60,13 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             payer_email: user.email,
             card_token_id: cardTokenId,
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-            status: "authorized",
         };
 
-        const requestOptions = {
-            headers: {}
-        };
+        const result = await subscription.create({ body });
+        
+        console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
 
-        if (deviceId) {
-            requestOptions.headers['X-meli-session-id'] = deviceId;
-        }
-
-        const result = await subscription.create({ body, requestOptions });
-
+        // Salva a referência no seu banco de dados...
         const newSubscription = new Subscription({
             userId: user._id,
             planId: planId,
@@ -77,10 +76,13 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         });
         await newSubscription.save();
 
+
         return result;
 
     } catch (error) {
-        console.error("Erro ao criar assinatura no Mercado Pago:", error.cause?.body || error.response?.data || error.message);
+        console.error("--- ERRO da API do Mercado Pago ---");
+        const errorResponse = error.cause?.body || error.response?.data || error.message;
+        console.error(errorResponse);
         throw new Error('Erro ao criar assinatura no Mercado Pago.');
     }
 };
