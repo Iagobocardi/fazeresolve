@@ -62,8 +62,16 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
         };
 
-        const result = await subscription.create({ body });
-        
+        const requestOptions = {
+            headers: {}
+        };
+
+        if (deviceId) {
+            requestOptions.headers['X-meli-session-id'] = deviceId;
+        }
+
+        const result = await subscription.create({ body, requestOptions });
+
         console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
 
         // Salva a referência no seu banco de dados...
