@@ -1,85 +1,127 @@
-const { MercadoPagoConfig, PreApproval } = require('mercadopago');
-const mercadoPagoConfig = require('../config/mercadoPago.config.js');
-const Subscription = require('../models/subscription.model.js');
+// PASSO 1: Carrega as variáveis de ambiente
+require('dotenv').config();
+require('./src/jobs/lembretes.job');
 
-// NOTA: A função createPlan foi removida para simplificar,
-// já que o foco é na criação da assinatura. Se precisar dela,
-// ela também deve inicializar o seu próprio cliente internamente.
+console.log('====================================');
+console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
+console.log('Número do Prestador carregado:', process.env.PRESTADOR_TELEFONE);
+console.log('====================================');
 
-/**
- * Cria uma nova assinatura para um usuário.
- * @param {string} planId - O ID do plano do Mercado Pago.
- * @param {object} user - O objeto do usuário (prestador).
- * @param {string} cardTokenId - O ID do token do cartão gerado no frontend.
- * @param {string} [deviceId] - O ID da sessão do dispositivo (opcional).
- * @returns {Promise<object>} O objeto da assinatura criada.
- */
-const createSubscription = async (planId, user, cardTokenId, deviceId) => {
-    try {
-        const accessToken = mercadoPagoConfig.accessToken;
+// PASSO 2: Importações essenciais
+const express = require('express');
+const cors = require('cors');
+const session = require('express-session');
+const path = require('path'); // Importação que estava faltando
+const connectDB = require('./src/config/database'); // Conexão com o banco
+const googleRoutes = require('./src/routes/google.routes.js');
 
-        if (!accessToken) {
-            console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
-            throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
+// Importação das rotas
+const publicRoutes = require('./src/routes/public.routes.js');
+const despesasRoutes = require('./src/routes/despesas.routes.js');
+const produtosRoutes = require('./src/routes/produtos.routes.js');
+const authRoutes = require('./src/routes/auth.routes.js');
+const portalClienteRoutes = require('./src/routes/portalCliente.routes.js');
+const agendamentoRoutes = require('./src/routes/agendamentos.routes.js');
+const clienteRoutes = require('./src/routes/clientes.routes.js');
+const financeiroRoutes = require('./src/routes/financeiro.routes.js');
+const orcamentoRoutes = require('./src/routes/orcamentos.routes.js');
+const relatorioRoutes = require('./src/routes/relatorios.routes.js');
+const servicoRoutes = require('./src/routes/servicos.routes.js');
+const whatsappRoutes = require('./src/routes/whatsapp.routes.js');
+const statsRoutes = require('./src/routes/stats.routes.js');
+const dashboardRoutes = require('./src/routes/dashboard.routes.js');
+const fornecedorRoutes = require('./src/routes/fornecedores.routes.js');
+const configuracaoRoutes = require('./src/routes/configuracao.routes.js');
+const produtosFornecedorRoutes = require('./src/routes/produtosFornecedor.routes.js');
+const checklistRoutes = require('./src/routes/checklist.routes.js');
+const estoqueRoutes = require('./src/routes/estoque.routes.js');
+const uploadRoutes = require('./src/routes/upload.routes.js');
+const conversaRoutes = require('./src/routes/conversa.routes.js');
+const adminRoutes = require('./src/routes/admin.routes.js');
+const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js');
+const subscriptionRoutes = require('./src/routes/subscription.routes.js');
+const mercadoPagoRoutes = require('./src/routes/mercadoPago.routes.js');
+// Importação do Middleware de Erro
+const errorMiddleware = require('./src/middlewares/error.middleware');
+const adminAuth = require('./src/middlewares/adminAuth.middleware.js');
+const checkSubscription = require('./src/middlewares/checkSubscription.middleware.js');
+// PASSO 3: Inicialização da Aplicação Express
+const app = express();
+
+// PASSO 4: Conectar à Base de Dados
+connectDB();
+
+// PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
+// Lista de domínios que podem fazer pedidos à sua API
+const allowedOrigins = [
+    'http://localhost:3000', // Para desenvolvimento local
+    'https://app.fazeresolve.com' // O seu domínio de produção
+];
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
         }
-
-        // =======================================================
-        // ==>    A CORREÇÃO DEFINITIVA ESTÁ AQUI              <==
-        // =======================================================
-        // 1. Preparamos as opções para o cliente, incluindo os cabeçalhos customizados.
-        const clientOptions = {
-            accessToken,
-            options: {
-                timeout: 5000, // Exemplo de outra opção
-                customHeaders: {}
-            }
-        };
-
-        // 2. Adicionamos o deviceId aos cabeçalhos customizados, se ele existir.
-        if (deviceId) {
-            clientOptions.options.customHeaders['X-meli-session-id'] = deviceId;
-        }
-
-        // 3. Inicializamos o cliente com TODAS as configurações necessárias.
-        const client = new MercadoPagoConfig(clientOptions);
-        const subscription = new PreApproval(client);
-        // -------------------------------------------------------
-
-        const body = {
-            preapproval_plan_id: planId,
-            reason: `Assinatura do plano para ${user.nome}`,
-            payer_email: user.email,
-            card_token_id: cardTokenId,
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-        };
-
-        // 4. A chamada `create` agora só precisa do `body`.
-        // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
-        const result = await subscription.create({ body });
-
-        console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
-
-        // Salva a referência no seu banco de dados...
-        const newSubscription = new Subscription({
-            userId: user._id,
-            planId: planId,
-            subscriptionId: result.id,
-            status: result.status,
-            nextPaymentDate: result.next_payment_date,
-        });
-        await newSubscription.save();
-
-        return result;
-
-    } catch (error) {
-        console.error("--- ERRO da API do Mercado Pago ---");
-        const errorResponse = error.cause?.body || error.response?.data || error.message;
-        console.error(errorResponse);
-        throw new Error('Erro ao criar assinatura no Mercado Pago.');
-    }
+    },
+    credentials: true, // Importante para cookies e autorização
 };
 
-module.exports = {
-    // createPlan, // Adicione de volta se precisar
-    createSubscription,
-};
+app.use(cors(corsOptions));
+app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
+app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve arquivos estáticos da pasta uploads
+app.use(express.static('public')); // Serve arquivos estáticos da pasta public
+// Configuração da Sessão (unificada)
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'SEU_SEGREDO_DE_SESSAO_SUPER_SECRETO', // Use uma variável de ambiente!
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: process.env.NODE_ENV === 'production' } // Em produção, use `true` com HTTPS
+}));
+
+// PASSO 6: Utilização das Rotas na API
+app.use('/api/agendamentos', agendamentoRoutes);
+app.use('/api/clientes', adminAuth, checkSubscription, clienteRoutes);
+app.use('/api/financeiro', financeiroRoutes);
+app.use('/api/orcamentos', adminAuth, checkSubscription, orcamentoRoutes);
+app.use('/api/relatorios', relatorioRoutes);
+app.use('/api/servicos', servicoRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/stats', adminAuth, statsRoutes);
+app.use('/api/dashboard', adminAuth, dashboardRoutes);
+app.use('/api/public', publicRoutes);
+app.use('/api/despesas', despesasRoutes);
+app.use('/api/produtos', produtosRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/portal-cliente', portalClienteRoutes);
+app.use('/api/fornecedores', fornecedorRoutes);
+app.use('/api/configuracoes', adminAuth, configuracaoRoutes);
+app.use('/api/produtos-fornecedor', produtosFornecedorRoutes); // Rota corrigida para evitar conflito
+app.use('/api/checklist', checklistRoutes); // Rota corrigida para evitar conflito
+app.use('/api/google', googleRoutes);
+app.use('/api/estoque', estoqueRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/conversas', adminAuth, conversaRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/mercado-pago', mercadoPagoRoutes);
+
+
+// Rota de teste para verificar se o servidor está online
+app.get('/', (req, res) => {
+    res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');
+});
+
+// PASSO 7: Middleware de Erro (SEMPRE DEPOIS DAS ROTAS)
+app.use(errorMiddleware);
+
+// PASSO 8: Iniciar o Servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
+});
