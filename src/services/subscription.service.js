@@ -1,58 +1,49 @@
-const { MercadoPagoConfig, PreApprovalPlan, PreApproval } = require('mercadopago');
+const { MercadoPagoConfig, PreApproval } = require('mercadopago');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js');
 const Subscription = require('../models/subscription.model.js');
 
-const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
-
-/**
- * Cria um novo plano de assinatura no Mercado Pago.
- * @param {object} planData - Os dados do plano (nome, preço, frequência).
- * @returns {Promise<object>} O objeto do plano criado.
- */
-const createPlan = async (planData) => {
-    try {
-        const plan = new PreApprovalPlan(client);
-
-        const body = {
-            reason: planData.name,
-            auto_recurring: {
-                frequency: 1,
-                frequency_type: 'months',
-                transaction_amount: planData.price,
-                currency_id: 'BRL',
-            },
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-        };
-
-        const result = await plan.create({ body });
-        return result;
-    } catch (error) {
-        console.error('Erro ao criar plano de assinatura:', error);
-        throw new Error('Erro ao criar plano de assinatura no Mercado Pago.');
-    }
-};
+// NOTA: A função createPlan foi removida para simplificar,
+// já que o foco é na criação da assinatura. Se precisar dela,
+// ela também deve inicializar o seu próprio cliente internamente.
 
 /**
  * Cria uma nova assinatura para um usuário.
  * @param {string} planId - O ID do plano do Mercado Pago.
  * @param {object} user - O objeto do usuário (prestador).
  * @param {string} cardTokenId - O ID do token do cartão gerado no frontend.
+ * @param {string} [deviceId] - O ID da sessão do dispositivo (opcional).
  * @returns {Promise<object>} O objeto da assinatura criada.
  */
 const createSubscription = async (planId, user, cardTokenId, deviceId) => {
     try {
-        // 1. Obtemos o token diretamente da configuração.
         const accessToken = mercadoPagoConfig.accessToken;
 
-        // 2. Verificação de segurança crucial.
         if (!accessToken) {
             console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
             throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
         }
 
-        // 3. Inicializamos o cliente AQUI DENTRO para garantir que ele tem o token.
-        const client = new MercadoPagoConfig({ accessToken });
+        // =======================================================
+        // ==>    A CORREÇÃO DEFINITIVA ESTÁ AQUI              <==
+        // =======================================================
+        // 1. Preparamos as opções para o cliente, incluindo os cabeçalhos customizados.
+        const clientOptions = {
+            accessToken,
+            options: {
+                timeout: 5000, // Exemplo de outra opção
+                customHeaders: {}
+            }
+        };
+
+        // 2. Adicionamos o deviceId aos cabeçalhos customizados, se ele existir.
+        if (deviceId) {
+            clientOptions.options.customHeaders['X-meli-session-id'] = deviceId;
+        }
+
+        // 3. Inicializamos o cliente com TODAS as configurações necessárias.
+        const client = new MercadoPagoConfig(clientOptions);
         const subscription = new PreApproval(client);
+        // -------------------------------------------------------
 
         const body = {
             preapproval_plan_id: planId,
@@ -62,15 +53,9 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
         };
 
-        const requestOptions = {
-            headers: {}
-        };
-
-        if (deviceId) {
-            requestOptions.headers['X-meli-session-id'] = deviceId;
-        }
-
-        const result = await subscription.create({ body, requestOptions });
+        // 4. A chamada `create` agora só precisa do `body`.
+        // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
+        const result = await subscription.create({ body });
 
         console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
 
@@ -84,7 +69,6 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         });
         await newSubscription.save();
 
-
         return result;
 
     } catch (error) {
@@ -96,6 +80,6 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
 };
 
 module.exports = {
-    createPlan,
+    // createPlan, // Adicione de volta se precisar
     createSubscription,
 };
