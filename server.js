@@ -62,6 +62,7 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
+        console.log('CORS check. Origin:', origin); // Log para depuração
         // Permitir requisições sem 'origin' (como Postman ou apps mobile)
         if (!origin) return callback(null, true);
 
