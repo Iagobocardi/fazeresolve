@@ -80,7 +80,7 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         return result;
 
     } catch (error) {
-        console.error("Erro ao criar assinatura no Mercado Pago:", error.cause ? .body || error.response ? .data || error.message);
+        console.error("Erro ao criar assinatura no Mercado Pago:", error.cause?.body || error.response?.data || error.message);
         throw new Error('Erro ao criar assinatura no Mercado Pago.');
     }
 };
