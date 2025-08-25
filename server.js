@@ -52,26 +52,22 @@ const app = express();
 connectDB();
 
 // PASSO 5: Middlewares Essenciais (ANTES DAS ROTAS)
+// Lista de domínios que podem fazer pedidos à sua API
 const allowedOrigins = [
-    'https://app.fazeresolve.com',
-    'https://painel-faz-e-resolve.netlify.app',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
+    'http://localhost:3000', // Para desenvolvimento local
+    'https://app.fazeresolve.com' // O seu domínio de produção
 ];
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permitir requisições sem 'origin' (como Postman ou apps mobile)
-        if (!origin) return callback(null, true);
-
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'A política de CORS para este site não permite acesso da origem especificada.';
-            return callback(new Error(msg), false);
+        // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
         }
-        return callback(null, true);
     },
-    credentials: true,
+    credentials: true, // Importante para cookies e autorização
 };
 
 app.use(cors(corsOptions));
