@@ -38,7 +38,6 @@ const handleSubscribe = async (req, res) => {
         }
 
         const user = await Cliente.findById(userId);
-
         if (!user) {
             return res.status(404).json({ error: 'Utilizador não encontrado.' });
         }
