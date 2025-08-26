@@ -41,18 +41,13 @@ const createPlan = async (planData) => {
  */
 const createSubscription = async (planId, user, cardTokenId, deviceId) => {
     try {
-        // 1. Obtemos o token diretamente da configuração.
-        const accessToken = mercadoPagoConfig.accessToken;
-
-        // 2. Verificação de segurança crucial.
-        console.log("--- USING ACCESS TOKEN ---", accessToken); // Imprime o token
-        if (!accessToken) {
+        // 1. Verificação de segurança crucial.
+        if (!mercadoPagoConfig.accessToken) {
             console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
             throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
         }
 
-        // 3. Inicializamos o cliente AQUI DENTRO para garantir que ele tem o token.
-        const client = new MercadoPagoConfig({ accessToken });
+        // 2. Usamos o cliente já inicializado no escopo do módulo.
         const subscription = new PreApproval(client);
 
         const body = {
@@ -90,6 +85,7 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
 
     } catch (error) {
         console.error("--- ERRO da API do Mercado Pago ---");
+        console.error("Verifique se o seu MP_ACCESS_TOKEN está correto e se corresponde ao ambiente (sandbox/produção).");
         const errorResponse = error.cause?.body || error.response?.data || error.message;
         console.error(errorResponse);
         throw new Error('Erro ao criar assinatura no Mercado Pago.');
