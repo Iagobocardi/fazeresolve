@@ -1,37 +1,30 @@
 // Em: createAdmin.js
 
-require('dotenv').config();
+require('dotenv').config(); 
 const mongoose = require('mongoose');
 const Cliente = require('./src/models/cliente.model.js');
+// Importa a função de conexão partilhada
 const connectDB = require('./src/config/database.js');
 
-// --- Lendo dados da linha de comando ---
-// process.argv = [ 'node', 'createAdmin.js', 'nome', 'email', 'senha', 'telefone' ]
-const args = process.argv.slice(2); // Ignora 'node' e o nome do arquivo
-
-if (args.length < 4) {
-    console.log('❌ Uso incorreto. Forneça todos os argumentos na ordem:');
-    console.log('   node createAdmin.js "Seu Nome" "seu@email.com" "sua-senha" "seu-telefone"');
-    process.exit(1); // Encerra o script com um código de erro
-}
-
+// --- PREENCHA OS SEUS DADOS AQUI ---
 const adminData = {
-    nome: args[0],
-    email: args[1],
-    password: args[2],
-    telefone: args[3],
+    nome: "Administrador",
+    email: "iago.bocardi@fazeresolve.com",
+    password: "Senha44169556_@",
+    telefone: "+5515998595422",
     role: 'ADMIN',
-    status: 'ATIVO' // Um admin já deve ser criado como ativo
+    plano: 'Premium'
 };
 // ------------------------------------
 
 const createAdminUser = async () => {
     try {
-        console.log('A ligar à base de dados...');
+        console.log('A ligar à base de dados usando a função partilhada...');
+        // Usa a função de conexão partilhada
         await connectDB();
         console.log('Ligado com sucesso!');
 
-        console.log(`A verificar se o utilizador com email ${adminData.email} já existe...`);
+        console.log('A verificar se o utilizador já existe...');
         const existingAdmin = await Cliente.findOne({ email: adminData.email });
         
         if (existingAdmin) {
@@ -44,15 +37,17 @@ const createAdminUser = async () => {
         await novoAdmin.save();
 
         console.log('✅ Utilizador Administrador criado com sucesso!');
-        console.log(`   -> Nome: ${adminData.nome}`);
         console.log(`   -> Email: ${adminData.email}`);
+        console.log(`   -> Senha (PARA DEPURAÇÃO): ${adminData.password}`);
 
     } catch (error) {
         console.error('❌ Ocorreu um erro:', error);
     } finally {
+        // Fecha a ligação à base de dados para o script terminar
         await mongoose.connection.close();
         console.log('Ligação à base de dados fechada.');
     }
 };
 
+// Executa a função
 createAdminUser();
