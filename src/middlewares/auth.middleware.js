@@ -15,8 +15,8 @@ const authMiddleware = (req, res, next) => {
         // 3. Verificar a validade do token com a sua chave secreta
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 4. Verificar o status do utilizador
-        if (decoded.status !== 'ATIVO') {
+        // 4. Verificar o status do utilizador (Admins podem operar mesmo se inativos)
+        if (decoded.role !== 'ADMIN' && decoded.status !== 'ATIVO') {
             return res.status(403).json({ message: 'Acesso negado. A sua conta não está ativa.' });
         }
 
