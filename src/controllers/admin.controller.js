@@ -71,8 +71,9 @@ exports.ativarUsuario = async (req, res) => {
             return res.status(404).json({ message: 'Usuário não encontrado.' });
         }
 
-        // Altera o status para ATIVO
+        // Altera o status e adiciona um ID de assinatura manual
         usuario.status = 'ATIVO';
+        usuario.mercadoPagoSubscriptionId = `manual-${userId}`;
         await usuario.save();
 
         // Adicionado: Cria uma assinatura manual para o usuário
