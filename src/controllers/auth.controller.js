@@ -171,7 +171,8 @@ const register = async (req, res) => {
 
         const payload = {
             id: novoUsuario._id,
-            status: novoUsuario.status
+            status: novoUsuario.status,
+            email: novoUsuario.email // Adicionado para que o frontend tenha o email no fluxo de pagamento
         };
 
         const token = jwt.sign(
