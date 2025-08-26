@@ -205,9 +205,54 @@ const register = async (req, res) => {
     }
 };
 
+const createFirstAdmin = async (req, res) => {
+    try {
+        // 1. Verificar se já existe um administrador
+        const adminCount = await Cliente.countDocuments({ role: 'ADMIN' });
+        if (adminCount > 0) {
+            return res.status(403).json({ message: 'Um administrador já existe. Este endpoint só pode ser usado para a configuração inicial.' });
+        }
+
+        // 2. Validar os dados de entrada
+        const { nome, email, telefone, password } = req.body;
+        if (!nome || !email || !telefone || !password) {
+            return res.status(400).json({ message: 'Todos os campos são obrigatórios: nome, email, telefone, password.' });
+        }
+
+        // 3. Criar o novo administrador
+        const novoAdmin = new Cliente({
+            nome,
+            email,
+            telefone,
+            password, // O pre-save hook no modelo irá encriptar
+            role: 'ADMIN',
+            status: 'ATIVO' // O administrador já é criado como ativo
+        });
+
+        await novoAdmin.save();
+
+        // 4. Retornar uma resposta de sucesso (sem a senha)
+        const adminParaRetornar = novoAdmin.toObject();
+        delete adminParaRetornar.password;
+
+        res.status(201).json({
+            message: 'Primeiro administrador criado com sucesso!',
+            usuario: adminParaRetornar
+        });
+
+    } catch (error) {
+        console.error("Erro ao criar o primeiro administrador:", error);
+        if (error.code === 11000) { // Código de erro do MongoDB para chave duplicada
+             return res.status(409).json({ message: 'Um utilizador com este email ou telefone já existe.' });
+        }
+        res.status(500).json({ message: 'Ocorreu um erro interno ao tentar criar o administrador.' });
+    }
+};
+
 module.exports = {
     loginCliente,
     handleGoogleCallback,
      iniciarAuthGoogle,
-     register
+     register,
+     createFirstAdmin
 };
