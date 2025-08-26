@@ -1,7 +1,6 @@
 // Em: src/controllers/admin.controller.js
 
 const Cliente = require('../models/cliente.model');
-const Subscription = require('../models/subscription.model.js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -59,45 +58,4 @@ exports.loginAdmin = async (req, res) => {
 exports.getMe = async (req, res) => {
     // O middleware de autenticação já colocou os dados do token em req.user
     res.status(200).json(req.user);
-};
-
-exports.ativarUsuario = async (req, res) => {
-    try {
-        const { userId } = req.params;
-
-        const usuario = await Cliente.findById(userId);
-
-        if (!usuario) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-
-        // Altera o status e adiciona um ID de assinatura manual
-        usuario.status = 'ATIVO';
-        usuario.mercadoPagoSubscriptionId = `manual-${userId}`;
-        await usuario.save();
-
-        // Adicionado: Cria uma assinatura manual para o usuário
-        // Verifica se já não existe uma, para evitar erros de duplicação
-        const existingSubscription = await Subscription.findOne({ userId: userId });
-        if (!existingSubscription) {
-            if (!usuario.planId) {
-                return res.status(400).json({ message: 'Usuário não tem um planId definido. Não é possível criar a assinatura.' });
-            }
-            const novaAssinatura = new Subscription({
-                userId: userId,
-                planId: usuario.planId, // Pega o planId do usuário
-                subscriptionId: `manual-${userId}`, // Gera um ID único
-                status: 'authorized',
-                lastPaymentDate: new Date(),
-                nextPaymentDate: new Date(new Date().setFullYear(new Date().getFullYear() + 99)) // Data de expiração longa
-            });
-            await novaAssinatura.save();
-        }
-
-        res.status(200).json({ message: 'Usuário ativado e assinatura manual criada com sucesso!', usuario });
-
-    } catch (error) {
-        console.error("ERRO ao ativar usuário:", error);
-        res.status(500).json({ message: 'Erro interno no servidor.' });
-    }
 };
