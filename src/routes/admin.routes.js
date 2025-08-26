@@ -21,4 +21,11 @@ router.post('/', agendamentoValidationRules, validate, agendamentosController.cr
 router.put('/:id', agendamentoValidationRules, validate, agendamentosController.updateAgendamento);
 router.delete('/:id', agendamentosController.deleteAgendamento);
 
+// Rota para ativar um usuário (apenas ADMIN)
+router.patch(
+    '/usuarios/:userId/ativar',
+    roleMiddleware(['ADMIN']),
+    adminController.ativarUsuario
+);
+
 module.exports = router;
