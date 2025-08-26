@@ -65,7 +65,6 @@ if (process.env.APP_URL) {
 
 const corsOptions = {
     origin: function (origin, callback) {
-        console.log('--- [CORS DEBUG] Checking origin:', origin); // Log para depuração
         // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
