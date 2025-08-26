@@ -59,3 +59,27 @@ exports.getMe = async (req, res) => {
     // O middleware de autenticação já colocou os dados do token em req.user
     res.status(200).json(req.user);
 };
+
+exports.ativarUsuario = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const usuario = await Cliente.findById(userId);
+
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        // Altera o status para ATIVO
+        usuario.status = 'ATIVO';
+
+        // Salva o usuário atualizado
+        await usuario.save();
+
+        res.status(200).json({ message: 'Usuário ativado com sucesso!', usuario });
+
+    } catch (error) {
+        console.error("ERRO ao ativar usuário:", error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
