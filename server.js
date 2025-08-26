@@ -66,11 +66,12 @@ if (process.env.APP_URL) {
 const corsOptions = {
     origin: function (origin, callback) {
         // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
-        }
+        // if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        //     callback(null, true);
+        // } else {
+        //     callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
+        // }
+        callback(null, true); // Permite todas as origens
     },
     credentials: true, // Importante para cookies e autorização
 };
