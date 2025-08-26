@@ -30,4 +30,7 @@ const registerRules = [
 // Rota para registrar um novo utilizador, com validação
 router.post('/register', registerRules, validate, authController.register);
 
+// Rota para criar o primeiro administrador (endpoint de uso único)
+router.post('/create-first-admin', authController.createFirstAdmin);
+
 module.exports = router;
