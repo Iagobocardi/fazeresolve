@@ -58,6 +58,11 @@ const allowedOrigins = [
     'https://app.fazeresolve.com' // O seu domínio de produção
 ];
 
+// Adiciona a URL do app do .env se ela existir
+if (process.env.APP_URL) {
+    allowedOrigins.push(process.env.APP_URL);
+}
+
 const corsOptions = {
     origin: function (origin, callback) {
         // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
