@@ -38,6 +38,14 @@ const handleSubscribe = async (req, res) => {
         }
 
         const user = await Cliente.findById(userId);
+
+        // DEBUGGING LOGS
+        console.log("--- [DEBUG] DECODED TOKEN (req.user) ---");
+        console.log(req.user);
+        console.log("--- [DEBUG] USER FROM DATABASE (user) ---");
+        console.log(user);
+        // FIM DOS LOGS
+
         if (!user) {
             return res.status(404).json({ error: 'Utilizador não encontrado.' });
         }
