@@ -57,6 +57,20 @@ password: {
         scope: String,
         token_type: String,
         expiry_date: Number,
+    },
+
+    // Configurações de Pagamento do Prestador
+    metodoRecebimento: {
+        type: String,
+        enum: ['MERCADOPAGO', 'MANUAL'],
+        default: 'MANUAL'
+    },
+    credenciaisMercadoPago: {
+        type: Object
+    },
+    chavePixManual: {
+        type: String,
+        trim: true
     }
 }, {
     timestamps: true
