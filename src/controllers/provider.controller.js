@@ -79,8 +79,14 @@ const axios = require('axios');
 
 const handleMercadoPagoCallback = async (req, res) => {
     try {
-        const { code, state } = req.query;
+        const { code, state, error } = req.query;
         const providerId = state; // O 'state' contém o ID do nosso prestador
+
+        // Se o usuário negar a permissão, o MP redireciona com um parâmetro 'error'
+        if (error) {
+            console.warn(`[OAuth] O usuário negou a permissão no Mercado Pago. Erro: ${error}`);
+            return res.redirect(`${process.env.FRONTEND_URL}/settings?connect=denied`);
+        }
 
         if (!code) {
             throw new Error('Código de autorização não recebido do Mercado Pago.');
