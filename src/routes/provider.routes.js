@@ -8,6 +8,9 @@ const roleMiddleware = require('../middlewares/role.middleware.js');
 router.use(authMiddleware);
 router.use(roleMiddleware(['PRESTADOR']));
 
+// Rota para buscar as configurações de pagamento do prestador
+router.get('/payment-settings', providerController.getPaymentSettings);
+
 // Rota para atualizar as configurações de pagamento (método manual/pix)
 router.put('/payment-settings', providerController.updatePaymentSettings);
 

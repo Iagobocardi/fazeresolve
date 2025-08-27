@@ -118,12 +118,13 @@ const loginCliente = async (req, res) => {
         );
 
         // Remove a senha do objeto antes de o enviar de volta
-        cliente.password = undefined;
+        const clienteParaRetornar = cliente.toObject();
+        delete clienteParaRetornar.password;
 
         res.status(200).json({
             message: 'Login bem-sucedido!',
             token,
-            cliente
+            cliente: clienteParaRetornar
         });
 
     } catch (error) {
