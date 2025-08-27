@@ -3,6 +3,19 @@ const Cliente = require('../models/cliente.model');
 /**
  * Controller para atualizar as configurações de pagamento de um prestador.
  */
+const getPaymentSettings = async (req, res) => {
+    try {
+        const provider = await Cliente.findById(req.user.id).select('metodoRecebimento chavePixManual credenciaisMercadoPago');
+        if (!provider) {
+            return res.status(404).json({ message: 'Prestador não encontrado.' });
+        }
+        res.status(200).json(provider);
+    } catch (error) {
+        console.error('Erro ao buscar configurações de pagamento:', error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
+
 const updatePaymentSettings = async (req, res) => {
     try {
         const providerId = req.user.id; // ID do prestador logado, vindo do authMiddleware
@@ -43,5 +56,6 @@ const updatePaymentSettings = async (req, res) => {
 };
 
 module.exports = {
+    getPaymentSettings,
     updatePaymentSettings,
 };
