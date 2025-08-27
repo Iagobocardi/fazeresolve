@@ -3,7 +3,102 @@ const Orcamento = require('../models/orcamento.model');
 const whatsappService = require('./whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
+const { MercadoPagoConfig, Preference } = require('mercadopago');
+const Configuracao = require('../models/configuracao.model');
+const Cliente = require('../models/cliente.model');
 const googleCalendarService = require('./googleCalendar.service.js'); // O import já estava correto
+
+// Custom Error Classes for better error handling
+class NotFoundError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'NotFoundError';
+        this.statusCode = 404;
+    }
+}
+
+class ForbiddenError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'ForbiddenError';
+        this.statusCode = 403;
+    }
+}
+
+class BusinessLogicError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'BusinessLogicError';
+        this.statusCode = 400;
+    }
+}
+
+
+const gerarLinkPagamentoMercadoPago = async (orcamentoId, providerId) => {
+    // 1. Fetch all necessary data in parallel
+    const orcamento = await Orcamento.findById(orcamentoId).populate('cliente');
+    const provider = await Cliente.findById(providerId);
+    const config = await Configuracao.obterConfiguracao();
+
+    // 2. Perform validations
+    if (!orcamento) {
+        throw new NotFoundError('Orçamento não encontrado.');
+    }
+    if (!provider) {
+        throw new NotFoundError('Prestador não encontrado.');
+    }
+    if (orcamento.prestadorId.toString() !== providerId) {
+        throw new ForbiddenError('Você não tem permissão para gerar um link de pagamento para este orçamento.');
+    }
+    if (provider.metodoRecebimento !== 'MERCADOPAGO') {
+        throw new BusinessLogicError('O seu método de recebimento não está configurado como Mercado Pago.');
+    }
+    if (orcamento.linkPagamento) {
+        throw new BusinessLogicError('Este orçamento já possui um link de pagamento gerado.');
+    }
+    if (orcamento.valorProposto <= 0) {
+        throw new BusinessLogicError('O orçamento precisa ter um valor proposto maior que zero.');
+    }
+
+    // 3. Initialize Mercado Pago client
+    const client = new MercadoPagoConfig({ accessToken: provider.credenciaisMercadoPago.accessToken });
+    const preference = new Preference(client);
+
+    // 4. Create the preference payload
+    const preferencePayload = {
+        items: [
+            {
+                id: orcamento._id.toString(),
+                title: `Serviço referente ao pedido #${orcamento.shortId}`,
+                description: orcamento.descricao || 'Serviço profissional',
+                quantity: 1,
+                unit_price: orcamento.valorProposto,
+                currency_id: 'BRL',
+            },
+        ],
+        payer: {
+            name: orcamento.cliente.nome,
+            email: orcamento.cliente.email,
+        },
+        back_urls: {
+            success: `${process.env.FRONTEND_URL}/payment-success`,
+            failure: `${process.env.FRONTEND_URL}/payment-failure`,
+            pending: `${process.env.FRONTEND_URL}/payment-pending`,
+        },
+        notification_url: `${process.env.API_URL}/api/mercado-pago/webhook`,
+        marketplace_fee: (orcamento.valorProposto * config.taxaMarketplace) / 100,
+        external_reference: orcamentoId,
+    };
+
+    // 5. Call Mercado Pago API
+    const result = await preference.create({ body: preferencePayload });
+
+    // 6. Save the link and return the updated document
+    orcamento.linkPagamento = result.init_point;
+    await orcamento.save();
+
+    return orcamento;
+};
 
 /**
  * Analisa uma string de data personalizada como "DD/MM as HH horas" e a converte em um objeto Date.
@@ -251,4 +346,5 @@ module.exports = {
     getClienteInfo, 
     adicionarMaterial,
     removerMaterial,
+    gerarLinkPagamentoMercadoPago,
 };
