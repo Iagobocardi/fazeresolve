@@ -583,25 +583,50 @@ const deleteTemplate = async (id) => {
 // =======================================================
 // SEÇÃO DE RENDERIZAÇÃO DE TEMPLATES
 // =======================================================
+const orcamentoService = require('./orcamento.service'); // Importa o serviço de orçamento
+
 const renderTemplateMessage = async (templateId, orcamentoId) => {
     const template = await WhatsappTemplate.findById(templateId);
     if (!template) {
         throw new NotFoundError('Template não encontrado.');
     }
 
-    const orcamento = await Orcamento.findById(orcamentoId).populate('cliente');
+    let orcamento = await Orcamento.findById(orcamentoId).populate('cliente');
     if (!orcamento || !orcamento.cliente) {
         throw new NotFoundError('Orçamento ou cliente associado não encontrado.');
     }
+
+    const prestador = await Cliente.findById(orcamento.prestadorId);
+    if (!prestador) {
+        throw new NotFoundError('Prestador do orçamento não encontrado.');
+    }
     
     const cliente = orcamento.cliente;
+    let mensagemFinal = template.mensagem;
+
+    // Lógica de Pagamento Dinâmica
+    if (prestador.metodoRecebimento === 'MERCADOPAGO') {
+        // Gera o link de pagamento se não existir
+        if (!orcamento.linkPagamento) {
+            orcamento = await orcamentoService.gerarLinkPagamentoMercadoPago(orcamentoId, prestador._id.toString());
+        }
+        mensagemFinal = mensagemFinal.replace(/{{link_pagamento}}/g, orcamento.linkPagamento);
+    } else { // MANUAL
+        mensagemFinal = mensagemFinal.replace(/{{chave_pix_prestador}}/g, prestador.chavePixManual || 'Chave Pix não configurada');
+    }
 
     // Lógica de substituição dos placeholders
-    let mensagemFinal = template.mensagem;
     mensagemFinal = mensagemFinal.replace(/{{cliente.nome}}/g, cliente.nome);
     mensagemFinal = mensagemFinal.replace(/{{cliente.telefone}}/g, cliente.telefone);
     mensagemFinal = mensagemFinal.replace(/{{orcamento.descricao}}/g, orcamento.descricao);
+
+    // Calcula o valor pendente
+    const totalPago = orcamento.pagamentos.reduce((sum, p) => sum + p.valor, 0);
+    const valorPendente = (orcamento.valorProposto || 0) - totalPago;
+
     mensagemFinal = mensagemFinal.replace(/{{orcamento.valorProposto}}/g, orcamento.valorProposto ? orcamento.valorProposto.toFixed(2) : 'N/A');
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.valorPendente}}/g, valorPendente.toFixed(2));
+
     mensagemFinal = mensagemFinal.replace(/{{orcamento.dataAgendamento}}/g, orcamento.dataAgendamento ? new Date(orcamento.dataAgendamento).toLocaleDateString('pt-BR') : 'N/A');
     mensagemFinal = mensagemFinal.replace(/{{orcamento.shortId}}/g, orcamento.shortId);
 

@@ -128,6 +128,22 @@ const sugerirAgendamentoPublico = async (req, res) => {
     }
 };
 
+const Configuracao = require('../models/configuracao.model');
+
+const getPublicConfig = async (req, res) => {
+    try {
+        const config = await Configuracao.obterConfiguracao();
+        // Seleciona apenas os campos que são seguros para serem públicos
+        const publicConfig = {
+            linksDeIndicacao: config.linksDeIndicacao
+        };
+        res.status(200).json(publicConfig);
+    } catch (error) {
+        console.error('Erro ao buscar configuração pública:', error);
+        res.status(500).json({ message: 'Erro ao buscar configurações.' });
+    }
+};
+
 // --- CORREÇÃO APLICADA AQUI ---
 // O module.exports agora exporta apenas as funções que existem neste ficheiro.
 module.exports = {
@@ -136,4 +152,5 @@ module.exports = {
     rejeitarOrcamentoPublico,
     sugerirAgendamentoPublico,
     googleLogin,
+    getPublicConfig,
 };

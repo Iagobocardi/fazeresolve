@@ -1,6 +1,7 @@
 // PASSO 1: Carrega as variáveis de ambiente
 require('dotenv').config();
 require('./src/jobs/lembretes.job');
+require('./src/jobs/billing.job.js'); // <-- Adiciona o novo job
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
@@ -41,6 +42,7 @@ const adminRoutes = require('./src/routes/admin.routes.js');
 const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js');
 const subscriptionRoutes = require('./src/routes/subscription.routes.js');
 const mercadoPagoRoutes = require('./src/routes/mercadoPago.routes.js');
+const providerRoutes = require('./src/routes/provider.routes.js'); // <-- Importa a nova rota
 // Importação do Middleware de Erro
 const errorMiddleware = require('./src/middlewares/error.middleware');
 const adminAuth = require('./src/middlewares/adminAuth.middleware.js');
@@ -66,11 +68,12 @@ if (process.env.APP_URL) {
 const corsOptions = {
     origin: function (origin, callback) {
         // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
-        }
+        // if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        //     callback(null, true);
+        // } else {
+        //     callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
+        // }
+        callback(null, true); // Permite todas as origens
     },
     credentials: true, // Importante para cookies e autorização
 };
@@ -115,6 +118,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
+app.use('/api/provider', providerRoutes); // <-- Adiciona a nova rota ao app
 
 
 // Rota de teste para verificar se o servidor está online

@@ -40,6 +40,10 @@ router.post('/:pedidoId/sugerir-preco', orcamentosController.calcularPrecoSugeri
 router.post('/:id/pagamentos', orcamentosController.adicionarPagamento);
 // Rota para REMOVER um pagamento de um orçamento
 router.delete('/:id/pagamentos/:pagamentoId', orcamentosController.removerPagamento);
+
+// Rota para gerar um link de pagamento do Mercado Pago para um orçamento
+router.post('/:id/gerar-link-pagamento', orcamentosController.gerarLinkPagamento);
+
 // Rotas genéricas depois
 router.get('/', orcamentosController.getAllOrcamentos);
 router.get('/:id', orcamentosController.getOrcamentoById);

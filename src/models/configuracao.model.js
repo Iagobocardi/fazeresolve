@@ -54,6 +54,16 @@ const configuracaoSchema = new Schema({
         type: Number,
         default: 3,
         min: 1
+    },
+
+    // Monetização e Indicações
+    taxaMarketplace: {
+        type: Number,
+        default: 0
+    },
+    linksDeIndicacao: {
+        mercadoPago: { type: String, trim: true },
+        maquininhaMercadoPago: { type: String, trim: true }
     }
 }, {
     timestamps: true
