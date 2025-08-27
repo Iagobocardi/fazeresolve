@@ -4,7 +4,10 @@ const providerController = require('../controllers/provider.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 const roleMiddleware = require('../middlewares/role.middleware.js');
 
-// Todas as rotas neste arquivo exigem que o usuário esteja autenticado como PRESTADOR
+// Rota PÚBLICA para o callback do Mercado Pago OAuth
+router.get('/mercadopago-callback', providerController.handleMercadoPagoCallback);
+
+// Todas as rotas abaixo exigem que o usuário esteja autenticado como PRESTADOR
 router.use(authMiddleware);
 router.use(roleMiddleware(['PRESTADOR']));
 
@@ -14,7 +17,7 @@ router.get('/payment-settings', providerController.getPaymentSettings);
 // Rota para atualizar as configurações de pagamento (método manual/pix)
 router.put('/payment-settings', providerController.updatePaymentSettings);
 
-// Futuramente, podemos adicionar a rota para conectar com o Mercado Pago aqui
-// router.post('/connect-mercadopago', providerController.connectMercadoPago);
+// Rota para iniciar o fluxo de conexão com o Mercado Pago
+router.post('/connect-mercadopago', providerController.connectMercadoPago);
 
 module.exports = router;
