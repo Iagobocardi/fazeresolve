@@ -21,5 +21,8 @@ router.patch('/pedidos/:publicId/sugerir-agendamento', publicController.sugerirA
 // Rota para o login social com o Google
 router.post('/google-login', publicController.googleLogin);
 
+// Rota para buscar configurações públicas (ex: links de indicação)
+router.get('/configuracoes', publicController.getPublicConfig);
+
 
 module.exports = router;
