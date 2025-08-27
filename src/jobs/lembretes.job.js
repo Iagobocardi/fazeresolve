@@ -67,7 +67,7 @@ const enviarLembretesDeAgendamento = async () => {
 // 4. Agenda a tarefa para rodar todos os dias às 8:00 da manhã
 // A string '0 8 * * *' significa: no minuto 0, da hora 8, todos os dias do mês, todos os meses, todos os dias da semana.
 console.log('Tarefa de Lembretes de Agendamento configurada para rodar diariamente às 8h.');
-cron.schedule('* 8 * * *', enviarLembretesDeAgendamento, {
+cron.schedule('0 8 * * *', enviarLembretesDeAgendamento, {
     scheduled: true,
     timezone: "America/Sao_Paulo"
 });
