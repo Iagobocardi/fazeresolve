@@ -907,6 +907,24 @@ const removerMaterialDoPedido = async (req, res) => {
     }
 };
 // Exporta TODAS as funções que as rotas utilizam.
+const gerarLinkPagamento = async (req, res) => {
+    try {
+        const orcamentoId = req.params.id;
+        const providerId = req.user.id;
+
+        const orcamento = await orcamentoService.gerarLinkPagamentoMercadoPago(orcamentoId, providerId);
+
+        res.status(200).json({ message: 'Link de pagamento gerado com sucesso!', orcamento });
+    } catch (error) {
+        // Trata erros específicos que o serviço pode lançar
+        if (error.name === 'NotFoundError' || error.name === 'ForbiddenError' || error.name === 'BusinessLogicError') {
+            return res.status(error.statusCode || 400).json({ message: error.message });
+        }
+        console.error('Erro ao gerar link de pagamento:', error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
+
 module.exports = {
     orcamentoValidationRules,
     getAllOrcamentos,
@@ -937,4 +955,5 @@ module.exports = {
     calcularPrecoSugerido,
     removeCustoMaterial,
     removerMaterialDoPedido,
+    gerarLinkPagamento,
 };
