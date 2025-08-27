@@ -83,6 +83,10 @@ const orcamentoSchema = new mongoose.Schema({
     // =======================================================
     // 👉 O CAMPO DE PAGAMENTO FOI MOVIDO PARA AQUI DENTRO
     // =======================================================
+    linkPagamento: {
+        type: String,
+        trim: true
+    },
     pagamentos: [{
     valor: { type: Number, required: true },
     data: { type: Date, default: Date.now },
@@ -148,7 +152,12 @@ const orcamentoSchema = new mongoose.Schema({
      sugestaoAgendamentoCliente: {
         type: String
     },
-     checklist: [tarefaSchema]
+     checklist: [tarefaSchema],
+
+    // Campos para automação de cobrança
+    dataVencimento: { type: Date },
+    ultimoLembreteEnviado: { type: Date },
+    tipoUltimoLembrete: { type: String, enum: ['PRE_VENCIMENTO', 'AMIGAVEL', 'FIRME', 'RENEGOCIACAO'] }
 }, { 
     timestamps: true,
     toJSON: { getters: true }, // Garante que o 'get' do Decimal128 funcione
