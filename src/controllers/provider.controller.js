@@ -55,7 +55,78 @@ const updatePaymentSettings = async (req, res) => {
     }
 };
 
+const connectMercadoPago = async (req, res) => {
+    try {
+        const providerId = req.user.id;
+        const clientId = process.env.MERCADO_PAGO_CLIENT_ID; // Seu App ID do Mercado Pago
+        const redirectUri = `${process.env.API_URL}/api/provider/mercadopago-callback`;
+
+        if (!clientId) {
+            throw new Error('MERCADO_PAGO_CLIENT_ID não está definido no ambiente.');
+        }
+
+        const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${providerId}&redirect_uri=${redirectUri}`;
+
+        res.status(200).json({ authorization_url: authUrl });
+
+    } catch (error) {
+        console.error('Erro ao gerar URL de autorização do Mercado Pago:', error);
+        res.status(500).json({ message: 'Erro ao iniciar conexão com o Mercado Pago.' });
+    }
+};
+
+const axios = require('axios');
+
+const handleMercadoPagoCallback = async (req, res) => {
+    try {
+        const { code, state } = req.query;
+        const providerId = state; // O 'state' contém o ID do nosso prestador
+
+        if (!code) {
+            throw new Error('Código de autorização não recebido do Mercado Pago.');
+        }
+
+        const tokenUrl = 'https://api.mercadopago.com/oauth/token';
+        const body = {
+            grant_type: 'authorization_code',
+            client_id: process.env.MERCADO_PAGO_CLIENT_ID,
+            client_secret: process.env.MERCADO_PAGO_CLIENT_SECRET,
+            code: code,
+            redirect_uri: `${process.env.API_URL}/api/provider/mercadopago-callback`,
+        };
+
+        const response = await axios.post(tokenUrl, body, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        const tokenData = response.data;
+        console.log('[DEBUG] Tokens recebidos do Mercado Pago:', tokenData);
+
+        // Salva as credenciais e atualiza o status do prestador
+        await Cliente.findByIdAndUpdate(providerId, {
+            $set: {
+                credenciaisMercadoPago: tokenData,
+                metodoRecebimento: 'MERCADOPAGO',
+                chavePixManual: null, // Limpa a chave PIX manual
+            }
+        });
+
+        console.log(`[INFO] Credenciais do Mercado Pago salvas para o prestador ${providerId}`);
+
+        res.redirect(`${process.env.FRONTEND_URL}/settings?connect=success`);
+
+    } catch (error) {
+        console.error('Erro ao trocar código por tokens do Mercado Pago:', error.response?.data || error.message);
+        res.redirect(`${process.env.FRONTEND_URL}/settings?connect=error`);
+    }
+};
+
 module.exports = {
     getPaymentSettings,
     updatePaymentSettings,
+    connectMercadoPago,
+    handleMercadoPagoCallback,
 };
