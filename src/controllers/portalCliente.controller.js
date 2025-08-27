@@ -36,11 +36,15 @@ const login = async (req, res) => {
         if (!process.env.JWT_SECRET) {
             throw new Error('Configuração do servidor incompleta.');
         }
-        const payload = { id: cliente._id, nome: cliente.nome, role: cliente.role };
+        const payload = { id: cliente._id, nome: cliente.nome, role: cliente.role, status: cliente.status };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+        // Prepara o objeto do cliente para ser retornado, removendo a senha
+        const clienteToReturn = cliente.toObject();
+        delete clienteToReturn.password;
         
-        console.log('--- 5. Login bem-sucedido! A enviar token. ---');
-        res.json({ token });
+        console.log('--- 5. Login bem-sucedido! A enviar token e dados do cliente. ---');
+        res.json({ token, cliente: clienteToReturn });
 
     } catch (error) {
         console.error('--- OCORREU UM ERRO INESPERADO NO BLOCO TRY DO LOGIN ---', error);
