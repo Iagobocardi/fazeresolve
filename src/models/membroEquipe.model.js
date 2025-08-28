@@ -9,10 +9,10 @@ const membroEquipeSchema = new Schema({
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true, select: false },
     
-    // Link para a conta principal do prestador
-    contaPrincipal: {
+    // Link para a conta à qual o membro pertence
+    contaId: {
         type: Schema.Types.ObjectId,
-        ref: 'Cliente', // Refere-se ao seu modelo de Cliente/Prestador
+        ref: 'Conta', // Refere-se ao novo modelo Conta
         required: true
     },
     
