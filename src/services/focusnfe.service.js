@@ -85,6 +85,34 @@ const emitirNotaFiscal = async (notaFiscalData, providerData) => {
     }
 };
 
+const consultarCnpj = async (apiToken, cnpj) => {
+    if (!apiToken) {
+        throw new Error('Token da API Focus NFe não fornecido.');
+    }
+    if (!cnpj) {
+        throw new Error('CNPJ não fornecido para consulta.');
+    }
+
+    try {
+        const response = await axios.get(`${API_URL}/v2/cnpjs/${cnpj}`, {
+            auth: {
+                username: apiToken,
+                password: ''
+            }
+        });
+        return response.data;
+    } catch (error) {
+        // Se o token for inválido, a API da Focus NFe retorna 403 Forbidden
+        if (error.response && error.response.status === 403) {
+            throw new Error('Token da API Focus NFe é inválido.');
+        }
+        // Outros erros
+        console.error(`[FocusNFe Service] Erro ao consultar CNPJ ${cnpj}:`, error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || 'Erro na comunicação com a API Focus NFe ao consultar CNPJ.');
+    }
+};
+
 module.exports = {
     emitirNotaFiscal,
+    consultarCnpj,
 };
