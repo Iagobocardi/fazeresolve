@@ -1,103 +1,60 @@
-// src/controllers/configuracao.controller.js
+const Conversa = require('../models/conversa.model');
+const whatsappService = require('../services/whatsapp.service');
+const Cliente = require('../models/cliente.model');
 
-const Configuracao = require('../models/configuracao.model.js');
-const { google } = require('googleapis');
-
-// 2. Defina o cliente OAuth2 AQUI, no topo do ficheiro
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.API_URL}/configuracoes/google/callback`
-);
-
-// Função para obter a configuração atual (ou criar uma se não existir)
-exports.getConfiguracao = async (req, res) => {
+// Obter todas as conversas de um prestador
+const getConversas = async (req, res) => {
     try {
-        const configFromDb = await Configuracao.obterConfiguracao();
-
-        // Converte para um objeto simples para podermos adicionar propriedades
-        const config = configFromDb.toObject ? configFromDb.toObject() : {};
-
-        // Adiciona a chave da API do Google Maps do ambiente
-        config.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
-
-        res.status(200).json(config);
-    } catch (error) {
-        console.error("Erro ao obter a configuração:", error);
-        res.status(500).json({ message: "Ocorreu um erro ao buscar as configurações." });
-    }
-};
-
-// Função para atualizar a configuração
-exports.updateConfiguracao = async (req, res) => {
-    try {
-        // Usamos findOneAndUpdate com a opção { new: true, upsert: true }
-        // `upsert: true` garante que se não houver um documento de configuração, ele será criado.
-        // `new: true` garante que a resposta devolva o documento atualizado.
-        const configAtualizada = await Configuracao.findOneAndUpdate({}, req.body, {
-            new: true,
-            upsert: true,
-            runValidators: true,
-        });
-        res.status(200).json(configAtualizada);
-    } catch (error) {
-        console.error("Erro ao atualizar a configuração:", error);
-        res.status(500).json({ message: "Ocorreu um erro ao guardar as configurações." });
-    }
-};
-// --- NOVAS FUNÇÕES PARA A INTEGRAÇÃO ---
-
-// Inicia o processo de conexão com o Google
-exports.connectGoogleCalendar = (req, res) => {
-    const scopes = [
-        'https://www.googleapis.com/auth/calendar',
-        'https://www.googleapis.com/auth/userinfo.email'
-    ];
-    const url = oauth2Client.generateAuthUrl({
-        access_type: 'offline',
-        scope: scopes,
-        prompt: 'consent' // Força o ecrã de consentimento
-    });
-    res.redirect(url);
-};
-
-// Recebe o callback da Google após o consentimento
-exports.handleGoogleCallback = async (req, res) => {
-    try {
-        const { code } = req.query;
-        const { tokens } = await oauth2Client.getToken(code);
-        oauth2Client.setCredentials(tokens);
-
-        // Busca o email da conta conectada para mostrar na UI
-        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-        const { data } = await oauth2.userinfo.get();
-
-        // Atualiza o documento de configuração com os tokens e o estado
-        await Configuracao.findOneAndUpdate({}, {
-            googleCalendarConnected: true,
-            googleCalendarEmail: data.email,
-            googleTokens: tokens
-        }, { upsert: true });
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ message: 'Não autorizado. Faça o login novamente.' });
+        }
         
-        // Redireciona de volta para a página de configurações com uma mensagem de sucesso
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=success`);
+        const prestadorId = req.user.id;
+        
+        const conversas = await Conversa.find({ prestador: prestadorId })
+            .populate('cliente', 'nome telefone')
+            .sort({ updatedAt: -1 });
 
+        res.status(200).json(conversas);
     } catch (error) {
-        console.error('Erro no callback do Google:', error.message);
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=error`);
+        console.error("Erro ao buscar conversas:", error);
+        res.status(500).json({ message: 'Erro ao buscar conversas.' });
     }
 };
 
-// Desconecta a conta do Google Calendar
-exports.disconnectGoogleCalendar = async (req, res) => {
+// Enviar uma mensagem a partir da Caixa de Entrada
+const enviarMensagem = async (req, res) => {
     try {
-        await Configuracao.findOneAndUpdate({}, {
-            googleCalendarConnected: false,
-            googleCalendarEmail: '',
-            googleTokens: {} // Limpa os tokens
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ message: 'Não autorizado. Faça o login novamente.' });
+        }
+
+        const { conversaId, texto } = req.body;
+        const prestadorId = req.user.id;
+
+        const conversa = await Conversa.findById(conversaId);
+
+        if (!conversa || conversa.prestador.toString() !== prestadorId) {
+            return res.status(404).json({ message: 'Conversa não encontrada ou não pertence a este prestador.' });
+        }
+
+        conversa.mensagens.push({
+            remetente: 'prestador',
+            texto: texto
         });
-        res.status(200).json({ message: 'Google Calendar desconectado com sucesso.' });
+        await conversa.save();
+
+        const cliente = await Cliente.findById(conversa.cliente);
+        
+        // A chamada ao whatsappService permanece aqui
+        await whatsappService.sendWhatsAppMessage(cliente.telefone, texto);
+
+        res.status(201).json({ message: 'Mensagem enviada com sucesso!', conversa });
+
     } catch (error) {
-        res.status(500).json({ message: 'Erro ao desconectar o Google Calendar.' });
+        console.error("Erro ao enviar mensagem:", error);
+        res.status(500).json({ message: 'Erro ao enviar mensagem.' });
     }
 };
+
+module.exports = { getConversas, enviarMensagem };
