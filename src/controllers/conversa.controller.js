@@ -2,16 +2,16 @@ const Conversa = require('../models/conversa.model');
 const whatsappService = require('../services/whatsapp.service');
 const Cliente = require('../models/cliente.model');
 
-// Obter todas as conversas de uma conta
+// Obter todas as conversas de um prestador
 const getConversas = async (req, res) => {
     try {
-        if (!req.user || !req.user.contaId) {
-            return res.status(401).json({ message: 'Não autorizado. Conta não identificada.' });
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ message: 'Não autorizado. Faça o login novamente.' });
         }
         
-        const { contaId } = req.user;
+        const prestadorId = req.user.id;
         
-        const conversas = await Conversa.find({ contaId }) // MUDANÇA
+        const conversas = await Conversa.find({ prestador: prestadorId })
             .populate('cliente', 'nome telefone')
             .sort({ updatedAt: -1 });
 
@@ -25,18 +25,17 @@ const getConversas = async (req, res) => {
 // Enviar uma mensagem a partir da Caixa de Entrada
 const enviarMensagem = async (req, res) => {
     try {
-        if (!req.user || !req.user.contaId) {
-            return res.status(401).json({ message: 'Não autorizado. Conta não identificada.' });
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ message: 'Não autorizado. Faça o login novamente.' });
         }
 
         const { conversaId, texto } = req.body;
-        const { contaId } = req.user; // MUDANÇA
+        const prestadorId = req.user.id;
 
         const conversa = await Conversa.findById(conversaId);
 
-        // MUDANÇA: Verifica se a conversa pertence à conta do usuário
-        if (!conversa || conversa.contaId.toString() !== contaId) {
-            return res.status(404).json({ message: 'Conversa não encontrada ou não pertence a esta conta.' });
+        if (!conversa || conversa.prestador.toString() !== prestadorId) {
+            return res.status(404).json({ message: 'Conversa não encontrada ou não pertence a este prestador.' });
         }
 
         conversa.mensagens.push({
@@ -47,11 +46,8 @@ const enviarMensagem = async (req, res) => {
 
         const cliente = await Cliente.findById(conversa.cliente);
         
-        if (cliente) {
-            await whatsappService.sendWhatsAppMessage(cliente.telefone, texto);
-        } else {
-            console.error(`Cliente da conversa ${conversaId} não encontrado para envio de WhatsApp.`);
-        }
+        // A chamada ao whatsappService permanece aqui
+        await whatsappService.sendWhatsAppMessage(cliente.telefone, texto);
 
         res.status(201).json({ message: 'Mensagem enviada com sucesso!', conversa });
 

@@ -1,56 +1,54 @@
 // src/controllers/configuracao.controller.js
-// MUDANÇA: O controller agora gerencia as configurações por 'Conta'.
-const Conta = require('../models/conta.model');
+
+const Configuracao = require('../models/configuracao.model.js');
 const { google } = require('googleapis');
 
+// 2. Defina o cliente OAuth2 AQUI, no topo do ficheiro
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   `${process.env.API_URL}/configuracoes/google/callback`
 );
 
-// MUDANÇA: A função agora busca a configuração da CONTA do usuário logado.
+// Função para obter a configuração atual (ou criar uma se não existir)
 exports.getConfiguracao = async (req, res) => {
     try {
-        const { contaId } = req.user;
-        const conta = await Conta.findById(contaId);
+        const configFromDb = await Configuracao.obterConfiguracao();
 
-        if (!conta) {
-            return res.status(404).json({ message: "Conta não encontrada." });
-        }
+        // Converte para um objeto simples para podermos adicionar propriedades
+        const config = configFromDb.toObject ? configFromDb.toObject() : {};
 
-        const config = conta.toObject();
+        // Adiciona a chave da API do Google Maps do ambiente
         config.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
         res.status(200).json(config);
     } catch (error) {
-        console.error("Erro ao obter a configuração da conta:", error);
+        console.error("Erro ao obter a configuração:", error);
         res.status(500).json({ message: "Ocorreu um erro ao buscar as configurações." });
     }
 };
 
-// MUDANÇA: A função agora atualiza a CONTA do usuário logado.
+// Função para atualizar a configuração
 exports.updateConfiguracao = async (req, res) => {
     try {
-        const { contaId } = req.user;
-        const configAtualizada = await Conta.findByIdAndUpdate(contaId, req.body, {
+        // Usamos findOneAndUpdate com a opção { new: true, upsert: true }
+        // `upsert: true` garante que se não houver um documento de configuração, ele será criado.
+        // `new: true` garante que a resposta devolva o documento atualizado.
+        const configAtualizada = await Configuracao.findOneAndUpdate({}, req.body, {
             new: true,
+            upsert: true,
             runValidators: true,
         });
-
-        if (!configAtualizada) {
-            return res.status(404).json({ message: "Conta não encontrada para atualizar." });
-        }
         res.status(200).json(configAtualizada);
     } catch (error) {
-        console.error("Erro ao atualizar a configuração da conta:", error);
+        console.error("Erro ao atualizar a configuração:", error);
         res.status(500).json({ message: "Ocorreu um erro ao guardar as configurações." });
     }
 };
+// --- NOVAS FUNÇÕES PARA A INTEGRAÇÃO ---
 
-// MUDANÇA: A função de conexão agora passa o `contaId` no estado.
+// Inicia o processo de conexão com o Google
 exports.connectGoogleCalendar = (req, res) => {
-    const { contaId } = req.user;
     const scopes = [
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/userinfo.email'
@@ -58,34 +56,30 @@ exports.connectGoogleCalendar = (req, res) => {
     const url = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: scopes,
-        prompt: 'consent',
-        state: contaId // Passa o ID da conta para o callback
+        prompt: 'consent' // Força o ecrã de consentimento
     });
     res.redirect(url);
 };
 
-// MUDANÇA: O callback agora usa o `contaId` do estado para atualizar a conta correta.
+// Recebe o callback da Google após o consentimento
 exports.handleGoogleCallback = async (req, res) => {
     try {
-        const { code, state: contaId } = req.query; // Pega o contaId do 'state'
-
-        if (!contaId) {
-            throw new Error("ID da conta não encontrado no callback do Google.");
-        }
-
+        const { code } = req.query;
         const { tokens } = await oauth2Client.getToken(code);
         oauth2Client.setCredentials(tokens);
 
+        // Busca o email da conta conectada para mostrar na UI
         const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
         const { data } = await oauth2.userinfo.get();
 
-        // Atualiza o documento da CONTA específica com os tokens e o estado
-        await Conta.findByIdAndUpdate(contaId, {
+        // Atualiza o documento de configuração com os tokens e o estado
+        await Configuracao.findOneAndUpdate({}, {
             googleCalendarConnected: true,
             googleCalendarEmail: data.email,
             googleTokens: tokens
-        });
+        }, { upsert: true });
         
+        // Redireciona de volta para a página de configurações com uma mensagem de sucesso
         res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=success`);
 
     } catch (error) {
@@ -94,11 +88,10 @@ exports.handleGoogleCallback = async (req, res) => {
     }
 };
 
-// MUDANÇA: A desconexão agora limpa os dados da CONTA específica.
+// Desconecta a conta do Google Calendar
 exports.disconnectGoogleCalendar = async (req, res) => {
     try {
-        const { contaId } = req.user;
-        await Conta.findByIdAndUpdate(contaId, {
+        await Configuracao.findOneAndUpdate({}, {
             googleCalendarConnected: false,
             googleCalendarEmail: '',
             googleTokens: {} // Limpa os tokens

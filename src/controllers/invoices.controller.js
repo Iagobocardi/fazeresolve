@@ -1,18 +1,13 @@
 const NotaFiscal = require('../models/notaFiscal.model.js');
-const Conta = require('../models/conta.model.js'); // MUDANÇA
-const focusnfeService = require('../services/focusnfe.service.js');
 
 // Criar uma nova nota fiscal (como rascunho)
 exports.createInvoice = async (req, res) => {
     try {
-        const { id: userId, contaId } = req.user; // MUDANÇA
-        const invoiceData = {
-            ...req.body,
-            prestador: userId, // Quem criou
-            contaId: contaId, // A que conta pertence
-            status: 'rascunho'
-        };
+        const prestadorId = req.user.id;
+        const invoiceData = { ...req.body, prestador: prestadorId, status: 'rascunho' };
 
+        // Lógica para obter o próximo número da nota, etc. iria aqui
+        // Por simplicidade, vamos usar um número aleatório por agora.
         invoiceData.numero = Math.floor(Math.random() * 10000);
         invoiceData.serie = 1;
 
@@ -24,11 +19,11 @@ exports.createInvoice = async (req, res) => {
     }
 };
 
-// Obter todas as notas fiscais da conta logada
+// Obter todas as notas fiscais do prestador logado
 exports.getAllInvoices = async (req, res) => {
     try {
-        const { contaId } = req.user; // MUDANÇA
-        const invoices = await NotaFiscal.find({ contaId }).sort({ createdAt: -1 }); // MUDANÇA
+        const prestadorId = req.user.id;
+        const invoices = await NotaFiscal.find({ prestador: prestadorId }).sort({ createdAt: -1 });
         res.status(200).json(invoices);
     } catch (error) {
         res.status(500).json({ message: 'Erro ao buscar notas fiscais.', error: error.message });
@@ -38,10 +33,10 @@ exports.getAllInvoices = async (req, res) => {
 // Obter uma nota fiscal por ID
 exports.getInvoiceById = async (req, res) => {
     try {
-        const { contaId } = req.user; // MUDANÇA
-        const invoice = await NotaFiscal.findOne({ _id: req.params.id, contaId }); // MUDANÇA
+        const prestadorId = req.user.id;
+        const invoice = await NotaFiscal.findOne({ _id: req.params.id, prestador: prestadorId });
         if (!invoice) {
-            return res.status(404).json({ message: 'Nota fiscal não encontrada ou não pertence a esta conta.' });
+            return res.status(404).json({ message: 'Nota fiscal não encontrada ou não pertence a este prestador.' });
         }
         res.status(200).json(invoice);
     } catch (error) {
@@ -52,17 +47,18 @@ exports.getInvoiceById = async (req, res) => {
 // Atualizar uma nota fiscal (apenas se for rascunho)
 exports.updateInvoice = async (req, res) => {
     try {
-        const { contaId } = req.user; // MUDANÇA
-        const invoice = await NotaFiscal.findOneAndUpdate(
-            { _id: req.params.id, contaId, status: 'rascunho' }, // MUDANÇA
-            req.body,
-            { new: true }
-        );
+        const prestadorId = req.user.id;
+        const invoice = await NotaFiscal.findOne({ _id: req.params.id, prestador: prestadorId });
 
         if (!invoice) {
-            return res.status(404).json({ message: 'Nota fiscal em modo rascunho não encontrada nesta conta.' });
+            return res.status(404).json({ message: 'Nota fiscal não encontrada.' });
         }
-        res.status(200).json(invoice);
+        if (invoice.status !== 'rascunho') {
+            return res.status(400).json({ message: 'Apenas notas fiscais em modo rascunho podem ser editadas.' });
+        }
+
+        const updatedInvoice = await NotaFiscal.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.status(200).json(updatedInvoice);
     } catch (error) {
         res.status(400).json({ message: 'Erro ao atualizar nota fiscal.', error: error.message });
     }
@@ -71,25 +67,34 @@ exports.updateInvoice = async (req, res) => {
 // Deletar uma nota fiscal (apenas se for rascunho)
 exports.deleteInvoice = async (req, res) => {
     try {
-        const { contaId } = req.user; // MUDANÇA
-        const invoice = await NotaFiscal.findOneAndDelete({ _id: req.params.id, contaId, status: 'rascunho' }); // MUDANÇA
+        const prestadorId = req.user.id;
+        const invoice = await NotaFiscal.findOne({ _id: req.params.id, prestador: prestadorId });
 
         if (!invoice) {
-            return res.status(404).json({ message: 'Nota fiscal em modo rascunho não encontrada nesta conta.' });
+            return res.status(404).json({ message: 'Nota fiscal não encontrada.' });
         }
+        if (invoice.status !== 'rascunho') {
+            return res.status(400).json({ message: 'Apenas notas fiscais em modo rascunho podem ser deletadas.' });
+        }
+
+        await NotaFiscal.findByIdAndDelete(req.params.id);
         res.status(200).json({ message: 'Nota fiscal deletada com sucesso.' });
     } catch (error) {
         res.status(500).json({ message: 'Erro ao deletar nota fiscal.', error: error.message });
     }
 };
 
+const focusnfeService = require('../services/focusnfe.service.js');
+const Cliente = require('../models/cliente.model.js');
+
 // Emitir uma nota fiscal (chama a API externa)
 exports.issueInvoice = async (req, res) => {
     try {
-        const { contaId } = req.user; // MUDANÇA
+        const prestadorId = req.user.id;
         const { id: invoiceId } = req.params;
 
-        const invoice = await NotaFiscal.findOne({ _id: invoiceId, contaId }); // MUDANÇA
+        // 1. Pega os dados da nota e do prestador
+        const invoice = await NotaFiscal.findOne({ _id: invoiceId, prestador: prestadorId });
         if (!invoice) {
             return res.status(404).json({ message: 'Nota fiscal não encontrada.' });
         }
@@ -97,27 +102,31 @@ exports.issueInvoice = async (req, res) => {
             return res.status(400).json({ message: 'Apenas notas em rascunho podem ser emitidas.' });
         }
 
-        const conta = await Conta.findById(contaId); // MUDANÇA: Busca a Conta
-        if (!conta || !conta.focusNFeApiToken) {
-            return res.status(400).json({ message: 'Token da API Focus NFe não configurado para esta conta.' });
+        const provider = await Cliente.findById(prestadorId);
+        if (!provider || !provider.focusNFeApiToken) {
+            return res.status(400).json({ message: 'Token da API Focus NFe não configurado para este prestador.' });
         }
 
+        // 2. Atualiza o status para "processando"
         invoice.status = 'processando_emissao';
         await invoice.save();
 
-        // MUDANÇA: Passa o objeto 'conta' em vez de 'provider'
-        const apiResponse = await focusnfeService.emitirNotaFiscal(invoice, conta);
+        // 3. Chama o serviço para emitir a nota (operação pode ser longa)
+        const apiResponse = await focusnfeService.emitirNotaFiscal(invoice, provider);
 
-        invoice.status = apiResponse.status;
+        // 4. Atualiza a nota fiscal com a resposta da API
+        invoice.status = apiResponse.status; // ex: 'autorizada' ou 'erro_emissao'
         invoice.focusNFeId = apiResponse.id;
         invoice.pdfUrl = apiResponse.caminho_danfe;
         invoice.xmlUrl = apiResponse.caminho_xml_nota_fiscal;
-        invoice.focusNFeResponse = apiResponse;
+        invoice.focusNFeResponse = apiResponse; // Guarda a resposta completa para referência
 
         const finalInvoice = await invoice.save();
-        res.status(200).json({ message: `Nota fiscal enviada. Status: ${finalInvoice.status}`, invoice: finalInvoice });
+
+        res.status(200).json({ message: `Nota fiscal enviada para processamento. Status: ${finalInvoice.status}`, invoice: finalInvoice });
 
     } catch (error) {
+        // Se a emissão falhar, reverte o status para rascunho para que o usuário possa corrigir
         try {
             await NotaFiscal.findByIdAndUpdate(req.params.id, { status: 'erro_emissao' });
         } catch (revertError) {
