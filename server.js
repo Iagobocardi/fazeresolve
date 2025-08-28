@@ -43,6 +43,7 @@ const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js
 const subscriptionRoutes = require('./src/routes/subscription.routes.js');
 const mercadoPagoRoutes = require('./src/routes/mercadoPago.routes.js');
 const providerRoutes = require('./src/routes/provider.routes.js'); // <-- Importa a nova rota
+const focusnfeRoutes = require('./src/routes/focusnfe.routes.js');
 // Importação do Middleware de Erro
 const errorMiddleware = require('./src/middlewares/error.middleware');
 const adminAuth = require('./src/middlewares/adminAuth.middleware.js');
@@ -125,6 +126,7 @@ app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
 app.use('/api/provider', providerRoutes); // <-- Adiciona a nova rota ao app
+app.use('/api/focusnfe', adminAuth, focusnfeRoutes);
 
 const invoiceRoutes = require('./src/routes/invoices.routes.js');
 app.use('/api/invoices', invoiceRoutes);
