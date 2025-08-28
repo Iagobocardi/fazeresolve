@@ -2,9 +2,19 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
-    // 1. Obter o token do cabeçalho da requisição
+// 1. Obter o token do cabeçalho da requisição ou da query string
+    let token;
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Formato "Bearer TOKEN"
+
+    // Verifique primeiro se há token no cabeçalho
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    }
+
+    // Se não houver token no cabeçalho, verifique a string de consulta como fallback
+    if (!token && req.query.token) {
+        token = req.query.token;
+    }
 
     // 2. Verificar se o token existe
     if (!token) {
