@@ -5,7 +5,7 @@ const authController = require('../controllers/auth.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware');
 
 // Rota de login padrão com email ou telefone
-router.post('/login', authController.loginCliente);
+router.post('/login', authController.login);
 
 // Rotas para o fluxo de autenticação com o Google
 // O utilizador precisa de estar logado para associar a sua conta Google
