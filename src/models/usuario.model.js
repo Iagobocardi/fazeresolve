@@ -9,16 +9,19 @@ const usuarioSchema = new Schema({
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true, select: false }, // select: false para não vir por padrão
     
-    // --- O CAMPO MAIS IMPORTANTE ---
-    plano: {
-        type: String,
-        enum: ['Essencial', 'Profissional', 'Premium', 'Admin'],
-        default: 'Essencial'
+    // Adiciona a referência à conta à qual o usuário pertence.
+    contaId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true
     },
-    
-    // Futuramente, para integração com pagamentos
-    // stripeCustomerId: String,
-    // statusAssinatura: { type: String, default: 'ativo' }
+
+    // Define o papel do usuário dentro da conta.
+    role: {
+        type: String,
+        enum: ['Dono', 'Membro', 'Admin'], // O Admin é um superusuário da plataforma
+        default: 'Dono'
+    }
 
 }, { timestamps: true });
 

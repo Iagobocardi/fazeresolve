@@ -9,10 +9,11 @@ const financeiroValidationRules = [
     body('servico').notEmpty().isMongoId().withMessage('ID de serviço inválido'),
 ];
 
-// Obtém todos os registros financeiros
+// Obtém todos os registros financeiros da conta
 const getAllFinanceiro = async (req, res) => {
     try {
-        const registros = await Financeiro.find().populate('servico');
+        const { contaId } = req.user;
+        const registros = await Financeiro.find({ contaId }).populate('servico');
         res.status(200).json(registros);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao buscar registros financeiros.' });
@@ -22,9 +23,10 @@ const getAllFinanceiro = async (req, res) => {
 // Obtém um registro financeiro por ID
 const getFinanceiroById = async (req, res) => {
     try {
-        const registro = await Financeiro.findById(req.params.id).populate('servico');
+        const { contaId } = req.user;
+        const registro = await Financeiro.findOne({ _id: req.params.id, contaId }).populate('servico');
         if (!registro) {
-            return res.status(404).json({ error: 'Registro financeiro não encontrado.' });
+            return res.status(404).json({ error: 'Registro financeiro não encontrado ou não pertence a esta conta.' });
         }
         res.status(200).json(registro);
     } catch (error) {
@@ -40,12 +42,20 @@ const createFinanceiro = async (req, res) => {
     }
 
     try {
-        // Verifica se o serviço existe
-        const servico = await Servico.findById(req.body.servico);
+        const { contaId } = req.user;
+
+        // Verifica se o serviço existe E PERTENCE à conta do usuário
+        const servico = await Servico.findOne({ _id: req.body.servico, contaId });
         if (!servico) {
-            return res.status(400).json({ error: 'Serviço não encontrado.' });
+            return res.status(400).json({ error: 'Serviço não encontrado nesta conta.' });
         }
-        const novoFinanceiro = new Financeiro(req.body);
+
+        const dadosFinanceiro = {
+            ...req.body,
+            contaId: contaId
+        };
+
+        const novoFinanceiro = new Financeiro(dadosFinanceiro);
         const registroSalvo = await novoFinanceiro.save();
         res.status(201).json(registroSalvo);
     } catch (error) {
@@ -60,12 +70,15 @@ const updateFinanceiro = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
     try {
-        const registroAtualizado = await Financeiro.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        }).populate('servico');
+        const { contaId } = req.user;
+        const registroAtualizado = await Financeiro.findOneAndUpdate(
+            { _id: req.params.id, contaId },
+            req.body,
+            { new: true, runValidators: true }
+        ).populate('servico');
+
         if (!registroAtualizado) {
-            return res.status(404).json({ error: 'Registro financeiro não encontrado.' });
+            return res.status(404).json({ error: 'Registro financeiro não encontrado ou não pertence a esta conta.' });
         }
         res.status(200).json(registroAtualizado);
     } catch (error) {
@@ -76,9 +89,10 @@ const updateFinanceiro = async (req, res) => {
 // Deleta um registro financeiro por ID
 const deleteFinanceiro = async (req, res) => {
     try {
-        const registroDeletado = await Financeiro.findByIdAndDelete(req.params.id);
+        const { contaId } = req.user;
+        const registroDeletado = await Financeiro.findOneAndDelete({ _id: req.params.id, contaId });
         if (!registroDeletado) {
-            return res.status(404).json({ error: 'Registro financeiro não encontrado.' });
+            return res.status(404).json({ error: 'Registro financeiro não encontrado ou não pertence a esta conta.' });
         }
         res.status(200).json({ message: 'Registro financeiro deletado com sucesso.' });
     } catch (error) {

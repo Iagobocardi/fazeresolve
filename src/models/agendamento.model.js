@@ -2,6 +2,12 @@
 const mongoose = require('mongoose');
 
 const agendamentoSchema = new mongoose.Schema({
+    contaId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
     dataHoraInicio: { type: Date, required: true },
     dataHoraFim: { type: Date, required: true },
     servico: { type: mongoose.Schema.Types.ObjectId, ref: 'Servico', required: true },

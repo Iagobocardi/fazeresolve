@@ -4,46 +4,42 @@ const crypto = require('crypto');
 const whatsappService = require('../services/whatsapp.service');
 const mongoose = require('mongoose');
 
-// Função para listar todos os clientes de um prestador específico
+// Função para listar todos os clientes de uma conta de prestador
 const getAllClientes = async (req, res) => {
     try {
-        const prestadorId = new mongoose.Types.ObjectId(req.user.id);
+        const { contaId } = req.user; // MUDANÇA
 
         const clientesDoPrestador = await Orcamento.aggregate([
-            // 1. Encontrar todos os orçamentos que pertencem ao prestador logado
-            {
-                $match: { prestadorId: prestadorId }
-            },
-            // 2. Agrupar por cliente para obter uma lista de clientes únicos
-            {
-                $group: {
-                    _id: '$cliente',
-                    // Opcional: pode-se coletar mais dados aqui se necessário
-                }
-            },
-            // 3. Juntar com a coleção de clientes para obter os seus detalhes
+            // 1. Encontrar todos os orçamentos que pertencem à conta do prestador logado
+            { $match: { contaId: new mongoose.Types.ObjectId(contaId) } }, // MUDANÇA
+            // 2. Agrupar por cliente
+            { $group: { _id: '$cliente' } },
+            // 3. Juntar com a coleção de clientes para obter detalhes
             {
                 $lookup: {
-                    from: 'clientes', // nome da collection de clientes
+                    from: 'clientes',
                     localField: '_id',
                     foreignField: '_id',
                     as: 'clienteInfo'
                 }
             },
-            // 4. Desconstruir o array clienteInfo
-            {
-                $unwind: '$clienteInfo'
-            },
-            // 5. Juntar novamente com os orçamentos para calcular os totais, mas agora apenas para os clientes deste prestador
+            { $unwind: '$clienteInfo' },
+            // 4. Juntar com orçamentos para calcular totais
             {
                 $lookup: {
                     from: 'orcamentos',
-                    localField: 'clienteInfo._id',
-                    foreignField: 'cliente',
+                    let: { clienteId: '$clienteInfo._id' },
+                    pipeline: [
+                        // MUDANÇA: Garante que estamos contando apenas orçamentos da mesma conta
+                        { $match: {
+                            $expr: { $eq: ['$$clienteId', '$cliente'] },
+                            contaId: new mongoose.Types.ObjectId(contaId)
+                        }}
+                    ],
                     as: 'pedidos'
                 }
             },
-            // 6. Calcular os totais para cada cliente
+            // 5. Calcular totais
             {
                 $addFields: {
                     totalPedidos: { $size: '$pedidos' },
@@ -64,22 +60,19 @@ const getAllClientes = async (req, res) => {
                     }
                 }
             },
-            // 7. Formatar a saída final
+            // 6. Formatar saída
             {
                 $project: {
                     _id: '$clienteInfo._id',
                     nome: '$clienteInfo.nome',
                     telefone: '$clienteInfo.telefone',
+                    email: '$clienteInfo.email',
+                    endereco: '$clienteInfo.endereco',
                     totalPedidos: 1,
                     valorTotalGasto: 1
                 }
             },
-            // 8. Ordenar
-            {
-                $sort: {
-                    valorTotalGasto: -1
-                }
-            }
+            { $sort: { valorTotalGasto: -1 } }
         ]);
 
         res.status(200).json(clientesDoPrestador);
@@ -92,9 +85,10 @@ const getAllClientes = async (req, res) => {
 // Função para buscar um cliente por ID
 const buscarClientePorId = async (req, res) => {
     try {
-        const cliente = await Cliente.findById(req.params.id);
+        const { contaId } = req.user; // MUDANÇA
+        const cliente = await Cliente.findOne({ _id: req.params.id, contaId }); // MUDANÇA
         if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
+            return res.status(404).json({ error: 'Cliente não encontrado ou não pertence a esta conta.' });
         }
         res.status(200).json(cliente);
     } catch (error) {
@@ -102,43 +96,29 @@ const buscarClientePorId = async (req, res) => {
     }
 };
 
-// Função para criar um novo cliente (será usada pelo painel no futuro)
+// Função para criar um novo cliente
 const criarCliente = async (req, res) => {
-    // NOSSOS DETECTIVES:
-    console.log('--- CONTROLLER: A função criarCliente foi chamada. ---');
-    console.log('--- DADOS RECEBIDOS DO POSTMAN (req.body): ---');
-    console.log(req.body);
-    console.log(`--- SENHA RECEBIDA DIRETAMENTE: ${req.body.password} ---`);
-
     try {
-        const novoCliente = new Cliente(req.body);
-        
-        console.log('--- OBJETO CLIENTE PREPARADO (ANTES DE .save()) ---');
-        console.log('A senha neste objeto é:', novoCliente.password);
-
+        const { contaId } = req.user; // MUDANÇA
+        const dadosCliente = {
+            ...req.body,
+            contaId: contaId // MUDANÇA
+        };
+        const novoCliente = new Cliente(dadosCliente);
         const clienteSalvo = await novoCliente.save();
-
-        console.log('--- CLIENTE SALVO NO BANCO DE DADOS (DEPOIS DE .save()) ---');
-        console.log(clienteSalvo);
-        
         res.status(201).json(clienteSalvo);
-        
     } catch (error) {
-        console.error('ERRO DETALHADO AO CRIAR CLIENTE:', error); 
-        res.status(500).json({ 
-            mensagem: 'Ocorreu um erro interno no servidor.',
-            erro_detalhado: error,
-            stack_trace: error.stack
-        });
+        res.status(500).json({ message: 'Erro ao criar cliente.', error: error.message });
     }
 };
 
 // Função para atualizar um cliente
 const atualizarCliente = async (req, res) => {
     try {
-        const clienteAtualizado = await Cliente.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const { contaId } = req.user; // MUDANÇA
+        const clienteAtualizado = await Cliente.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true }); // MUDANÇA
         if (!clienteAtualizado) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
+            return res.status(404).json({ error: 'Cliente não encontrado ou não pertence a esta conta.' });
         }
         res.status(200).json(clienteAtualizado);
     } catch (error) {
@@ -149,24 +129,27 @@ const atualizarCliente = async (req, res) => {
 // Função para deletar um cliente
 const deletarCliente = async (req, res) => {
     try {
-        const clienteDeletado = await Cliente.findByIdAndDelete(req.params.id);
+        const { contaId } = req.user; // MUDANÇA
+        const clienteDeletado = await Cliente.findOneAndDelete({ _id: req.params.id, contaId }); // MUDANÇA
         if (!clienteDeletado) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
+            return res.status(404).json({ error: 'Cliente não encontrado ou não pertence a esta conta.' });
         }
         res.status(200).json({ message: 'Cliente deletado com sucesso.' });
     } catch (error) {
         res.status(500).json({ error: 'Erro ao deletar cliente.' });
     }
 };
+
 const getClienteComPedidos = async (req, res) => {
     try {
-        const cliente = await Cliente.findById(req.params.id);
+        const { contaId } = req.user; // MUDANÇA
+        const cliente = await Cliente.findOne({ _id: req.params.id, contaId }); // MUDANÇA
         if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
+            return res.status(404).json({ error: 'Cliente não encontrado ou não pertence a esta conta.' });
         }
-        // CORREÇÃO: A busca agora seleciona mais campos para o histórico.
-        const pedidos = await Orcamento.find({ cliente: cliente._id })
-            .select('shortId descricao status valorProposto tipo data') // Seleciona os campos específicos
+
+        const pedidos = await Orcamento.find({ cliente: cliente._id, contaId }) // MUDANÇA
+            .select('shortId descricao status valorProposto tipo data')
             .sort({ data: -1 });
             
         res.status(200).json({ cliente, pedidos });
@@ -175,31 +158,18 @@ const getClienteComPedidos = async (req, res) => {
         res.status(500).json({ error: 'Erro ao buscar detalhes do cliente.' });
     }
 };
+
 const enviarConvitePortal = async (req, res) => {
     try {
-        const cliente = await Cliente.findById(req.params.id);
+        const { contaId } = req.user; // MUDANÇA
+        const cliente = await Cliente.findOne({ _id: req.params.id, contaId }); // MUDANÇA
         if (!cliente) {
-            return res.status(404).json({ message: 'Cliente não encontrado.' });
+            return res.status(404).json({ message: 'Cliente não encontrado ou não pertence a esta conta.' });
         }
 
-        // 1. Gera um token seguro e aleatório
-        const token = crypto.randomBytes(32).toString('hex');
-
-        // 2. Define o token e a data de expiração (ex: 1 hora a partir de agora)
-        cliente.activationToken = token;
-        cliente.activationTokenExpires = Date.now() + 3600000; // 1 hora em milissegundos
-
-        await cliente.save();
-
-        // 3. Monta a URL de ativação (aponte para o seu frontend)
-        // ATENÇÃO: Altere 'http://localhost:3001' para o endereço real do seu frontend no futuro
-        const activationUrl = `http://localhost:3001/ativar-conta/${token}`;
-
-        // 4. Envia a mensagem via WhatsApp
-        const mensagem = `Olá, ${cliente.nome}! Para aceder ao nosso portal de cliente e acompanhar os seus serviços, por favor, ative a sua conta no seguinte link: ${activationUrl}`;
-        await whatsappService.sendWhatsAppMessage(cliente.telefone, mensagem);
-
-        res.status(200).json({ message: 'Convite enviado com sucesso!' });
+        // Esta lógica de convite precisa ser repensada no novo modelo de autenticação.
+        // O cliente final agora deve ser um 'Usuario'. Esta função fica temporariamente desabilitada.
+        return res.status(501).json({ message: 'Funcionalidade de convite em refatoração para o novo modelo de autenticação.' });
 
     } catch (error) {
         console.error("ERRO em enviarConvitePortal:", error);
@@ -207,9 +177,6 @@ const enviarConvitePortal = async (req, res) => {
     }
 };
 
-
-
-// CORREÇÃO: Exporta TODAS as funções que as rotas precisam.
 module.exports = {
     getAllClientes,
     buscarClientePorId,
