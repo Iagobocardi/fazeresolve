@@ -71,6 +71,26 @@ password: {
     chavePixManual: {
         type: String,
         trim: true
+    },
+
+    // Informações da Empresa para Nota Fiscal
+    companyInfo: {
+        nomeFantasia: String,
+        razaoSocial: String,
+        cnpj: String,
+        inscricaoEstadual: String,
+        endereco: {
+            logradouro: String,
+            numero: String,
+            bairro: String,
+            cidade: String,
+            estado: String,
+            cep: String,
+        }
+    },
+    focusNFeApiToken: {
+        type: String,
+        trim: true
     }
 }, {
     timestamps: true

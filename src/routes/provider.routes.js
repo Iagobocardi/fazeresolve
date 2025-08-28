@@ -20,4 +20,7 @@ router.put('/payment-settings', providerController.updatePaymentSettings);
 // Rota para iniciar o fluxo de conexão com o Mercado Pago
 router.post('/connect-mercadopago', providerController.connectMercadoPago);
 
+// Rota para atualizar as informações da empresa para NFe
+router.put('/company-info', providerController.updateCompanyInfo);
+
 module.exports = router;

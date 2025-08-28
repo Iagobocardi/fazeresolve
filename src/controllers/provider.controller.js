@@ -130,9 +130,37 @@ const handleMercadoPagoCallback = async (req, res) => {
     }
 };
 
+const updateCompanyInfo = async (req, res) => {
+    try {
+        const providerId = req.user.id;
+        const { companyInfo, focusNFeApiToken } = req.body;
+
+        const updateData = {
+            companyInfo,
+            focusNFeApiToken
+        };
+
+        const updatedProvider = await Cliente.findByIdAndUpdate(
+            providerId,
+            { $set: updateData },
+            { new: true, select: '-password' }
+        );
+
+        if (!updatedProvider) {
+            return res.status(404).json({ message: 'Prestador não encontrado.' });
+        }
+
+        res.status(200).json({ message: 'Informações da empresa atualizadas com sucesso!', provider: updatedProvider });
+    } catch (error) {
+        console.error('Erro ao atualizar informações da empresa:', error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
+
 module.exports = {
     getPaymentSettings,
     updatePaymentSettings,
     connectMercadoPago,
     handleMercadoPagoCallback,
+    updateCompanyInfo,
 };

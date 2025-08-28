@@ -50,6 +50,12 @@ const checkSubscription = require('./src/middlewares/checkSubscription.middlewar
 // PASSO 3: Inicialização da Aplicação Express
 const app = express();
 
+// Log de "Canário" - para ver todas as requisições que chegam
+app.use((req, res, next) => {
+  console.log(`[CANARY-LOG] Requisição recebida: ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // PASSO 4: Conectar à Base de Dados
 connectDB();
 
@@ -119,6 +125,9 @@ app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
 app.use('/api/provider', providerRoutes); // <-- Adiciona a nova rota ao app
+
+const invoiceRoutes = require('./src/routes/invoices.routes.js');
+app.use('/api/invoices', invoiceRoutes);
 
 
 // Rota de teste para verificar se o servidor está online
