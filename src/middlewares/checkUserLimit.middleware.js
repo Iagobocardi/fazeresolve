@@ -38,15 +38,22 @@ const checkUserLimit = async (req, res, next) => {
         // 3. Conta quantos usuários JÁ EXISTEM para esta conta.
         const totalUsuarios = await Usuario.countDocuments({ contaId: contaId });
 
-        // 4. Verifica se o limite foi atingido.
-        // Se o número de usuários já é maior ou igual ao limite, não se pode adicionar mais um.
+        // 4. Verifica se o limite de base foi atingido.
+        req.billing_update_required = false; // Garante que a flag comece como falsa.
         if (totalUsuarios >= limite) {
-            return res.status(403).json({ 
-                message: `Limite de ${limite} usuários para o plano ${planoAtual} atingido. Faça um upgrade para adicionar mais membros.`
-            });
+            // Se o limite foi atingido, verifica se o plano permite usuários adicionais.
+            if (planoAtual === 'Profissional' || planoAtual === 'Premium') {
+                // Se for um plano flexível, marca a requisição para que o controller atualize a cobrança.
+                req.billing_update_required = true;
+            } else {
+                // Se for o plano Essencial ou outro plano não flexível, bloqueia a criação.
+                return res.status(403).json({
+                    message: `Limite de ${limite} usuários para o plano ${planoAtual} atingido. Faça um upgrade para adicionar mais membros.`
+                });
+            }
         }
 
-        // Se todas as verificações passaram, permite que a requisição continue.
+        // Permite que a requisição continue para o próximo passo (o controller).
         next();
 
     } catch (error) {
