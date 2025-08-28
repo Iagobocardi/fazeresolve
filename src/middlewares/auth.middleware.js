@@ -2,6 +2,9 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
+    // VAMOS VER O QUE O SERVIDOR ESTÁ REALMENTE A RECEBER
+    console.log('[DEBUG-AUTH] Query Params Recebidos:', JSON.stringify(req.query));
+    console.log('[DEBUG-AUTH] Cabeçalho de Autorização:', req.headers['authorization']);
 // 1. Obter o token do cabeçalho da requisição ou da query string
     let token;
     const authHeader = req.headers['authorization'];
