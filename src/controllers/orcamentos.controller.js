@@ -136,7 +136,7 @@ const createOrcamento = async (req, res) => {
 
         const dadosOrcamento = {
             ...req.body,
-            prestadorId: prestadorId, // Mantido por compatibilidade, mas a conta é a referência principal
+            // O prestadorId foi removido do modelo de orçamento. A autoria é implícita pelo contaId.
             contaId: contaId // MUDANÇA
         };
 
