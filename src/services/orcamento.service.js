@@ -4,9 +4,9 @@ const whatsappService = require('./whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
 const { MercadoPagoConfig, Preference } = require('mercadopago');
-const Conta = require('../models/conta.model'); // MUDANÇA: Usa o novo modelo Conta
+const Configuracao = require('../models/configuracao.model');
 const Cliente = require('../models/cliente.model');
-const googleCalendarService = require('./googleCalendar.service.js');
+const googleCalendarService = require('./googleCalendar.service.js'); // O import já estava correto
 
 // Custom Error Classes for better error handling
 class NotFoundError extends Error {
@@ -38,14 +38,17 @@ const gerarLinkPagamentoMercadoPago = async (contaId, orcamentoId) => {
     // 1. Fetch all necessary data in parallel
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente');
     const conta = await Conta.findById(contaId);
+    // A configuração global ainda pode ser necessária para a taxa de marketplace
+    const config = await Configuracao.obterConfiguracao();
 
     // 2. Perform validations
     if (!orcamento) {
-        throw new NotFoundError('Orçamento não encontrado ou não pertence à sua conta.');
+        throw new NotFoundError('Orçamento não encontrado ou não pertence a esta conta.');
     }
     if (!conta) {
         throw new NotFoundError('Conta do prestador não encontrada.');
     }
+    // A verificação de permissão agora é feita pela query com contaId.
     if (conta.metodoRecebimento !== 'MERCADOPAGO') {
         throw new BusinessLogicError('O seu método de recebimento não está configurado como Mercado Pago.');
     }
@@ -82,8 +85,7 @@ const gerarLinkPagamentoMercadoPago = async (contaId, orcamentoId) => {
             pending: `${process.env.FRONTEND_URL}/payment-pending`,
         },
         notification_url: `${process.env.API_URL}/api/mercado-pago/webhook`,
-        // A taxa do marketplace viria de uma configuração global, não da conta do prestador.
-        // marketplace_fee: (orcamento.valorProposto * config.taxaMarketplace) / 100,
+        marketplace_fee: (orcamento.valorProposto * config.taxaMarketplace) / 100,
         external_reference: orcamentoId,
     };
 
@@ -130,7 +132,6 @@ const parseCustomDate = (dateString) => {
 
 /**
  * Contém a lógica de negócio para agendar um serviço.
- * @param {string} contaId - O ID da conta do prestador.
  * @param {string} orcamentoId - O ID do orçamento a ser agendado.
  * @param {string|Date} dataAgendamento - A data para a qual o serviço será agendado.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
@@ -139,13 +140,13 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente', 'nome telefone');
 
     if (!orcamento) {
-        throw new NotFoundError('Orçamento não encontrado ou não pertence à sua conta.');
+        throw new NotFoundError('Orçamento não encontrado ou não pertence a esta conta.');
     }
 
     const parsedDate = parseCustomDate(dataAgendamento);
 
     if (!parsedDate) {
-        throw new BusinessLogicError(`Formato de data de agendamento inválido: "${dataAgendamento}"`);
+        throw new Error(`Formato de data de agendamento inválido: "${dataAgendamento}"`);
     }
 
     orcamento.status = 'Agendado';
@@ -164,8 +165,7 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
     }
 
     // --- 3. CHAMA A FUNÇÃO PARA CRIAR O EVENTO NO GOOGLE CALENDAR ---
-    // A integração com o Google Calendar precisará ser adaptada para usar os tokens da conta/usuário
-    // googleCalendarService.createEvent(orcamentoSalvo);
+    googleCalendarService.createEvent(orcamentoSalvo);
     // -----------------------------------------------------------
 
     return orcamentoSalvo;
@@ -173,7 +173,6 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
 
 /**
  * Contém a lógica de negócio para atualizar o status de um orçamento.
- * @param {string} contaId - O ID da conta do prestador.
  * @param {string} orcamentoId - O ID do orçamento a ser atualizado.
  * @param {string} novoStatus - O novo status a ser aplicado.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
@@ -186,7 +185,7 @@ const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
 
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente', 'nome telefone');
     if (!orcamento) {
-        throw new NotFoundError('Orçamento não encontrado ou não pertence à sua conta.');
+        throw new NotFoundError('Orçamento não encontrado ou não pertence a esta conta.');
     }
     
     const statusAntigo = orcamento.status;
@@ -204,7 +203,6 @@ const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
 
 /**
  * Contém a lógica de negócio para submeter um valor de orçamento a um cliente.
- * @param {string} contaId - O ID da conta do prestador.
  * @param {string} orcamentoId - O ID do orçamento.
  * @param {number} valorProposto - O valor numérico do orçamento.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
@@ -216,7 +214,7 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
 
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente', 'nome telefone');
     if (!orcamento) {
-        throw new NotFoundError('Orçamento não encontrado ou não pertence à sua conta.');
+        throw new NotFoundError('Orçamento não encontrado ou não pertence a esta conta.');
     }
 
     orcamento.valorProposto = parseFloat(valorProposto);
@@ -236,21 +234,19 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
 
 /**
  * Obtém as informações do cliente associado a um orçamento.
- * @param {string} contaId - O ID da conta do prestador.
  * @param {string} orcamentoId - O ID do orçamento.
  * @returns {Promise<Object>} O objeto do cliente.
  */
 const getClienteInfo = async (contaId, orcamentoId) => {
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente', 'nome');
     if (!orcamento || !orcamento.cliente) {
-        throw new NotFoundError('Cliente não encontrado para este orçamento ou orçamento não pertence à sua conta.');
+        throw new NotFoundError('Cliente não encontrado para este orçamento ou orçamento não pertence a esta conta.');
     }
     return orcamento.cliente;
 };
 
 /**
  * Contém a lógica de negócio para adicionar um material de estoque a um pedido.
- * @param {string} contaId - O ID da conta do prestador.
  * @param {string} orcamentoId - O ID do orçamento.
  * @param {string} produtoId - O ID do produto a ser adicionado.
  * @param {number} quantidade - A quantidade do produto a ser usada.
@@ -263,18 +259,17 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
         throw new BusinessLogicError("ID do produto e quantidade válida são obrigatórios.");
     }
 
-    // Valida o produto e o orçamento no escopo da conta
     const [produto, orcamento] = await Promise.all([
-        Produto.findOne({ _id: produtoId, contaId }), // Assumindo que Produto também terá contaId
+        Produto.findOne({ _id: produtoId, contaId }),
         Orcamento.findOne({ _id: orcamentoId, contaId })
     ]);
 
     if (!produto || !orcamento) {
-        throw new NotFoundError("Pedido ou produto não encontrado na sua conta.");
+        throw new NotFoundError("Pedido ou produto não encontrado nesta conta.");
     }
 
     if (produto.quantidadeEmEstoque < quantidadeNum) {
-        throw new BusinessLogicError(`Stock insuficiente para "${produto.nome}". Apenas ${produto.quantidadeEmEstoque} em stock.`);
+        throw new Error(`Stock insuficiente para "${produto.nome}". Apenas ${produto.quantidadeEmEstoque} em stock.`);
     }
 
     produto.quantidadeEmEstoque -= quantidadeNum;
@@ -287,7 +282,6 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
 
     const movimento = new MovimentoEstoque({
         produto: produtoId,
-        contaId: contaId, // Adiciona o escopo da conta ao movimento
         tipo: 'Saída',
         quantidade: quantidadeNum,
         motivo: `Uso no Pedido #${orcamento.shortId}`,
@@ -305,7 +299,6 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
 
 /**
  * Remove um material usado de um pedido e devolve-o ao estoque.
- * @param {string} contaId - O ID da conta do prestador.
  * @param {string} orcamentoId - O ID do orçamento.
  * @param {string} materialUsadoId - O ID do item no array 'materiaisUsados'.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
@@ -313,7 +306,7 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
 const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
     if (!orcamento) {
-        throw new NotFoundError("Pedido não encontrado ou não pertence à sua conta.");
+        throw new NotFoundError("Pedido não encontrado ou não pertence a esta conta.");
     }
 
     const materialUsado = orcamento.materiaisUsados.id(materialUsadoId);
@@ -327,11 +320,11 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
         await produto.save();
     }
 
+    // Remove o subdocumento do array
     materialUsado.remove();
 
     const movimento = new MovimentoEstoque({
         produto: materialUsado.produto,
-        contaId: contaId, // Adiciona o escopo da conta ao movimento
         tipo: 'Entrada',
         quantidade: materialUsado.quantidade,
         motivo: `Devolução do Pedido #${orcamento.shortId}`,
