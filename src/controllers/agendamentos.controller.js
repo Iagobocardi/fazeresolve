@@ -9,6 +9,7 @@ const agendamentoValidationRules = [
     body('servico').notEmpty().isMongoId().withMessage('ID de serviço inválido'),
     body('cliente').notEmpty().isMongoId().withMessage('ID de cliente inválido'),
     body('observacoes').optional().isString().trim(),
+    // Validação customizada para garantir que dataHoraFim seja posterior a dataHoraInicio (no nível do controller)
     body().custom((value, { req }) => {
         if (req.body.dataHoraInicio && req.body.dataHoraFim && new Date(req.body.dataHoraFim) <= new Date(req.body.dataHoraInicio)) {
             throw new Error('Data de fim deve ser posterior à data de início');
@@ -17,7 +18,7 @@ const agendamentoValidationRules = [
     }),
 ];
 
-// Obtém todos os agendamentos da conta
+// Obtém todos os agendamentos
 const getAllAgendamentos = async (req, res) => {
     try {
         const { contaId } = req.user;
@@ -80,15 +81,12 @@ const updateAgendamento = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
     try {
-        const { contaId } = req.user;
-        const agendamentoAtualizado = await Agendamento.findOneAndUpdate(
-            { _id: req.params.id, contaId },
-            req.body,
-            { new: true, runValidators: true }
-        ).populate('servico').populate('cliente');
-
+        const agendamentoAtualizado = await Agendamento.findByIdAndUpdate(req.params.id, req.body, {
+            new: true,
+            runValidators: true
+        }).populate('servico').populate('cliente');
         if (!agendamentoAtualizado) {
-            return res.status(404).json({ error: 'Agendamento não encontrado ou não pertence a esta conta.' });
+            return res.status(404).json({ error: 'Agendamento não encontrado.' });
         }
         res.status(200).json(agendamentoAtualizado);
     } catch (error) {
@@ -99,10 +97,9 @@ const updateAgendamento = async (req, res) => {
 // Deleta um agendamento por ID
 const deleteAgendamento = async (req, res) => {
     try {
-        const { contaId } = req.user;
-        const agendamentoDeletado = await Agendamento.findOneAndDelete({ _id: req.params.id, contaId });
+        const agendamentoDeletado = await Agendamento.findByIdAndDelete(req.params.id);
         if (!agendamentoDeletado) {
-            return res.status(404).json({ error: 'Agendamento não encontrado ou não pertence a esta conta.' });
+            return res.status(404).json({ error: 'Agendamento não encontrado.' });
         }
         res.status(200).json({ message: 'Agendamento deletado com sucesso.' });
     } catch (error) {
