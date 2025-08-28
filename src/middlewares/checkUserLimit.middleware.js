@@ -1,46 +1,57 @@
 // Em: src/middlewares/checkUserLimit.middleware.js
 
-const MembroEquipe = require('../models/membroEquipe.model');
-const Cliente = require('../models/cliente.model');
+const Conta = require('../models/conta.model');
+const Usuario = require('../models/usuario.model');
 
-// Define os limites de utilizadores para cada plano
+// Define os limites de usuários para cada plano
 const PLAN_LIMITS = {
-    Essencial: 1,    // Apenas o dono da conta
-    Profissional: 5, // O dono + 4 membros
-    Premium: 15      // O dono + 14 membros
+    Essencial: 1,
+    Profissional: 5,
+    Premium: 15
 };
 
 const checkUserLimit = async (req, res, next) => {
     try {
-        // Supondo que o authMiddleware coloca os dados do admin em req.user
-        const adminId = req.user.id; 
+        // O middleware de autenticação (authMiddleware) já nos fornece o contaId do usuário logado.
+        const { contaId } = req.user;
 
-        // 1. Encontra a conta principal para saber qual é o plano
-        const contaPrincipal = await Cliente.findById(adminId);
-        if (!contaPrincipal) {
-            return res.status(404).json({ message: 'Conta principal não encontrada.' });
+        if (!contaId) {
+            // Isso não deve acontecer se o authMiddleware estiver funcionando corretamente.
+            return res.status(401).json({ message: 'Usuário não associado a uma conta.' });
+        }
+
+        // 1. Encontra a conta para obter o plano de assinatura.
+        const conta = await Conta.findById(contaId);
+        if (!conta) {
+            return res.status(404).json({ message: 'Conta não encontrada.' });
         }
         
-        const planoAtual = contaPrincipal.plano;
+        // 2. Determina o limite de usuários com base no plano da conta.
+        const planoAtual = conta.plano;
         const limite = PLAN_LIMITS[planoAtual];
 
-        // 2. Conta quantos membros já existem para esta conta
-        const contagemMembros = await MembroEquipe.countDocuments({ contaPrincipal: adminId });
-        
-        // 3. O total de utilizadores é a soma dos membros + o próprio admin (1)
-        const totalUtilizadores = contagemMembros + 1;
+        if (limite === undefined) {
+            // Se o plano não estiver em PLAN_LIMITS, bloqueia por segurança.
+            return res.status(400).json({ message: `Plano '${planoAtual}' inválido ou sem limite de usuários definido.` });
+        }
 
-        // 4. Verifica se o limite foi atingido
-        if (totalUtilizadores >= limite) {
+        // 3. Conta quantos usuários JÁ EXISTEM para esta conta.
+        const totalUsuarios = await Usuario.countDocuments({ contaId: contaId });
+
+        // 4. Verifica se o limite foi atingido.
+        // Se o número de usuários já é maior ou igual ao limite, não se pode adicionar mais um.
+        if (totalUsuarios >= limite) {
             return res.status(403).json({ 
-                message: `Limite de ${limite} utilizadores para o plano ${planoAtual} atingido. Faça um upgrade para adicionar mais membros.` 
+                message: `Limite de ${limite} usuários para o plano ${planoAtual} atingido. Faça um upgrade para adicionar mais membros.`
             });
         }
 
-        next(); // Limite não atingido, pode prosseguir para criar o utilizador.
+        // Se todas as verificações passaram, permite que a requisição continue.
+        next();
 
     } catch (error) {
-        res.status(500).json({ message: 'Erro ao verificar o limite de utilizadores.' });
+        console.error("Erro no middleware checkUserLimit:", error);
+        res.status(500).json({ message: 'Erro interno ao verificar o limite de usuários.' });
     }
 };
 
