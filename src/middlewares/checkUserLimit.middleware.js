@@ -3,11 +3,11 @@
 const Conta = require('../models/conta.model');
 const Usuario = require('../models/usuario.model');
 
-// Define os limites de usuários para cada plano
+// Define os limites de base de usuários para cada plano
 const PLAN_LIMITS = {
     Essencial: 1,
-    Profissional: 5,
-    Premium: 15
+    Profissional: 2,
+    Premium: 5
 };
 
 const checkUserLimit = async (req, res, next) => {
