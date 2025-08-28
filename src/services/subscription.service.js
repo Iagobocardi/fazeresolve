@@ -1,6 +1,14 @@
 const { MercadoPagoConfig, PreApproval } = require('mercadopago');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js');
 const Subscription = require('../models/subscription.model.js');
+const Conta = require('../models/conta.model.js');
+const Usuario = require('../models/usuario.model.js');
+
+// Preços e taxas dos planos
+const PLAN_PRICING = {
+    Profissional: { base: 129, per_user_fee: 29 },
+    Premium: { base: 199, per_user_fee: 19 }
+};
 
 // NOTA: A função createPlan foi removida para simplificar,
 // já que o foco é na criação da assinatura. Se precisar dela,
@@ -79,7 +87,69 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
     }
 };
 
+const updateSubscriptionPriceForNewUser = async (contaId) => {
+    try {
+        const conta = await Conta.findById(contaId);
+        if (!conta) throw new Error('Conta não encontrada.');
+
+        const planInfo = PLAN_PRICING[conta.plano];
+        if (!planInfo) {
+            console.log(`Plano ${conta.plano} não tem preço dinâmico. Nenhuma atualização de preço necessária.`);
+            return { success: true };
+        }
+
+        const owner = await Usuario.findOne({ contaId, role: 'Dono' });
+        if (!owner) throw new Error('Dono da conta não encontrado.');
+
+        const subscription = await Subscription.findOne({ userId: owner._id });
+        if (!subscription) throw new Error('Assinatura não encontrada para esta conta.');
+
+        // Conta os usuários atuais e adiciona 1 para simular o novo membro
+        const currentUserCount = await Usuario.countDocuments({ contaId });
+        const newUserCount = currentUserCount + 1;
+
+        // Limites de base dos planos
+        const baseLimits = { Profissional: 2, Premium: 5 };
+        const baseLimit = baseLimits[conta.plano] || 0;
+
+        let newTotalAmount = planInfo.base;
+        if (newUserCount > baseLimit) {
+            const extraUsers = newUserCount - baseLimit;
+            newTotalAmount += extraUsers * planInfo.per_user_fee;
+        }
+
+        // Atualiza a assinatura no Mercado Pago
+        const accessToken = mercadoPagoConfig.accessToken;
+        if (!accessToken) throw new Error('Access Token do Mercado Pago não configurado.');
+
+        const client = new MercadoPagoConfig({ accessToken });
+        const preapproval = new PreApproval(client);
+
+        const body = {
+            auto_recurring: {
+                transaction_amount: newTotalAmount,
+            },
+        };
+
+        const result = await preapproval.update({
+            preapprovalId: subscription.subscriptionId,
+            body,
+        });
+
+        console.log(`Assinatura ${subscription.subscriptionId} atualizada para o novo valor de ${newTotalAmount}.`);
+
+        return { success: true, result };
+
+    } catch (error) {
+        console.error("Erro ao atualizar o preço da assinatura:", error.message);
+        // Propaga o erro para o controller poder lidar com ele
+        throw new Error('Falha ao atualizar a cobrança no Mercado Pago.');
+    }
+};
+
+
 module.exports = {
     // createPlan, // Adicione de volta se precisar
     createSubscription,
+    updateSubscriptionPriceForNewUser,
 };
