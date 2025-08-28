@@ -93,6 +93,10 @@ password: {
     focusNFeApiToken: {
         type: String,
         trim: true
+    },
+    focusNFeConnected: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
