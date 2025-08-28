@@ -19,11 +19,16 @@ const mensagemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const conversaSchema = new mongoose.Schema({
+    contaId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
     cliente: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Cliente',
         required: true,
-        unique: true
     },
     mensagens: [mensagemSchema],
     lidaPeloPrestador: {
@@ -31,6 +36,9 @@ const conversaSchema = new mongoose.Schema({
         default: false
     }
 }, { timestamps: true });
+
+// Garante que só pode haver uma conversa por cliente POR CONTA.
+conversaSchema.index({ cliente: 1, contaId: 1 }, { unique: true });
 
 const Conversa = mongoose.model('Conversa', conversaSchema);
 

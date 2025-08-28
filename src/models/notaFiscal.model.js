@@ -22,9 +22,15 @@ const clienteNotaSchema = new Schema({
 }, { _id: false });
 
 const notaFiscalSchema = new Schema({
-    prestador: {
+    contaId: {
         type: Schema.Types.ObjectId,
-        ref: 'Cliente',
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
+    prestador: { // Mantido como referência ao usuário que emitiu
+        type: Schema.Types.ObjectId,
+        ref: 'Usuario',
         required: true
     },
     cliente: { type: clienteNotaSchema, required: true },
