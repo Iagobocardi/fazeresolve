@@ -79,6 +79,8 @@ password: {
         razaoSocial: String,
         cnpj: String,
         inscricaoEstadual: String,
+        inscricaoMunicipal: String,
+        codigoMunicipio: String,
         endereco: {
             logradouro: String,
             numero: String,

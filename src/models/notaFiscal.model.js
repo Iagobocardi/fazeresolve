@@ -39,6 +39,15 @@ const notaFiscalSchema = new Schema({
     items: [itemSchema],
     valorTotal: { type: Number, required: true, min: 0 },
 
+    // Campos específicos para NFS-e (Serviço)
+    servico: {
+        aliquota: Number,
+        discriminacao: String,
+        iss_retido: Boolean,
+        item_lista_servico: String,
+        codigo_tributario_municipio: String,
+    },
+
     // Campos para armazenar a resposta da API de NFe
     focusNFeId: { type: String }, // ID da nota na Focus NFe
     focusNFeResponse: { type: Object },
