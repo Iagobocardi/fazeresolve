@@ -7,54 +7,6 @@ const jwt = require('jsonwebtoken');
 const whatsappService = require('../services/whatsapp.service');
 const orcamentoService = require('../services/orcamento.service'); 
 
-// Lógica de Login
-const login = async (req, res) => {
-    console.log('--- 1. A tentar executar a função de login ---');
-    const { email, password } = req.body;
-
-    try {
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
-        }
-        console.log(`--- 2. A procurar cliente com email: ${email} ---`);
-
-        const cliente = await Cliente.findOne({ email }).select('+password');
-        if (!cliente) {
-            return res.status(404).json({ message: 'Email não encontrado.' });
-        }
-        console.log('--- 3. Cliente encontrado. Verificando a senha... ---');
-
-        if (!cliente.password) {
-            return res.status(400).json({ message: 'Login não disponível para esta conta.' });
-        }
-        const isMatch = await bcrypt.compare(password, cliente.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Credenciais inválidas.' });
-        }
-        console.log('--- 4. Senha correta. Gerando o token... ---');
-
-        if (!process.env.JWT_SECRET) {
-            throw new Error('Configuração do servidor incompleta.');
-        }
-        const payload = { id: cliente._id, nome: cliente.nome, role: cliente.role, status: cliente.status };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-        // Prepara o objeto do cliente para ser retornado, removendo a senha
-        const clienteToReturn = cliente.toObject();
-        delete clienteToReturn.password;
-        
-        console.log('--- 5. Login bem-sucedido! A enviar token e dados do cliente. ---');
-        res.json({ token, cliente: clienteToReturn });
-
-    } catch (error) {
-        console.error('--- OCORREU UM ERRO INESPERADO NO BLOCO TRY DO LOGIN ---', error);
-        res.status(500).json({ 
-            message: 'Erro interno no servidor durante o login.',
-            error_message: error.message
-        });
-    }
-};
-
 // Lógica para buscar os pedidos do cliente autenticado
 const getMeusPedidos = async (req, res) => {
     try {
@@ -121,38 +73,48 @@ const rejeitarPedido = async (req, res) => {
         res.status(500).json({ message: 'Erro ao rejeitar o pedido.' });
     }
 };
-// ==> NOVA FUNÇÃO PARA ATIVAR A CONTA <==
-const ativarConta = async (req, res) => {
+// Lógica de login via "Magic Link" (token)
+const loginComToken = async (req, res) => {
     try {
-        const { token, email, password } = req.body;
+        const { token } = req.body;
+
+        if (!token) {
+            return res.status(400).json({ message: 'Token de acesso não fornecido.' });
+        }
 
         // 1. Encontra o cliente pelo token, garantindo que ele não expirou
         const cliente = await Cliente.findOne({
             activationToken: token,
-            activationTokenExpires: { $gt: Date.now() } // $gt = greater than (maior que)
+            activationTokenExpires: { $gt: Date.now() }
         });
 
         if (!cliente) {
-            return res.status(400).json({ message: 'Token inválido ou expirado. Por favor, solicite um novo convite.' });
+            return res.status(400).json({ message: 'Token inválido ou expirado.' });
         }
 
-        // 2. Atualiza os dados do cliente
-        cliente.email = email;
-        cliente.password = password; // O nosso pre-save hook irá criptografar isto automaticamente
-        cliente.activationToken = undefined; // Limpa o token para não ser usado novamente
+        // 2. Limpa o token de uso único para que não possa ser reutilizado
+        cliente.activationToken = undefined;
         cliente.activationTokenExpires = undefined;
-
         await cliente.save();
+
+        // 3. Gera um JWT de longa duração para a sessão do cliente
+        const payload = { id: cliente._id, nome: cliente.nome, role: 'Cliente' }; // Define a role explicitamente
+        const jwtToken = jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
         
-        res.status(200).json({ message: 'Conta ativada com sucesso! Você já pode fazer o login.' });
+        // 4. Retorna o token de sessão e os dados do cliente
+        res.status(200).json({
+            message: 'Login realizado com sucesso!',
+            token: jwtToken,
+            cliente: cliente
+        });
 
     } catch (error) {
-        console.error("ERRO em ativarConta:", error);
-        // Trata erro de email duplicado
-        if (error.code === 11000) {
-            return res.status(400).json({ message: 'Este email já está em uso por outra conta.' });
-        }
-        res.status(500).json({ message: 'Erro ao ativar a conta.' });
+        console.error("ERRO em loginComToken:", error);
+        res.status(500).json({ message: 'Erro interno ao processar o login.' });
     }
 };
 const sugerirAgendamento = async (req, res) => {
@@ -225,11 +187,10 @@ const aprovarOrcamento = async (req, res) => {
 // Não se esqueça de exportar a nova função!
 
 module.exports = {
-    login,
     getMeusPedidos,
     getMeuPedidoPorId,
     rejeitarPedido,
-    ativarConta,
+    loginComToken,
     sugerirAgendamento,
     aprovarOrcamento,
 };
