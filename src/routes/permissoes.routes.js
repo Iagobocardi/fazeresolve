@@ -8,6 +8,14 @@ const roleMiddleware = require('../middlewares/role.middleware');
 router.use(authMiddleware);
 
 /**
+ * @route   GET /api/permissoes/disponiveis
+ * @desc    Retorna todas as permissões disponíveis no sistema
+ * @access  Private (Qualquer usuário autenticado)
+ */
+router.get('/disponiveis', permissoesController.getAvailablePermissions);
+
+
+/**
  * @route   PUT /api/permissoes/membros/:id/permissions
  * @desc    Atualiza as permissões de um membro da equipe
  * @access  Private (Apenas Dono da conta)
