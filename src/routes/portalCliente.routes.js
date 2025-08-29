@@ -8,8 +8,7 @@ const portalClienteController = require('../controllers/portalCliente.controller
 const authCliente = require('../middlewares/authCliente.middleware.js');
 
 // --- Rotas Públicas ---
-router.post('/login', portalClienteController.login);
-router.post('/ativar-conta', portalClienteController.ativarConta);
+router.post('/login-token', portalClienteController.loginComToken);
 
 // --- Rotas Protegidas (exigem que o cliente esteja logado) ---
 
