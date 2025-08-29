@@ -21,6 +21,12 @@ const usuarioSchema = new Schema({
         type: String,
         enum: ['Dono', 'Membro', 'Admin'], // O Admin é um superusuário da plataforma
         default: 'Dono'
+    },
+
+    // Lista de permissões específicas para o usuário (granular)
+    permissoes: {
+        type: [String],
+        default: []
     }
 
 }, { timestamps: true });
