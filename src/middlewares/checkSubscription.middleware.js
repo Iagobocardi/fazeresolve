@@ -1,28 +1,35 @@
-const Subscription = require('../models/subscription.model.js');
+const Conta = require('../models/conta.model');
 
 const checkSubscription = async (req, res, next) => {
     try {
-        const userId = req.user.id; // Supondo que o middleware de autenticação adiciona o usuário a req.user
+        // O auth.middleware já nos fornece o usuário completo, incluindo a contaId.
+        const { contaId } = req.user;
 
-        if (!userId) {
-            return res.status(401).json({ message: 'Acesso negado. Usuário não autenticado.' });
+        if (!contaId) {
+            return res.status(401).json({ message: 'Acesso negado. Usuário não está associado a uma conta.' });
         }
 
-        // Procura por uma assinatura ativa para o usuário
-        const subscription = await Subscription.findOne({ userId: userId });
+        // Busca a conta para verificar o status da assinatura
+        const conta = await Conta.findById(contaId);
 
-        // Verifica se a assinatura existe e se está autorizada
-        if (subscription && subscription.status === 'authorized') {
-            return next(); // O usuário tem uma assinatura ativa, pode prosseguir.
+        if (!conta) {
+            return res.status(403).json({ message: 'Acesso negado. Conta não encontrada.' });
         }
 
-        // Se não houver assinatura ou se não estiver ativa, nega o acesso.
+        const allowedStatus = ['ATIVO', 'EM_ATRASO'];
+
+        // Verifica se o status da assinatura permite o acesso (ativa ou em período de carência)
+        if (allowedStatus.includes(conta.statusAssinatura)) {
+            return next(); // O usuário pode prosseguir.
+        }
+
+        // Se a assinatura não estiver em um estado permitido, nega o acesso.
         return res.status(403).json({
             message: 'Acesso negado. É necessária uma assinatura ativa para acessar este recurso.'
         });
 
     } catch (error) {
-        console.error('Erro ao verificar a assinatura:', error);
+        console.error('Erro ao verificar a assinatura da conta:', error);
         return res.status(500).json({ message: 'Erro interno ao verificar a assinatura.' });
     }
 };
