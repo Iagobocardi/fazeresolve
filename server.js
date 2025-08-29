@@ -100,38 +100,43 @@ app.use(session({
 }));
 
 // PASSO 6: Utilização das Rotas na API
-app.use('/api/agendamentos', agendamentoRoutes);
-app.use('/api/clientes', adminAuth, checkSubscription, clienteRoutes);
-app.use('/api/financeiro', financeiroRoutes);
-app.use('/api/orcamentos', adminAuth, checkSubscription, orcamentoRoutes);
-app.use('/api/relatorios', relatorioRoutes);
-app.use('/api/servicos', servicoRoutes);
-app.use('/api/whatsapp', whatsappRoutes);
-app.use('/api/stats', adminAuth, statsRoutes);
-app.use('/api/dashboard', adminAuth, dashboardRoutes);
+
+// Rotas Públicas ou com Autenticação Própria
 app.use('/api/public', publicRoutes);
-app.use('/api/despesas', despesasRoutes);
-app.use('/api/produtos', produtosRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/portal-cliente', portalClienteRoutes);
-app.use('/api/fornecedores', fornecedorRoutes);
-app.use('/api/configuracoes', adminAuth, configuracaoRoutes);
-app.use('/api/produtos-fornecedor', produtosFornecedorRoutes); // Rota corrigida para evitar conflito
-app.use('/api/checklist', checklistRoutes); // Rota corrigida para evitar conflito
-app.use('/api/google', googleRoutes);
-app.use('/api/estoque', estoqueRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/conversas', adminAuth, conversaRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/whatsapp/templates', whatsappTemplateRoutes);
-app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/mercado-pago', mercadoPagoRoutes);
-app.use('/api/provider', providerRoutes); // <-- Adiciona a nova rota ao app
-app.use('/api/focusnfe', adminAuth, focusnfeRoutes);
-app.use('/api/permissoes', permissoesRoutes);
+app.use('/api/subscriptions', subscriptionRoutes); // Usado para criar a assinatura
+app.use('/api/mercado-pago', mercadoPagoRoutes); // Webhooks
+app.use('/api/admin', adminRoutes); // Rotas do super-admin
 
-const invoiceRoutes = require('./src/routes/invoices.routes.js');
-app.use('/api/invoices', invoiceRoutes);
+// --- Rotas Protegidas do Prestador ---
+// Todas as rotas abaixo exigem que o prestador esteja logado E com assinatura ativa.
+const providerAuthMiddlewares = [adminAuth, checkSubscription];
+
+app.use('/api/agendamentos', providerAuthMiddlewares, agendamentoRoutes);
+app.use('/api/clientes', providerAuthMiddlewares, clienteRoutes);
+app.use('/api/financeiro', providerAuthMiddlewares, financeiroRoutes);
+app.use('/api/orcamentos', providerAuthMiddlewares, orcamentoRoutes);
+app.use('/api/relatorios', providerAuthMiddlewares, relatorioRoutes);
+app.use('/api/servicos', providerAuthMiddlewares, servicoRoutes);
+app.use('/api/whatsapp', providerAuthMiddlewares, whatsappRoutes);
+app.use('/api/stats', providerAuthMiddlewares, statsRoutes);
+app.use('/api/dashboard', providerAuthMiddlewares, dashboardRoutes);
+app.use('/api/despesas', providerAuthMiddlewares, despesasRoutes);
+app.use('/api/produtos', providerAuthMiddlewares, produtosRoutes);
+app.use('/api/fornecedores', providerAuthMiddlewares, fornecedorRoutes);
+app.use('/api/configuracoes', providerAuthMiddlewares, configuracaoRoutes);
+app.use('/api/produtos-fornecedor', providerAuthMiddlewares, produtosFornecedorRoutes);
+app.use('/api/checklist', providerAuthMiddlewares, checklistRoutes);
+app.use('/api/google', providerAuthMiddlewares, googleRoutes);
+app.use('/api/estoque', providerAuthMiddlewares, estoqueRoutes);
+app.use('/api/upload', providerAuthMiddlewares, uploadRoutes);
+app.use('/api/conversas', providerAuthMiddlewares, conversaRoutes);
+app.use('/api/whatsapp/templates', providerAuthMiddlewares, whatsappTemplateRoutes);
+app.use('/api/provider', providerAuthMiddlewares, providerRoutes);
+app.use('/api/focusnfe', providerAuthMiddlewares, focusnfeRoutes);
+app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
+app.use('/api/invoices', providerAuthMiddlewares, require('./src/routes/invoices.routes.js'));
 
 
 // Rota de teste para verificar se o servidor está online
