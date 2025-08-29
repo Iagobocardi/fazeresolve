@@ -29,6 +29,6 @@ router.post('/', createClienteRules, validate, clientesController.criarCliente);
 router.put('/:id', updateClienteRules, validate, clientesController.atualizarCliente);
 router.delete('/:id', clientesController.deletarCliente);
 router.get('/:id/details', clientesController.getClienteComPedidos);
-router.post('/:id/enviar-convite', clientesController.enviarConvitePortal);
+router.post('/:id/gerar-convite', clientesController.gerarConvitePortal);
 
 module.exports = router;

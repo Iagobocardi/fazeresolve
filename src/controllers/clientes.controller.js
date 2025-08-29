@@ -175,35 +175,38 @@ const getClienteComPedidos = async (req, res) => {
         res.status(500).json({ error: 'Erro ao buscar detalhes do cliente.' });
     }
 };
-const enviarConvitePortal = async (req, res) => {
+const gerarConvitePortal = async (req, res) => {
     try {
-        const cliente = await Cliente.findById(req.params.id);
+        const { id: clienteId } = req.params;
+        const { contaId } = req.user;
+
+        const cliente = await Cliente.findOne({ _id: clienteId, contaId: contaId });
         if (!cliente) {
-            return res.status(404).json({ message: 'Cliente não encontrado.' });
+            return res.status(404).json({ message: 'Cliente não encontrado ou não pertence à sua conta.' });
         }
 
         // 1. Gera um token seguro e aleatório
         const token = crypto.randomBytes(32).toString('hex');
 
-        // 2. Define o token e a data de expiração (ex: 1 hora a partir de agora)
+        // 2. Define o token e a data de expiração (ex: 24 horas a partir de agora)
         cliente.activationToken = token;
-        cliente.activationTokenExpires = Date.now() + 3600000; // 1 hora em milissegundos
+        cliente.activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
 
         await cliente.save();
 
         // 3. Monta a URL de ativação (aponte para o seu frontend)
-        // ATENÇÃO: Altere 'http://localhost:3001' para o endereço real do seu frontend no futuro
-        const activationUrl = `http://localhost:3001/ativar-conta/${token}`;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const activationUrl = `${frontendUrl}/portal/login-token/${token}`;
 
-        // 4. Envia a mensagem via WhatsApp
-        const mensagem = `Olá, ${cliente.nome}! Para aceder ao nosso portal de cliente e acompanhar os seus serviços, por favor, ative a sua conta no seguinte link: ${activationUrl}`;
-        await whatsappService.sendWhatsAppMessage(cliente.telefone, mensagem);
-
-        res.status(200).json({ message: 'Convite enviado com sucesso!' });
+        // 4. Retorna o link para o frontend
+        res.status(200).json({
+            message: 'Link de convite gerado com sucesso!',
+            activationUrl
+        });
 
     } catch (error) {
-        console.error("ERRO em enviarConvitePortal:", error);
-        res.status(500).json({ message: 'Erro ao enviar o convite.' });
+        console.error("ERRO em gerarConvitePortal:", error);
+        res.status(500).json({ message: 'Erro ao gerar o link de convite.' });
     }
 };
 
@@ -217,5 +220,5 @@ module.exports = {
     atualizarCliente,
     deletarCliente,
     getClienteComPedidos,
-    enviarConvitePortal
+    gerarConvitePortal
 };
