@@ -52,15 +52,10 @@ const login = async (req, res) => {
              return res.status(404).json({ message: 'Conta associada não encontrada.' });
         }
 
-        // 4. Gera o token JWT com os dados da nova arquitetura
+        // 4. Gera um token JWT minimalista, contendo apenas o ID do usuário.
+        // O middleware de autenticação se encarregará de buscar os dados atualizados a cada requisição.
         const payload = {
-            id: usuario._id,
-            nome: usuario.nome,
-            email: usuario.email,
-            role: usuario.role, // Papel do usuário (Dono, Membro)
-            contaId: usuario.contaId, // ID da Conta/Empresa
-            plano: conta.plano, // Plano vem da conta
-            statusAssinatura: conta.statusAssinatura // Status da assinatura vem da conta
+            id: usuario._id
         };
 
         const token = jwt.sign(
