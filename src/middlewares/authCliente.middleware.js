@@ -1,24 +1,40 @@
 const jwt = require('jsonwebtoken');
+const Cliente = require('../models/cliente.model');
+const Conta = require('../models/conta.model');
 
-const authCliente = (req, res, next) => {
-    // 1. Pega o token do cabeçalho da requisição
+const authCliente = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Formato "Bearer TOKEN"
+    const token = authHeader && authHeader.split(' ')[1];
 
-    // 2. Verifica se o token existe
     if (!token) {
         return res.status(401).json({ message: 'Acesso negado. Nenhum token fornecido.' });
     }
 
     try {
-        console.log('Verificando token com segredo:', process.env.JWT_SECRET); // Adicione esta linha
-        // 3. Verifica se o token é válido
-        const decoded = jwt.verify(token, process.env.JWT_SECRET); // Use a sua chave secreta
+        // 1. Decodifica o token para obter o ID do cliente
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 4. Anexa os dados do cliente (do token) à requisição para uso posterior
-        req.cliente = decoded; 
+        // 2. Busca o cliente no banco de dados
+        const cliente = await Cliente.findById(decoded.id);
+        if (!cliente) {
+            return res.status(401).json({ message: 'Cliente não encontrado.' });
+        }
 
-        next(); // Tudo certo, pode prosseguir para a rota
+        // 3. Busca a conta principal para verificar a assinatura
+        const conta = await Conta.findById(cliente.contaId);
+        if (!conta) {
+            return res.status(403).json({ message: 'Acesso negado. Conta principal não encontrada.' });
+        }
+
+        // 4. Verifica se a assinatura da conta principal está ativa
+        if (conta.statusAssinatura !== 'ATIVO') {
+            return res.status(403).json({ message: 'Acesso negado. A assinatura do prestador de serviço não está ativa.' });
+        }
+
+        // 5. Anexa os dados atualizados do cliente à requisição
+        req.cliente = cliente;
+
+        next();
     } catch (error) {
         res.status(403).json({ message: 'Token inválido ou expirado.' });
     }
