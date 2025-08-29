@@ -46,3 +46,21 @@ exports.updatePermissoes = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao atualizar as permissões.' });
     }
 };
+
+/**
+ * Retorna a lista de todas as permissões disponíveis no sistema.
+ */
+exports.getAvailablePermissions = (req, res) => {
+    const availablePermissions = [
+        { key: 'ver_dashboard', label: 'Ver Dashboard' },
+        { key: 'ver_agenda', label: 'Ver Agenda' },
+        { key: 'editar_agenda', label: 'Editar Agenda' },
+        { key: 'ver_clientes', label: 'Ver Clientes' },
+        { key: 'editar_clientes', label: 'Editar Clientes' },
+        { key: 'ver_orcamentos', label: 'Ver Orçamentos' },
+        { key: 'editar_orcamentos', label: 'Editar Orçamentos' },
+        { key: 'ver_financeiro', label: 'Ver Financeiro' },
+        // Adicione novas permissões aqui no futuro
+    ];
+    res.status(200).json(availablePermissions);
+};
