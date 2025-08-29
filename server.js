@@ -1,7 +1,8 @@
 // PASSO 1: Carrega as variáveis de ambiente
 require('dotenv').config();
 require('./src/jobs/lembretes.job');
-require('./src/jobs/billing.job.js'); // <-- Adiciona o novo job
+require('./src/jobs/billing.job.js');
+require('./src/jobs/gracePeriod.job.js'); // <-- Adiciona o novo job de período de carência
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
