@@ -12,8 +12,12 @@ const contaSchema = new Schema({
     },
     statusAssinatura: {
         type: String,
-        enum: ['AGUARDANDO_PAGAMENTO', 'ATIVO', 'INATIVO'],
+        enum: ['AGUARDANDO_PAGAMENTO', 'ATIVO', 'EM_ATRASO', 'INATIVO'],
         default: 'AGUARDANDO_PAGAMENTO'
+    },
+    gracePeriodExpiresAt: {
+        type: Date,
+        default: null,
     },
     planId: { type: String },
     mercadoPagoSubscriptionId: { type: String },
