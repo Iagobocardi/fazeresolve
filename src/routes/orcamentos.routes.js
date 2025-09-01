@@ -49,7 +49,7 @@ router.get('/', orcamentosController.getAllOrcamentos);
 router.get('/:id', orcamentosController.getOrcamentoById);
 router.post('/', orcamentoValidationRules(), validate, orcamentosController.createOrcamento);
 router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
-router.delete('/:id', orcamentosController.deleteOrcamento)
+router.delete('/:id', orcamentosController.deleteOrcamento);
 router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoPedido);
 router.delete('/:orcamentoId/materiais/:materialUsadoId', orcamentosController.removerMaterialDoPedido);
 //  Rota para a ação rápida de marcar como pago
