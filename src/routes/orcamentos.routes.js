@@ -20,7 +20,7 @@ router.get('/agendados', orcamentosController.getAgendamentosParaCalendario);
 router.post('/:id/upload-foto', upload.single('foto'), orcamentosController.uploadFotoServico);
 router.get('/:id/fatura-pdf', orcamentosController.gerarFaturaPDF);
 router.get('/:id/orcamento-pdf', orcamentosController.gerarOrcamentoPDF);
-router.get( '/por-cliente/:clienteId', orcamentosController.getPedidosPorCliente);
+router.get('/por-cliente/:clienteId', orcamentosController.getPedidosPorCliente);
 // --------------------------------
 // ROTA para atualizar apenas o status
 router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);
@@ -49,7 +49,7 @@ router.get('/', orcamentosController.getAllOrcamentos);
 router.get('/:id', orcamentosController.getOrcamentoById);
 router.post('/', orcamentoValidationRules(), validate, orcamentosController.createOrcamento);
 router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
-router.delete('/:id', orcamentosController.deleteOrcamento)
+router.delete('/:id', orcamentosController.deleteOrcamento);
 router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoPedido);
 router.delete('/:orcamentoId/materiais/:materialUsadoId', orcamentosController.removerMaterialDoPedido);
 //  Rota para a ação rápida de marcar como pago
