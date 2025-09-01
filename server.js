@@ -76,17 +76,17 @@ if (process.env.APP_URL) {
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista
-        // if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        //     callback(null, true);
-        // } else {
-        //     callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
-        // }
-        callback(null, true); // Permite todas as origens
+        // Permite pedidos sem 'origin' (como Postman) ou se a origem estiver na lista de permitidos.
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('A política de CORS para este site não permite acesso da origem especificada.'));
+        }
     },
     credentials: true, // Importante para cookies e autorização
 };
 
+app.options('*', cors(corsOptions)); // Adiciona o handler de pre-flight para todas as rotas
 app.use(cors(corsOptions));
 app.use(express.json()); // Habilita o parsing de JSON no corpo das requisições
 app.use(express.urlencoded({ extended: true })); // Habilita o parsing de dados de formulários
