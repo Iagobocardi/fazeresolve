@@ -17,6 +17,7 @@ const provisionalAuthMiddleware = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('[Auth Provisório] Procurando por usuário com ID do token:', decoded.id); // <-- LOG DE DIAGNÓSTICO
 
         const usuario = await Usuario.findById(decoded.id);
         if (!usuario) {

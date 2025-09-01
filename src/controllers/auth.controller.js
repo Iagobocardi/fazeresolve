@@ -118,6 +118,7 @@ const register = async (req, res) => {
             role: 'Dono' // O primeiro usuário é sempre o Dono
         });
         await novoUsuario.save();
+        console.log('[Registro] Usuário criado com ID:', novoUsuario._id); // <-- LOG DE DIAGNÓSTICO
 
         // 3. Gera o token JWT provisório
         const payload = {
