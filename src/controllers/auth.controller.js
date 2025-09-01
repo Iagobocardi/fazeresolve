@@ -17,7 +17,7 @@ const iniciarAuthGoogle = (req, res) => {
     // Esta função precisará ser adaptada para o novo modelo de usuário/conta
     res.status(501).json({ message: "Google Auth a ser reimplementado."})
 };
-const handleGoogleCallback = async (req, res) => {
+const handleGoogleCallback = async (req, res) => { 
     // Esta função precisará ser adaptada para o novo modelo de usuário/conta
     res.status(501).json({ message: "Google Auth a ser reimplementado."})
 };
@@ -45,7 +45,7 @@ const login = async (req, res) => {
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
-
+        
         // 3. Busca a conta associada para adicionar ao token
         const conta = await Conta.findById(usuario.contaId);
         if (!conta) {
@@ -97,7 +97,7 @@ const register = async (req, res) => {
         if (existingUser) {
             return res.status(409).json({ message: 'Um usuário com este email já existe.' });
         }
-
+        
         // 1. Cria a nova Conta
         const novaConta = new Conta({
             nome: nomeEmpresa || nome, // Usa o nome da empresa ou o nome do usuário
@@ -118,6 +118,7 @@ const register = async (req, res) => {
             role: 'Dono' // O primeiro usuário é sempre o Dono
         });
         await novoUsuario.save();
+        console.log('[Registro] Usuário criado com ID:', novoUsuario._id); // <-- LOG DE DIAGNÓSTICO
 
         // 3. Gera o token JWT provisório
         const payload = {
