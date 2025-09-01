@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
+const Usuario = require('../models/usuario.model');
+const Conta = require('../models/conta.model');
 
-const provisionalAuthMiddleware = (req, res, next) => {
+const provisionalAuthMiddleware = async (req, res, next) => {
     if (req.method === 'OPTIONS') {
         return next();
     }
@@ -16,11 +18,21 @@ const provisionalAuthMiddleware = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        if (decoded.status !== 'AGUARDANDO_PAGAMENTO') {
+        const usuario = await Usuario.findById(decoded.id);
+        if (!usuario) {
+            return res.status(401).json({ message: 'Usuário do token não encontrado.' });
+        }
+
+        const conta = await Conta.findById(usuario.contaId);
+        if (!conta) {
+            return res.status(401).json({ message: 'Conta associada ao usuário não encontrada.' });
+        }
+
+        if (conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
             return res.status(403).json({ message: 'Acesso negado. Esta rota é apenas para utilizadores com pagamento pendente.' });
         }
 
-        req.user = { id: decoded.id, status: decoded.status };
+        req.user = usuario; // Anexa o usuário completo
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
