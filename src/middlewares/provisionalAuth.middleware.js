@@ -17,14 +17,26 @@ const provisionalAuthMiddleware = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log('[Auth Provisório] Procurando por usuário com ID do token:', decoded.id); // <-- LOG DE DIAGNÓSTICO
+        console.log('[Auth Provisório] Procurando por usuário com ID do token:', decoded.id);
 
-        const usuario = await Usuario.findById(decoded.id);
+        let usuario, conta;
+        try {
+            usuario = await Usuario.findById(decoded.id);
+            console.log('[Auth Provisório] Busca de usuário concluída. Usuário encontrado:', !!usuario);
+
+            if (usuario) {
+                conta = await Conta.findById(usuario.contaId);
+                console.log('[Auth Provisório] Busca de conta concluída. Conta encontrada:', !!conta);
+            }
+        } catch (dbError) {
+            console.error('[Auth Provisório] Erro de comunicação com o banco de dados:', dbError);
+            return res.status(503).json({ message: 'Erro de serviço. Não foi possível conectar ao banco de dados.' });
+        }
+
         if (!usuario) {
             return res.status(401).json({ message: 'Usuário do token não encontrado.' });
         }
 
-        const conta = await Conta.findById(usuario.contaId);
         if (!conta) {
             return res.status(401).json({ message: 'Conta associada ao usuário não encontrada.' });
         }
@@ -33,7 +45,7 @@ const provisionalAuthMiddleware = async (req, res, next) => {
             return res.status(403).json({ message: 'Acesso negado. Esta rota é apenas para utilizadores com pagamento pendente.' });
         }
 
-        req.user = usuario; // Anexa o usuário completo
+        req.user = usuario;
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
