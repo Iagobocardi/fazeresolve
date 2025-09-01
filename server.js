@@ -102,8 +102,6 @@ app.use(session({
 
 // PASSO 6: Utilização das Rotas na API
 
-// --- DEBUG: TODAS AS ROTAS COMENTADAS PARA ISOLAR O ERRO ---
-/*
 // Rotas Públicas ou com Autenticação Própria
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
@@ -140,7 +138,6 @@ app.use('/api/provider', providerAuthMiddlewares, providerRoutes);
 app.use('/api/focusnfe', providerAuthMiddlewares, focusnfeRoutes);
 app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
 app.use('/api/invoices', providerAuthMiddlewares, require('./src/routes/invoices.routes.js'));
-*/
 
 
 // Rota de teste para verificar se o servidor está online
