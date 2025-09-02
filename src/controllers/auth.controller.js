@@ -77,7 +77,8 @@ const login = async (req, res) => {
                 email: usuario.email,
                 role: usuario.role,
                 plano: conta.plano,
-                statusAssinatura: conta.statusAssinatura
+                statusAssinatura: conta.statusAssinatura,
+                permissoes: usuario.permissoes // <-- A CORREÇÃO
             },
             conta: conta // Retorna os dados da conta também
         });
