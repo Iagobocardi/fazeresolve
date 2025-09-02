@@ -9,7 +9,7 @@ router.get('/mercadopago-callback', providerController.handleMercadoPagoCallback
 
 // Todas as rotas abaixo exigem que o usuário esteja autenticado como PRESTADOR
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['Dono', 'Membro']));
 
 // Rota para buscar as configurações de pagamento do prestador
 router.get('/payment-settings', providerController.getPaymentSettings);
