@@ -51,8 +51,7 @@ const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js
 
 // Importação do Middleware
 const errorMiddleware = require('./src/middlewares/error.middleware');
-const authMiddleware = require('./src/middlewares/auth.middleware.js'); // <-- O CORRETO
-const adminAuth = require('./src/middlewares/adminAuth.middleware.js'); // Deixado por enquanto, mas obsoleto
+const authMiddleware = require('./src/middlewares/auth.middleware.js'); // O único middleware de autenticação de prestador necessário
 const checkSubscription = require('./src/middlewares/checkSubscription.middleware.js');
 
 const app = express();
