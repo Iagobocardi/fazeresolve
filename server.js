@@ -62,7 +62,8 @@ connectDB();
 // PASSO 5: Middlewares Essenciais
 const allowedOrigins = [
     'http://localhost:3000',
-    'https://app.fazeresolve.com'
+    'https://app.fazeresolve.com',
+    'https://fazeresolve.com'
 ];
 if (process.env.APP_URL) {
     allowedOrigins.push(process.env.APP_URL);
