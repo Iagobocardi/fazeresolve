@@ -7,16 +7,16 @@ const bcrypt = require('bcryptjs');
 // PARA GARANTIR CONSISTÊNCIA, INDEPENDENTE DE QUAL ENDPOINT O FRONTEND CHAMA.
 exports.loginAdmin = async (req, res) => {
     try {
-        // O login pode ser por email ou outro campo, mas o frontend developer mencionou email.
-        // Vamos manter a consistência com o outro login e usar apenas email.
-        const { email, password } = req.body;
+        // Aceita 'login' ou 'email' como campo de usuário para flexibilidade.
+        const { login, email, password } = req.body;
+        const userIdentifier = email || login;
 
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
+        if (!userIdentifier || !password) {
+            return res.status(400).json({ message: 'Email/login e senha são obrigatórios.' });
         }
 
         // 1. Encontra o usuário pelo email no modelo correto (Usuario)
-        const usuario = await Usuario.findOne({ email }).select('+password');
+        const usuario = await Usuario.findOne({ email: userIdentifier }).select('+password');
 
         if (!usuario) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
