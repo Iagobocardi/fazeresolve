@@ -10,10 +10,10 @@ const usuarioSchema = new Schema({
     password: { type: String, required: true, select: false }, // select: false para não vir por padrão
     
     // Adiciona a referência à conta à qual o usuário pertence.
-    contaId: { 
-        type: Schema.Types.ObjectId, 
-        ref: 'Conta', 
-        required: true 
+    contaId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true
     },
 
     // Define o papel do usuário dentro da conta.
@@ -34,11 +34,11 @@ const usuarioSchema = new Schema({
 // Hash da password antes de salvar
 usuarioSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
-    
+
     console.log(`[Hashing] Senha recebida para o usuário ${this.email}:`, this.password);
     const hashedPassword = await bcrypt.hash(this.password, 12);
     console.log(`[Hashing] Hash gerado:`, hashedPassword);
-    
+
     this.password = hashedPassword;
     next();
 });
