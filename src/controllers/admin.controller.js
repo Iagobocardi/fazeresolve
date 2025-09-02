@@ -1,51 +1,64 @@
-// Em: src/controllers/admin.controller.js
-
-const Cliente = require('../models/cliente.model');
+const Usuario = require('../models/usuario.model');
+const Conta = require('../models/conta.model');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
+// ESTA FUNÇÃO AGORA É UM ESPELHO DA FUNÇÃO DE LOGIN PRINCIPAL
+// PARA GARANTIR CONSISTÊNCIA, INDEPENDENTE DE QUAL ENDPOINT O FRONTEND CHAMA.
 exports.loginAdmin = async (req, res) => {
     try {
-        const { login, password } = req.body;
+        // O login pode ser por email ou outro campo, mas o frontend developer mencionou email.
+        // Vamos manter a consistência com o outro login e usar apenas email.
+        const { email, password } = req.body;
 
-        if (!login || !password) {
-            return res.status(400).json({ message: 'Login e senha são obrigatórios.' });
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
         }
 
-        // Busca o utilizador pelo telefone OU email, que seja PRESTADOR ou ADMIN
-        let usuario = await Cliente.findOne({ telefone: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password +plano');
-        if (!usuario) {
-            usuario = await Cliente.findOne({ email: login, role: { $in: ['PRESTADOR', 'ADMIN'] } }).select('+password +plano');
-        }
-
-        // Adicionado para depuração
-        console.log('DEBUG: Utilizador encontrado na base de dados:', usuario);
+        // 1. Encontra o usuário pelo email no modelo correto (Usuario)
+        const usuario = await Usuario.findOne({ email }).select('+password');
 
         if (!usuario) {
-            return res.status(401).json({ message: 'Credenciais inválidas ou conta não é de administrador.' });
+            return res.status(401).json({ message: 'Credenciais inválidas.' });
+        }
+        
+        // Garante que apenas Donos ou Admins possam usar esta rota, se necessário.
+        // O ideal é que o /api/admin/login seja apenas para 'Admin' e o /api/auth/login para 'Dono' e 'Membro',
+        // mas vamos manter a consistência por enquanto para resolver o bug.
+        if (!['Dono', 'Admin'].includes(usuario.role)) {
+             return res.status(403).json({ message: 'Acesso negado a esta área.' });
         }
 
+        // 2. Compara a senha com bcrypt
         const isMatch = await bcrypt.compare(password, usuario.password);
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
+        
+        // 3. Busca a conta associada
+        const conta = await Conta.findById(usuario.contaId);
+        if (!conta) {
+             return res.status(404).json({ message: 'Conta associada não encontrada.' });
+        }
 
-        // --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
-        // Agora, lemos o plano diretamente do 'usuario' que veio do banco de dados.
-        const payload = {
-            id: usuario._id,
-            nome: usuario.nome,
-            role: usuario.role,
-            plano: usuario.plano // <-- USA O PLANO REAL DO BANCO DE DADOS
-        };
-        // ------------------------------------
-
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+        // 4. Gera um token JWT minimalista
+        const payload = { id: usuario._id };
+        const token = jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' } // Aumentando a expiração para 7 dias
+        );
 
         res.status(200).json({
-            message: 'Login de administrador bem-sucedido!',
+            message: 'Login bem-sucedido!',
             token,
-            usuario: payload // Enviamos o payload que contém o plano real
+            usuario: {
+                id: usuario._id,
+                nome: usuario.nome,
+                email: usuario.email,
+                role: usuario.role
+            },
+            conta: conta
         });
 
     } catch (error) {
@@ -54,7 +67,7 @@ exports.loginAdmin = async (req, res) => {
     }
 };
 
-// Não se esqueça de adicionar a função getMe se ela não existir
+// A função getMe pode ser útil para o painel de admin
 exports.getMe = async (req, res) => {
     // O middleware de autenticação já colocou os dados do token em req.user
     res.status(200).json(req.user);
