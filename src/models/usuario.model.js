@@ -34,7 +34,12 @@ const usuarioSchema = new Schema({
 // Hash da password antes de salvar
 usuarioSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
-    this.password = await bcrypt.hash(this.password, 12);
+
+    console.log(`[Hashing] Senha recebida para o usuário ${this.email}:`, this.password);
+    const hashedPassword = await bcrypt.hash(this.password, 12);
+    console.log(`[Hashing] Hash gerado:`, hashedPassword);
+
+    this.password = hashedPassword;
     next();
 });
 

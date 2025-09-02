@@ -40,7 +40,11 @@ const login = async (req, res) => {
         }
 
         // 2. Compara a senha
+        console.log(`[Login] Tentando comparar senha para ${usuario.email}.`);
+        console.log(`[Login] Senha recebida: ${password}`);
+        console.log(`[Login] Hash do banco: ${usuario.password}`);
         const isMatch = await bcrypt.compare(password, usuario.password);
+        console.log(`[Login] Resultado da comparação: ${isMatch}`);
 
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
