@@ -5,28 +5,33 @@ const Orcamento = require('../models/orcamento.model');
 const Despesa = require('../models/despesa.model');
 const Cliente = require('../models/cliente.model');
 
-// Função para os cards do Dashboard principal (NÃO FOI ALTERADA)
+// Helper para garantir que todas as queries sejam relativas à conta do usuário
+const getBaseQuery = (req) => ({ contaId: req.user.contaId });
+
+
+// Função para os cards do Dashboard principal
 const getDashboardStats = async (req, res) => {
     try {
+        const baseQuery = getBaseQuery(req);
         const trintaDiasAtras = new Date();
         trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
 
-        const novasSolicitacoes = await Orcamento.countDocuments({ data: { $gte: trintaDiasAtras } });
+        const novasSolicitacoes = await Orcamento.countDocuments({ ...baseQuery, data: { $gte: trintaDiasAtras } });
 
         const faturamentoResult = await Orcamento.aggregate([
-            { $match: { status: 'Finalizado', dataFinalizacao: { $gte: trintaDiasAtras } } },
+            { $match: { ...baseQuery, status: 'Finalizado', dataFinalizacao: { $gte: trintaDiasAtras } } },
             { $group: { _id: null, total: { $sum: '$valorProposto' } } }
         ]);
         const faturamento = faturamentoResult.length > 0 ? faturamentoResult[0].total : 0;
 
         const satisfacaoResult = await Orcamento.aggregate([
-            { $match: { notaSatisfacao: { $exists: true, $ne: null } } },
+            { $match: { ...baseQuery, notaSatisfacao: { $exists: true, $ne: null } } },
             { $group: { _id: null, media: { $avg: '$notaSatisfacao' } } }
         ]);
         const satisfacaoMedia = satisfacaoResult.length > 0 ? satisfacaoResult[0].media : 0;
 
         const receitasFuturasResult = await Orcamento.aggregate([
-            { $match: { status: { $in: ['Aceito', 'Agendado'] } } },
+            { $match: { ...baseQuery, status: { $in: ['Aceito', 'Agendado'] } } },
             { $group: { _id: null, total: { $sum: '$valorProposto' } } }
         ]);
         const receitasFuturas = receitasFuturasResult.length > 0 ? receitasFuturasResult[0].total : 0;
@@ -38,15 +43,15 @@ const getDashboardStats = async (req, res) => {
     }
 };
 
-// Função para o gráfico de faturamento (NÃO FOI ALTERADA)
 const getFaturamentoMensal = async (req, res) => {
     try {
+        const baseQuery = getBaseQuery(req);
         const hoje = new Date();
         const seisMesesAtras = new Date();
         seisMesesAtras.setMonth(hoje.getMonth() - 6);
 
         const dados = await Orcamento.aggregate([
-            { $match: { status: 'Finalizado', dataFinalizacao: { $gte: seisMesesAtras } } },
+            { $match: { ...baseQuery, status: 'Finalizado', dataFinalizacao: { $gte: seisMesesAtras } } },
             { $group: { _id: { ano: { $year: "$dataFinalizacao" }, mes: { $month: "$dataFinalizacao" } }, faturamento: { $sum: "$valorProposto" } } },
             { $sort: { "_id.ano": 1, "_id.mes": 1 } },
             { $project: { _id: 0, mes: { $concat: [{ $toString: "$_id.ano" }, "-", { $cond: [{ $lt: ["$_id.mes", 10] }, { $concat: ["0", { $toString: "$_id.mes" }] }, { $toString: "$_id.mes" }] }] }, faturamento: 1 } }
@@ -67,10 +72,13 @@ const getResumoFinanceiro = async (req, res) => {
         const inicioDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
         const fimDoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
 
+        const baseQuery = getBaseQuery(req);
+
         // 1. Calcular Faturamento Pago no Mês
         const faturamentoResult = await Orcamento.aggregate([
             {
                 $match: {
+                    ...baseQuery,
                     status: 'Finalizado',
                     statusPagamento: 'Pago',
                     dataFinalizacao: { $gte: inicioDoMes, $lte: fimDoMes }
@@ -82,7 +90,7 @@ const getResumoFinanceiro = async (req, res) => {
 
         // 2. Calcular Total de Despesas no Mês
         const despesasResult = await Despesa.aggregate([
-            { $match: { data: { $gte: inicioDoMes, $lte: fimDoMes } } },
+            { $match: { ...baseQuery, data: { $gte: inicioDoMes, $lte: fimDoMes } } },
             { $group: { _id: null, total: { $sum: '$valor' } } }
         ]);
         const totalDespesas = despesasResult[0]?.total || 0;
@@ -108,8 +116,11 @@ const getHistoricoFinanceiro = async (req, res) => {
         const seisMesesAtras = new Date();
         seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
 
+        const baseQuery = getBaseQuery(req);
+
         // 2. AGREGAÇÃO 1: Calcular o faturamento total por mês (soma dos pagamentos)
         const faturamentoPorMes = await Orcamento.aggregate([
+            { $match: baseQuery }, // Filtra orçamentos da conta
             { $unwind: '$pagamentos' }, // "Desmonta" o array de pagamentos para processar cada um
             { $match: { 'pagamentos.data': { $gte: seisMesesAtras } } }, // Filtra pagamentos nos últimos 6 meses
             {
@@ -123,7 +134,7 @@ const getHistoricoFinanceiro = async (req, res) => {
 
         // 3. AGREGAÇÃO 2: Calcular as despesas totais por mês
         const despesasPorMes = await Despesa.aggregate([
-            { $match: { data: { $gte: seisMesesAtras } } }, // Filtra despesas nos últimos 6 meses
+            { $match: { ...baseQuery, data: { $gte: seisMesesAtras } } }, // Filtra despesas nos últimos 6 meses
             {
                 $group: {
                     _id: { $dateToString: { format: "%Y-%m", date: "$data" } }, // Agrupa por ano-mês
@@ -178,10 +189,11 @@ const getHistoricoFinanceiro = async (req, res) => {
 };
 const getTopServicos = async (req, res) => {
     try {
+        const baseQuery = getBaseQuery(req);
         const topServicos = await Orcamento.aggregate([
             // 1. Filtra apenas os pedidos que foram de fato concluídos
             {
-                $match: { status: 'Finalizado' }
+                $match: { ...baseQuery, status: 'Finalizado' }
             },
             // 2. Agrupa os pedidos pela sua descrição e conta quantos existem em cada grupo
             {
@@ -217,10 +229,11 @@ const getTopServicos = async (req, res) => {
 };
 const getTopClientes = async (req, res) => {
     try {
+        const baseQuery = getBaseQuery(req);
         const topClientes = await Orcamento.aggregate([
             // 1. Filtra apenas os pedidos que foram de fato concluídos
             {
-                $match: { status: 'Finalizado' }
+                $match: { ...baseQuery, status: 'Finalizado' }
             },
             // 2. Agrupa os pedidos pelo ID do cliente e soma o valor proposto de cada um
             {
@@ -273,9 +286,11 @@ const getTopClientes = async (req, res) => {
 
 const getDemandByNeighborhood = async (req, res) => {
     try {
+        const baseQuery = getBaseQuery(req);
         const demand = await Cliente.aggregate([
             {
                 $match: {
+                    ...baseQuery,
                     'currentDemand.addressData.bairro': { $exists: true, $ne: null }
                 }
             },
