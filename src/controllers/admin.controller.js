@@ -23,10 +23,11 @@ exports.loginAdmin = async (req, res) => {
         }
 
         // Garante que apenas Donos ou Admins possam usar esta rota, se necessário.
-        // O ideal é que o /api/admin/login seja apenas para 'Admin' e o /api/auth/login para 'Dono' e 'Membro',
-        // mas vamos manter a consistência por enquanto para resolver o bug.
-        if (!['Dono', 'Admin'].includes(usuario.role)) {
-             return res.status(403).json({ message: 'Acesso negado a esta área.' });
+        // O ideal é que o /api/admin/login seja apenas para 'Admin' e o /api/auth/login para 'Dono' e 'Membro'.
+        // Para resolver o bug de redirecionamento, vamos permitir 'Dono' e 'Membro' aqui também.
+        // A role 'PRESTADOR' não existe no nosso modelo de dados, então não a verificamos.
+        if (!['Dono', 'Membro', 'Admin'].includes(usuario.role)) {
+             return res.status(403).json({ message: 'Este usuário não tem permissão para acessar esta área.' });
         }
 
         // 2. Compara a senha com bcrypt
