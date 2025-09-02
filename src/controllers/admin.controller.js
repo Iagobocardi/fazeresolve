@@ -21,7 +21,7 @@ exports.loginAdmin = async (req, res) => {
         if (!usuario) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
-        
+
         // Garante que apenas Donos ou Admins possam usar esta rota, se necessário.
         // O ideal é que o /api/admin/login seja apenas para 'Admin' e o /api/auth/login para 'Dono' e 'Membro',
         // mas vamos manter a consistência por enquanto para resolver o bug.
@@ -34,7 +34,7 @@ exports.loginAdmin = async (req, res) => {
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
-        
+
         // 3. Busca a conta associada
         const conta = await Conta.findById(usuario.contaId);
         if (!conta) {
