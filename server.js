@@ -51,7 +51,8 @@ const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js
 
 // Importação do Middleware
 const errorMiddleware = require('./src/middlewares/error.middleware');
-const adminAuth = require('./src/middlewares/adminAuth.middleware.js');
+const authMiddleware = require('./src/middlewares/auth.middleware.js'); // <-- O CORRETO
+const adminAuth = require('./src/middlewares/adminAuth.middleware.js'); // Deixado por enquanto, mas obsoleto
 const checkSubscription = require('./src/middlewares/checkSubscription.middleware.js');
 
 const app = express();
@@ -109,7 +110,7 @@ app.use('/api/mercado-pago', mercadoPagoRoutes);
 app.use('/api/admin', adminRoutes);
 
 // --- Rotas Protegidas do Prestador ---
-const providerAuthMiddlewares = [adminAuth, checkSubscription];
+const providerAuthMiddlewares = [authMiddleware, checkSubscription]; // <-- A CORREÇÃO
 app.use('/api/agendamentos', providerAuthMiddlewares, agendamentoRoutes);
 app.use('/api/clientes', providerAuthMiddlewares, clienteRoutes);
 app.use('/api/financeiro', providerAuthMiddlewares, financeiroRoutes);
