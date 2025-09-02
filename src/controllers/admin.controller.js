@@ -57,7 +57,9 @@ exports.loginAdmin = async (req, res) => {
                 id: usuario._id,
                 nome: usuario.nome,
                 email: usuario.email,
-                role: usuario.role
+                role: usuario.role,
+                plano: conta.plano,
+                statusAssinatura: conta.statusAssinatura
             },
             conta: conta
         });
