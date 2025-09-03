@@ -16,7 +16,7 @@ const WhatsappTemplate = require('../models/whatsappTemplate.model.js');
  * @param {object} orcamento - O objeto completo do orçamento com os dados do cliente.
  * @returns {Promise<string>} A mensagem final com os placeholders substituídos.
  */
-const renderTemplate = async (tituloTemplate, orcamento) => {
+const renderTemplate = async (tituloTemplate, data) => {
     try {
         const template = await WhatsappTemplate.findOne({ titulo: tituloTemplate });
         if (!template) {
@@ -25,17 +25,23 @@ const renderTemplate = async (tituloTemplate, orcamento) => {
 
         let mensagemRenderizada = template.mensagem;
 
-        // Substitui os placeholders. Pode adicionar mais aqui.
-        mensagemRenderizada = mensagemRenderizada.replace(/{{cliente.nome}}/g, orcamento.cliente.nome);
-        mensagemRenderizada = mensagemRenderizada.replace(/{{orcamento.shortId}}/g, orcamento.shortId);
-
-        if (orcamento.valorProposto) {
-            const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto);
-            mensagemRenderizada = mensagemRenderizada.replace(/{{orcamento.valorProposto}}/g, valorFormatado);
-        }
-        if (orcamento.dataAgendamento) {
-            const dataFormatada = new Date(orcamento.dataAgendamento).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-            mensagemRenderizada = mensagemRenderizada.replace(/{{orcamento.dataAgendamento}}/g, dataFormatada);
+        // Itera sobre todos os dados fornecidos para substituir os placeholders
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                // Lida com objetos aninhados (ex: cliente.nome)
+                if (typeof value === 'object' && value !== null) {
+                    for (const subKey in value) {
+                        if (Object.prototype.hasOwnProperty.call(value, subKey)) {
+                            const placeholder = new RegExp(`{{${key}.${subKey}}}`, 'g');
+                            mensagemRenderizada = mensagemRenderizada.replace(placeholder, value[subKey]);
+                        }
+                    }
+                } else {
+                    const placeholder = new RegExp(`{{${key}}}`, 'g');
+                    mensagemRenderizada = mensagemRenderizada.replace(placeholder, value);
+                }
+            }
         }
 
         return mensagemRenderizada;
