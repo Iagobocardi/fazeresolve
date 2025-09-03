@@ -647,6 +647,51 @@ const renderTemplateMessage = async (templateId, orcamentoId) => {
 
 
 // =======================================================
+// SEÇÃO DE RENDERIZAÇÃO DE PREVIEW
+// =======================================================
+const renderPreview = async (templateString, orcamentoId, contaId) => {
+    let orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente');
+    if (!orcamento || !orcamento.cliente) {
+        throw new NotFoundError('Orçamento ou cliente associado não encontrado para esta conta.');
+    }
+
+    const prestador = await Cliente.findById(orcamento.prestadorId);
+    if (!prestador) {
+        throw new NotFoundError('Prestador do orçamento não encontrado.');
+    }
+
+    const cliente = orcamento.cliente;
+    let mensagemFinal = templateString;
+
+    // A mesma lógica de substituição da função renderTemplateMessage
+    if (prestador.metodoRecebimento === 'MERCADOPAGO') {
+        const linkPagamento = orcamento.linkPagamento || '(Link de pagamento seria gerado aqui)';
+        mensagemFinal = mensagemFinal.replace(/{{link_pagamento}}/g, linkPagamento);
+    } else {
+        mensagemFinal = mensagemFinal.replace(/{{chave_pix_prestador}}/g, prestador.chavePixManual || '(Chave Pix não configurada)');
+    }
+
+    mensagemFinal = mensagemFinal.replace(/{{cliente.nome}}/g, cliente.nome || '(sem nome)');
+    mensagemFinal = mensagemFinal.replace(/{{cliente.telefone}}/g, cliente.telefone || '(sem telefone)');
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.descricao}}/g, orcamento.descricao || '(sem descrição)');
+    
+    const totalPago = orcamento.pagamentos.reduce((sum, p) => sum + p.valor, 0);
+    const valorPendente = (orcamento.valorProposto || 0) - totalPago;
+
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.valorProposto}}/g, orcamento.valorProposto ? orcamento.valorProposto.toFixed(2) : '0.00');
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.valorPendente}}/g, valorPendente.toFixed(2));
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.dataAgendamento}}/g, orcamento.dataAgendamento ? new Date(orcamento.dataAgendamento).toLocaleDateString('pt-BR') : '(não agendado)');
+    mensagemFinal = mensagemFinal.replace(/{{orcamento.shortId}}/g, orcamento.shortId || 'XXXX');
+    
+    // Placeholders que não dependem do orçamento
+    mensagemFinal = mensagemFinal.replace(/{{desconto}}/g, '10'); // Exemplo
+    mensagemFinal = mensagemFinal.replace(/{{valorComDesconto}}/g, (orcamento.valorProposto * 0.9).toFixed(2)); // Exemplo
+
+    return mensagemFinal;
+};
+
+
+// =======================================================
 // EXPORTANDO AS FUNÇÕES CORRETAMENTE
 // =======================================================
 module.exports = {
@@ -658,5 +703,6 @@ module.exports = {
     updateTemplate,
     deleteTemplate,
     renderTemplateMessage,
-     renderTemplate
+    renderTemplate,
+    renderPreview
 };
