@@ -87,7 +87,11 @@ const handleMercadoPagoCallback = async (req, res) => {
         // Se o usuário negar a permissão, o MP redireciona com um parâmetro 'error'
         if (error) {
             console.warn(`[OAuth] O usuário negou a permissão no Mercado Pago. Erro: ${error}`);
-            return res.redirect(`${process.env.FRONTEND_URL}/settings?connect=denied`);
+            // Em vez de redirecionar, enviamos uma resposta que o frontend pode usar para redirecionar
+            return res.status(400).json({ 
+                message: 'A permissão foi negada.',
+                redirectUrl: `${process.env.FRONTEND_URL}/settings?connect=denied`
+            });
         }
 
         if (!code) {
@@ -124,11 +128,17 @@ const handleMercadoPagoCallback = async (req, res) => {
 
         console.log(`[INFO] Credenciais do Mercado Pago salvas para o prestador ${providerId}`);
 
-        res.redirect(`${process.env.FRONTEND_URL}/settings?connect=success`);
+        res.status(200).json({
+            message: 'Conexão com Mercado Pago bem-sucedida!',
+            redirectUrl: `${process.env.FRONTEND_URL}/settings?connect=success`
+        });
 
     } catch (error) {
         console.error('Erro ao trocar código por tokens do Mercado Pago:', error.response?.data || error.message);
-        res.redirect(`${process.env.FRONTEND_URL}/settings?connect=error`);
+        res.status(500).json({
+            message: 'Erro ao conectar com o Mercado Pago.',
+            redirectUrl: `${process.env.FRONTEND_URL}/settings?connect=error`
+        });
     }
 };
 
