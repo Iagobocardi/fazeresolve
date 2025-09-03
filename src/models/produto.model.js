@@ -26,6 +26,10 @@ const produtoSchema = new Schema({
         default: 5, // Valor padrão para "estoque baixo"
         min: 0
     },
+    alertaEstoqueBaixo: {
+        type: Boolean,
+        default: false
+    },
     categoria: {
         type: String,
         trim: true,
