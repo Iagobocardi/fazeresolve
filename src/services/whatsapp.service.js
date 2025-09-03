@@ -570,20 +570,23 @@ class NotFoundError extends Error {
     }
 }
 
-const findAllTemplates = async () => {
-    return await WhatsappTemplate.find();
+const findAllTemplates = async (contaId) => {
+    return await WhatsappTemplate.find({ contaId });
 };
 
-const createTemplate = async (templateData) => {
-    return await WhatsappTemplate.create(templateData);
+const createTemplate = async (templateData, contaId) => {
+    const dataComConta = { ...templateData, contaId };
+    return await WhatsappTemplate.create(dataComConta);
 };
 
-const updateTemplate = async (id, templateData) => {
-    return await WhatsappTemplate.findByIdAndUpdate(id, templateData, { new: true });
+const updateTemplate = async (id, templateData, contaId) => {
+    // Garante que o template a ser atualizado pertença à conta do usuário
+    return await WhatsappTemplate.findOneAndUpdate({ _id: id, contaId }, templateData, { new: true });
 };
 
-const deleteTemplate = async (id) => {
-    return await WhatsappTemplate.findByIdAndDelete(id);
+const deleteTemplate = async (id, contaId) => {
+    // Garante que o template a ser deletado pertença à conta do usuário
+    return await WhatsappTemplate.findOneAndDelete({ _id: id, contaId });
 };
 
 // =======================================================
