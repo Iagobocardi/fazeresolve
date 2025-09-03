@@ -13,7 +13,7 @@ router.post('/login', adminController.loginAdmin);
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
+router.use(roleMiddleware(['Dono', 'ADMIN']));
 
 router.get('/', agendamentosController.getAllAgendamentos);
 router.get('/:id', agendamentosController.getAgendamentoById);
