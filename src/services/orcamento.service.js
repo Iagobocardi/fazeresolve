@@ -351,8 +351,11 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
 };
 
 // Exportamos a função para que os controllers possam usá-la
-const enviarCobrancaComDesconto = async (contaId, orcamentoId, desconto) => {
+const enviarCobrancaComDesconto = async (contaId, orcamentoId, desconto, templateId) => {
     // 1. Validação de entrada
+    if (!templateId) {
+        throw new BusinessLogicError('O ID do template de mensagem é obrigatório.');
+    }
     const descontoNum = Number(desconto);
     if (isNaN(descontoNum) || descontoNum < 0 || descontoNum > 100) {
         throw new BusinessLogicError('A percentagem de desconto deve ser um número entre 0 e 100.');
@@ -397,23 +400,25 @@ const enviarCobrancaComDesconto = async (contaId, orcamentoId, desconto) => {
     const result = await preference.create({ body: preferencePayload });
     const novoLinkPagamento = result.init_point;
 
-    // 5. Renderizar o template de WhatsApp
+    // 5. Renderizar o template de WhatsApp usando o ID
     const templateData = {
-        ...orcamento.toObject(),
+        cliente: orcamento.cliente.toObject(),
+        orcamento: orcamento.toObject(),
         valorComDesconto: valorComDesconto.toFixed(2),
         desconto: `${descontoNum}%`,
         linkPagamento: novoLinkPagamento
     };
-    const mensagem = await whatsappService.renderTemplate('Cobranca com Desconto', templateData);
+    const mensagem = await whatsappService.renderTemplateById(templateId, contaId, templateData);
     if (!mensagem) {
-        throw new Error('Não foi possível renderizar o template de mensagem "Cobranca com Desconto". Verifique se ele existe.');
+        // O erro já vem do renderTemplateById, mas podemos adicionar contexto
+        throw new Error('Não foi possível renderizar a mensagem a partir do template selecionado.');
     }
 
     // 6. Enviar a mensagem via WhatsApp
     await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagem);
 
     // 7. Salvar o histórico
-    orcamento.historico.push({ evento: `Enviada cobrança com ${descontoNum}% de desconto via WhatsApp.` });
+    orcamento.historico.push({ evento: `Enviada cobrança com ${descontoNum}% de desconto via WhatsApp usando template.` });
     await orcamento.save();
 
     return { success: true, message: 'Mensagem de cobrança enviada com sucesso!' };
