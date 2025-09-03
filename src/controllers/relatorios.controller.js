@@ -181,6 +181,52 @@ const gerarRelatorioAgendamentos = async (req, res) => {
     }
 };
 
+const getTicketMedioMensal = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const dozeMesesAtras = new Date();
+        dozeMesesAtras.setMonth(dozeMesesAtras.getMonth() - 12);
+
+        const result = await Orcamento.aggregate([
+            {
+                $match: {
+                    contaId: new mongoose.Types.ObjectId(contaId),
+                    status: 'Finalizado',
+                    dataFinalizacao: { $gte: dozeMesesAtras }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: "$dataFinalizacao" },
+                        month: { $month: "$dataFinalizacao" }
+                    },
+                    ticketMedio: { $avg: "$valorProposto" }
+                }
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } },
+            {
+                $project: {
+                    _id: 0,
+                    mes: {
+                        $concat: [
+                            { $toString: "$_id.year" },
+                            "-",
+                            { $toString: { $cond: { if: { $lt: ["$_id.month", 10] }, then: { $concat: ["0", { $toString: "$_id.month" }] }, else: { $toString: "$_id.month" } } } }
+                        ]
+                    },
+                    ticketMedio: "$ticketMedio"
+                }
+            }
+        ]);
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error("Erro ao calcular ticket médio mensal:", error);
+        res.status(500).json({ message: "Erro ao calcular ticket médio mensal." });
+    }
+};
+
 module.exports = {
     gerarRelatorioServicosPDF,
     gerarRelatorioFinanceiroPDF,
@@ -191,4 +237,5 @@ module.exports = {
     getValorTotalEstoque,
     getNiveisEstoque,
     getHistoricoProduto,
+    getTicketMedioMensal,
 };
