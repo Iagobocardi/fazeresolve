@@ -12,12 +12,12 @@ const checkPermission = (requiredPermission) => {
     console.log('User Object:', req.user);
 
     // O authMiddleware deve garantir que req.user exista.
-    if (!req.user || !req.user.permissions) {
-      console.log('--- DEBUG: REJEITADO - User ou permissions em falta.');
+    if (!req.user || !req.user.permissoes) {
+      console.log('--- DEBUG: REJEITADO - User ou permissoes em falta.');
       return res.status(403).json({ message: 'Acesso negado. Informações de permissão em falta.' });
     }
 
-    const { permissions, role } = req.user;
+    const { permissoes, role } = req.user;
 
     // O "Dono" da conta tem acesso irrestrito a tudo dentro de sua conta.
     if (role === 'Dono') {
@@ -25,7 +25,7 @@ const checkPermission = (requiredPermission) => {
     }
 
     // Verifica se a permissão necessária está no array de permissões do usuário.
-    if (permissions.includes(requiredPermission)) {
+    if (permissoes.includes(requiredPermission)) {
       next(); // Usuário tem a permissão, pode continuar.
     } else {
       // Usuário não tem a permissão, acesso negado.
