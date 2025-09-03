@@ -957,6 +957,21 @@ const gerarLinkPagamento = async (req, res) => {
     }
 };
 
+const enviarCobranca = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { desconto = 0 } = req.body; // Desconto é opcional, padrão 0.
+        const { contaId } = req.user;
+
+        const result = await orcamentoService.enviarCobrancaComDesconto(contaId, id, desconto);
+
+        res.status(200).json(result);
+    } catch (error) {
+        // O serviço já lança erros com status codes apropriados
+        res.status(error.statusCode || 500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     orcamentoValidationRules,
     getAllOrcamentos,
@@ -988,4 +1003,5 @@ module.exports = {
     removeCustoMaterial,
     removerMaterialDoPedido,
     gerarLinkPagamento,
+    enviarCobranca,
 };
