@@ -10,35 +10,46 @@ const oauth2Client = new google.auth.OAuth2(
   `${process.env.API_URL}/configuracoes/google/callback`
 );
 
-// Função para obter a configuração atual (ou criar uma se não existir)
+// Função para obter a configuração da conta do usuário
 exports.getConfiguracao = async (req, res) => {
     try {
-        const configFromDb = await Configuracao.obterConfiguracao();
+        const { contaId } = req.user; // O middleware de autenticação nos dá o usuário
 
+        let config = await Configuracao.findOne({ contaId });
+
+        // Se não existir configuração para esta conta, cria uma nova
+        if (!config) {
+            config = await Configuracao.create({ contaId });
+        }
+        
         // Converte para um objeto simples para podermos adicionar propriedades
-        const config = configFromDb.toObject ? configFromDb.toObject() : {};
+        const configObject = config.toObject();
 
         // Adiciona a chave da API do Google Maps do ambiente
-        config.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+        configObject.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-        res.status(200).json(config);
+        res.status(200).json(configObject);
     } catch (error) {
         console.error("Erro ao obter a configuração:", error);
         res.status(500).json({ message: "Ocorreu um erro ao buscar as configurações." });
     }
 };
 
-// Função para atualizar a configuração
+// Função para atualizar a configuração da conta do usuário
 exports.updateConfiguracao = async (req, res) => {
     try {
-        // Usamos findOneAndUpdate com a opção { new: true, upsert: true }
-        // `upsert: true` garante que se não houver um documento de configuração, ele será criado.
-        // `new: true` garante que a resposta devolva o documento atualizado.
-        const configAtualizada = await Configuracao.findOneAndUpdate({}, req.body, {
-            new: true,
-            upsert: true,
-            runValidators: true,
-        });
+        const { contaId } = req.user;
+        // Encontra e atualiza a configuração específica da conta.
+        // O `upsert` garante que se não existir, será criada com o contaId correto.
+        const configAtualizada = await Configuracao.findOneAndUpdate(
+            { contaId }, 
+            req.body, 
+            {
+                new: true,
+                upsert: true,
+                runValidators: true,
+            }
+        );
         res.status(200).json(configAtualizada);
     } catch (error) {
         console.error("Erro ao atualizar a configuração:", error);
@@ -53,10 +64,12 @@ exports.connectGoogleCalendar = (req, res) => {
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/userinfo.email'
     ];
+    const state = JSON.stringify({ contaId: req.user.contaId });
     const url = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: scopes,
-        prompt: 'consent' // Força o ecrã de consentimento
+        prompt: 'consent', // Força o ecrã de consentimento
+        state: state
     });
     res.redirect(url);
 };
@@ -72,8 +85,11 @@ exports.handleGoogleCallback = async (req, res) => {
         const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
         const { data } = await oauth2.userinfo.get();
 
+        // O `state` que definimos no `connect` continha o contaId
+        const { contaId } = JSON.parse(req.query.state);
+
         // Atualiza o documento de configuração com os tokens e o estado
-        await Configuracao.findOneAndUpdate({}, {
+        await Configuracao.findOneAndUpdate({ contaId }, {
             googleCalendarConnected: true,
             googleCalendarEmail: data.email,
             googleTokens: tokens
@@ -91,7 +107,8 @@ exports.handleGoogleCallback = async (req, res) => {
 // Desconecta a conta do Google Calendar
 exports.disconnectGoogleCalendar = async (req, res) => {
     try {
-        await Configuracao.findOneAndUpdate({}, {
+        const { contaId } = req.user;
+        await Configuracao.findOneAndUpdate({ contaId }, {
             googleCalendarConnected: false,
             googleCalendarEmail: '',
             googleTokens: {} // Limpa os tokens
