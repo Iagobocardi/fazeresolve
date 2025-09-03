@@ -1,6 +1,4 @@
 const Cliente = require('../models/cliente.model');
-const Usuario = require('../models/usuario.model');
-const Conta = require('../models/conta.model');
 
 /**
  * Controller para atualizar as configurações de pagamento de um prestador.
@@ -87,11 +85,7 @@ const handleMercadoPagoCallback = async (req, res) => {
         // Se o usuário negar a permissão, o MP redireciona com um parâmetro 'error'
         if (error) {
             console.warn(`[OAuth] O usuário negou a permissão no Mercado Pago. Erro: ${error}`);
-            // Em vez de redirecionar, enviamos uma resposta que o frontend pode usar para redirecionar
-            return res.status(400).json({ 
-                message: 'A permissão foi negada.',
-                redirectUrl: `${process.env.FRONTEND_URL}/settings?connect=denied`
-            });
+            return res.redirect(`${process.env.FRONTEND_URL}/settings?connect=denied`);
         }
 
         if (!code) {
@@ -128,17 +122,11 @@ const handleMercadoPagoCallback = async (req, res) => {
 
         console.log(`[INFO] Credenciais do Mercado Pago salvas para o prestador ${providerId}`);
 
-        res.status(200).json({
-            message: 'Conexão com Mercado Pago bem-sucedida!',
-            redirectUrl: `${process.env.FRONTEND_URL}/settings?connect=success`
-        });
+        res.redirect(`${process.env.FRONTEND_URL}/settings?connect=success`);
 
     } catch (error) {
         console.error('Erro ao trocar código por tokens do Mercado Pago:', error.response?.data || error.message);
-        res.status(500).json({
-            message: 'Erro ao conectar com o Mercado Pago.',
-            redirectUrl: `${process.env.FRONTEND_URL}/settings?connect=error`
-        });
+        res.redirect(`${process.env.FRONTEND_URL}/settings?connect=error`);
     }
 };
 
@@ -169,31 +157,10 @@ const updateCompanyInfo = async (req, res) => {
     }
 };
 
-const getProviderDashboard = async (req, res) => {
-    try {
-        // The auth middleware gives us the user, but we re-fetch to be sure we have the latest data
-        const user = await Usuario.findById(req.user.id);
-
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-
-        // We specifically need the account info as well for the frontend
-        const conta = await Conta.findById(user.contaId);
-
-        res.status(200).json({ user, conta, userType: 'provider' });
-
-    } catch (error) {
-        console.error('Erro ao buscar dados do dashboard do prestador:', error);
-        res.status(500).json({ message: 'Erro interno no servidor.' });
-    }
-};
-
 module.exports = {
     getPaymentSettings,
     updatePaymentSettings,
     connectMercadoPago,
     handleMercadoPagoCallback,
     updateCompanyInfo,
-    getProviderDashboard,
 };
