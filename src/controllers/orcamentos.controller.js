@@ -960,10 +960,12 @@ const gerarLinkPagamento = async (req, res) => {
 const enviarCobranca = async (req, res) => {
     try {
         const { id } = req.params;
-        const { desconto = 0 } = req.body; // Desconto é opcional, padrão 0.
+        // Agora esperamos também o templateId no corpo da requisição
+        const { desconto = 0, templateId } = req.body; 
         const { contaId } = req.user;
 
-        const result = await orcamentoService.enviarCobrancaComDesconto(contaId, id, desconto);
+        // Passamos o templateId para a função de serviço
+        const result = await orcamentoService.enviarCobrancaComDesconto(contaId, id, desconto, templateId);
 
         res.status(200).json(result);
     } catch (error) {
