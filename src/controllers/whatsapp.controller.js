@@ -78,8 +78,24 @@ const renderTemplate = async (req, res) => {
 };
 
 
+const getAvailableVariables = (req, res) => {
+    const variables = [
+        { key: '{{cliente.nome}}', description: 'Nome do cliente' },
+        { key: '{{orcamento.shortId}}', description: 'ID curto do pedido' },
+        { key: '{{orcamento.descricao}}', description: 'Descrição do serviço' },
+        { key: '{{orcamento.valorProposto}}', description: 'Valor total do orçamento' },
+        { key: '{{orcamento.valorPendente}}', description: 'Valor pendente de pagamento' },
+        { key: '{{orcamento.dataAgendamento}}', description: 'Data do agendamento' },
+        { key: '{{desconto}}', description: 'Percentagem de desconto aplicada' },
+        { key: '{{valorComDesconto}}', description: 'Valor final com desconto' },
+        { key: '{{linkPagamento}}', description: 'Link de pagamento (gerado na hora)' },
+    ];
+    res.status(200).json(variables);
+};
+
 module.exports = {
     handleWhatsAppWebhook,
+    getAvailableVariables,
     getAllTemplates,
     createTemplate,
     updateTemplate,
