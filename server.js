@@ -11,7 +11,6 @@ console.log('====================================');
 
 // PASSO 2: Importações essenciais
 const express = require('express');
-// const cors = require('cors'); // <-- Removido para usar middleware customizado
 const session = require('express-session');
 const path = require('path');
 const connectDB = require('./src/config/database');
@@ -61,7 +60,9 @@ connectDB();
 
 // PASSO 5: Middlewares Essenciais
 
-// Middleware de CORS customizado para evitar conflitos
+const cors = require('cors');
+
+// Configuração de CORS usando o pacote padrão
 const allowedOrigins = [
     'http://localhost:3000',
     'https://app.fazeresolve.com',
@@ -71,22 +72,21 @@ if (process.env.APP_URL) {
     allowedOrigins.push(process.env.APP_URL);
 }
 
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', true);
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Permite requisições sem 'origin' (como apps mobile ou Postman)
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+};
 
-    // Lida com a requisição de pre-flight
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(204);
-    }
-
-    next();
-});
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
