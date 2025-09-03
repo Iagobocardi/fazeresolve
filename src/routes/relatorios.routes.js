@@ -8,7 +8,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
+router.use(roleMiddleware(['Dono', 'ADMIN']));
 
 // Define as rotas, cada uma apontando para uma função exportada do controller
 router.get('/servicos/pdf', relatoriosController.gerarRelatorioServicosPDF);
