@@ -97,6 +97,26 @@ const getAvailableVariables = (req, res) => {
     res.status(200).json(variables);
 };
 
+const renderPreview = async (req, res) => {
+    try {
+        const { mensagem, orcamentoId } = req.body;
+        const { contaId } = req.user;
+
+        if (!mensagem || !orcamentoId) {
+            return res.status(400).json({ message: 'Os campos "mensagem" e "orcamentoId" são obrigatórios.' });
+        }
+
+        const mensagemRenderizada = await whatsappService.renderPreview(mensagem, orcamentoId, contaId);
+        res.status(200).json({ preview: mensagemRenderizada });
+
+    } catch (error) {
+        if (error.name === 'NotFoundError') {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(500).json({ message: 'Erro ao renderizar o preview.', error: error.message });
+    }
+};
+
 module.exports = {
     handleWhatsAppWebhook,
     getAvailableVariables,
@@ -104,5 +124,6 @@ module.exports = {
     createTemplate,
     updateTemplate,
     deleteTemplate,
-    renderTemplate
+    renderTemplate,
+    renderPreview
 };
