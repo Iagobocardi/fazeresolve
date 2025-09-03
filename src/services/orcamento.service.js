@@ -157,7 +157,8 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
 
     // --- LÓGICA DE NOTIFICAÇÃO ATUALIZADA ---
     if (orcamento.cliente && orcamento.cliente.telefone) {
-        const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', orcamentoSalvo);
+        const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
+        const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', templateData);
         
         if (mensagemRenderizada) {
             await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
@@ -223,7 +224,8 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
     const orcamentoSalvo = await orcamento.save();
 
     if (orcamento.cliente && orcamento.cliente.telefone) {
-        const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', orcamentoSalvo);
+        const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
+        const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
         if (mensagemRenderizada) {
             await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
         }
@@ -349,6 +351,74 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
 };
 
 // Exportamos a função para que os controllers possam usá-la
+const enviarCobrancaComDesconto = async (contaId, orcamentoId, desconto) => {
+    // 1. Validação de entrada
+    const descontoNum = Number(desconto);
+    if (isNaN(descontoNum) || descontoNum < 0 || descontoNum > 100) {
+        throw new BusinessLogicError('A percentagem de desconto deve ser um número entre 0 e 100.');
+    }
+
+    // 2. Busca dos dados necessários
+    const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente');
+    if (!orcamento) {
+        throw new NotFoundError('Orçamento não encontrado ou não pertence a esta conta.');
+    }
+    if (!orcamento.cliente) {
+        throw new NotFoundError('Cliente associado ao orçamento não encontrado.');
+    }
+    const conta = await Conta.findById(contaId);
+    if (!conta || conta.metodoRecebimento !== 'MERCADOPAGO' || !conta.credenciaisMercadoPago) {
+        throw new BusinessLogicError('O método de recebimento não está configurado corretamente como Mercado Pago.');
+    }
+
+    // 3. Cálculo do novo valor
+    const valorOriginal = orcamento.valorProposto;
+    if (valorOriginal <= 0) {
+        throw new BusinessLogicError('O orçamento não tem um valor proposto para aplicar desconto.');
+    }
+    const valorComDesconto = valorOriginal * (1 - (descontoNum / 100));
+
+    // 4. Geração do link de pagamento do Mercado Pago para o valor com desconto
+    const client = new MercadoPagoConfig({ accessToken: conta.credenciaisMercadoPago.accessToken });
+    const preference = new Preference(client);
+    const preferencePayload = {
+        items: [{
+            id: orcamento._id.toString(),
+            title: `Pagamento com desconto para o pedido #${orcamento.shortId}`,
+            description: orcamento.descricao,
+            quantity: 1,
+            unit_price: valorComDesconto,
+            currency_id: 'BRL',
+        }],
+        payer: { name: orcamento.cliente.nome, email: orcamento.cliente.email },
+        back_urls: { success: `${process.env.FRONTEND_URL}/payment-success` },
+        external_reference: orcamentoId,
+    };
+    const result = await preference.create({ body: preferencePayload });
+    const novoLinkPagamento = result.init_point;
+
+    // 5. Renderizar o template de WhatsApp
+    const templateData = {
+        ...orcamento.toObject(),
+        valorComDesconto: valorComDesconto.toFixed(2),
+        desconto: `${descontoNum}%`,
+        linkPagamento: novoLinkPagamento
+    };
+    const mensagem = await whatsappService.renderTemplate('Cobranca com Desconto', templateData);
+    if (!mensagem) {
+        throw new Error('Não foi possível renderizar o template de mensagem "Cobranca com Desconto". Verifique se ele existe.');
+    }
+
+    // 6. Enviar a mensagem via WhatsApp
+    await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagem);
+
+    // 7. Salvar o histórico
+    orcamento.historico.push({ evento: `Enviada cobrança com ${descontoNum}% de desconto via WhatsApp.` });
+    await orcamento.save();
+
+    return { success: true, message: 'Mensagem de cobrança enviada com sucesso!' };
+};
+
 module.exports = {
     agendarServico,
     atualizarStatus,
@@ -357,4 +427,5 @@ module.exports = {
     adicionarMaterial,
     removerMaterial,
     gerarLinkPagamentoMercadoPago,
+    enviarCobrancaComDesconto,
 };
