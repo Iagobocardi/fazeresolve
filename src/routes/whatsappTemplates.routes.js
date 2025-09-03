@@ -10,6 +10,9 @@ const roleMiddleware = require('../middlewares/role.middleware');
 router.use(authMiddleware);
 router.use(roleMiddleware(['Dono', 'ADMIN']));
 
+// Rota para obter as variáveis de template disponíveis
+router.get('/variables', whatsappController.getAvailableVariables);
+
 router.get('/', whatsappController.getAllTemplates);
 router.get('/render/:templateId/:orcamentoId', whatsappController.renderTemplate);
 
