@@ -117,13 +117,20 @@ const register = async (req, res) => {
         });
         await novaConta.save();
 
+        // Define as permissões padrão para o Dono da conta
+        const defaultPermissions = [
+            'ver_dashboard', 'ver_agenda', 'editar_agenda', 'ver_clientes', 
+            'editar_clientes', 'ver_orcamentos', 'editar_orcamentos', 'ver_financeiro'
+        ];
+
         // 2. Cria o novo Usuário, associado à conta
         const novoUsuario = new Usuario({
             nome,
             email,
             password, // O pre-save hook no modelo irá encriptar
             contaId: novaConta._id, // Associa o usuário à nova conta
-            role: 'Dono' // O primeiro usuário é sempre o Dono
+            role: 'Dono', // O primeiro usuário é sempre o Dono
+            permissoes: defaultPermissions // Atribui as permissões padrão
         });
         await novoUsuario.save();
         console.log('[Registro] Usuário criado com ID:', novoUsuario._id); // <-- LOG DE DIAGNÓSTICO
