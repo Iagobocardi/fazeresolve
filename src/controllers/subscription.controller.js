@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const subscriptionService = require('../services/subscription.service.js');
 const Cliente = require('../models/cliente.model.js');
+const Usuario = require('../models/usuario.model.js');
 
 /**
  * Controller para criar um novo plano de assinatura.
@@ -60,13 +61,22 @@ const handleSubscribe = async (req, res) => {
         const payload = { id: usuario._id }; // Payload minimalista
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-        const userToReturn = usuario.toObject();
-        delete userToReturn.password;
+        // Re-fetch the user to ensure we have all fields, including permissions
+        const finalUser = await Usuario.findById(usuario._id);
 
         res.status(201).json({
             message: 'Assinatura criada com sucesso!',
             token,
-            usuario: userToReturn,
+            userType: 'provider', // Adiciona o sinalizador para o frontend
+            usuario: {
+                id: finalUser._id,
+                nome: finalUser.nome,
+                email: finalUser.email,
+                role: finalUser.role,
+                plano: conta.plano,
+                statusAssinatura: conta.statusAssinatura,
+                permissoes: finalUser.permissoes
+            },
             conta: conta
         });
 
