@@ -8,7 +8,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Aplica o middleware de autenticação e verificação de função a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
+router.use(roleMiddleware(['Dono', 'ADMIN']));
 
 // Rota para listar todos os fornecedores
 // GET /api/fornecedores
