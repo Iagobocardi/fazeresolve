@@ -4,8 +4,13 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const configuracaoSchema = new Schema({
-    // No futuro, isto pode ser associado a um utilizador específico
-    // user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    // A configuração agora está diretamente ligada a uma Conta
+    contaId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        unique: true, // Cada conta tem uma única configuração
+    },
 
     // Dados da Empresa
     nomeEmpresa: { type: String, trim: true },
@@ -68,16 +73,6 @@ const configuracaoSchema = new Schema({
 }, {
     timestamps: true
 });
-
-// Criamos um método estático para obter a configuração (ou criar uma, se não existir)
-// Isto garante que temos sempre um único documento de configuração para trabalhar
-configuracaoSchema.statics.obterConfiguracao = async function() {
-    let config = await this.findOne();
-    if (!config) {
-        config = await this.create({});
-    }
-    return config;
-};
 
 const Configuracao = mongoose.model('Configuracao', configuracaoSchema);
 
