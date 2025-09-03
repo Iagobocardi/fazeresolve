@@ -4,59 +4,58 @@ const express = require('express');
 const router = express.Router();
 const orcamentosController = require('../controllers/orcamentos.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
-const roleMiddleware = require('../middlewares/role.middleware');
+const checkPermission = require('../middlewares/checkPermission.middleware');
 
-// Aplica o middleware de autenticação e verificação de função a todas as rotas
+// Aplica o middleware de autenticação a todas as rotas
 router.use(authMiddleware);
-router.use(roleMiddleware(['Dono', 'ADMIN']));
 const { orcamentoValidationRules } = require('../controllers/orcamentos.controller');
 const { validate } = require('../middlewares/validation.middleware');
 const upload = require('../config/multer.config.js');
 
 // Rotas mais específicas primeiro
-router.get('/recentes', orcamentosController.getRecentOrcamentos);
-router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao);
-router.get('/agendados', orcamentosController.getAgendamentosParaCalendario);
-router.post('/:id/upload-foto', upload.single('foto'), orcamentosController.uploadFotoServico);
-router.get('/:id/fatura-pdf', orcamentosController.gerarFaturaPDF);
-router.get('/:id/orcamento-pdf', orcamentosController.gerarOrcamentoPDF);
-router.get('/por-cliente/:clienteId', orcamentosController.getPedidosPorCliente);
+router.get('/recentes', checkPermission('ver_orcamentos'), orcamentosController.getRecentOrcamentos);
+router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao); // Rota pública, sem verificação de permissão
+router.get('/agendados', checkPermission('ver_agenda'), orcamentosController.getAgendamentosParaCalendario); // Requer permissão de agenda
+router.post('/:id/upload-foto', checkPermission('editar_orcamentos'), upload.single('foto'), orcamentosController.uploadFotoServico);
+router.get('/:id/fatura-pdf', checkPermission('ver_orcamentos'), orcamentosController.gerarFaturaPDF);
+router.get('/:id/orcamento-pdf', checkPermission('ver_orcamentos'), orcamentosController.gerarOrcamentoPDF);
+router.get('/por-cliente/:clienteId', checkPermission('ver_clientes'), orcamentosController.getPedidosPorCliente); // Requer permissão de clientes
 // --------------------------------
 // ROTA para atualizar apenas o status
-router.patch('/:id/status', orcamentosController.updateOrcamentoStatus);
-router.patch('/:id/submit', orcamentosController.submitOrcamento);
-router.patch('/:id/schedule', orcamentosController.scheduleOrcamento);
-router.patch('/:id/notas', orcamentosController.updateNotasInternas);
-router.patch('/:id/pagamento', orcamentosController.updateStatusPagamento);
+router.patch('/:id/status', checkPermission('editar_orcamentos'), orcamentosController.updateOrcamentoStatus);
+router.patch('/:id/submit', checkPermission('editar_orcamentos'), orcamentosController.submitOrcamento);
+router.patch('/:id/schedule', checkPermission('editar_agenda'), orcamentosController.scheduleOrcamento); // Requer permissão de agenda
+router.patch('/:id/notas', checkPermission('editar_orcamentos'), orcamentosController.updateNotasInternas);
+router.patch('/:id/pagamento', checkPermission('editar_orcamentos'), orcamentosController.updateStatusPagamento);
 
 // Rotas para as novas funcionalidades que criámos
-router.patch('/:id/operacional', orcamentosController.updateDetalhesOperacionais);
-router.post('/:id/custos', orcamentosController.addCustoMaterial);
+router.patch('/:id/operacional', checkPermission('editar_orcamentos'), orcamentosController.updateDetalhesOperacionais);
+router.post('/:id/custos', checkPermission('editar_orcamentos'), orcamentosController.addCustoMaterial);
 
 // --- ADICIONE A NOVA ROTA AQUI ---
-router.post('/:pedidoId/sugerir-preco', orcamentosController.calcularPrecoSugerido);
+router.post('/:pedidoId/sugerir-preco', checkPermission('editar_orcamentos'), orcamentosController.calcularPrecoSugerido);
 
 // Rota para ADICIONAR um novo pagamento a um orçamento
-router.post('/:id/pagamentos', orcamentosController.adicionarPagamento);
+router.post('/:id/pagamentos', checkPermission('editar_orcamentos'), orcamentosController.adicionarPagamento);
 // Rota para REMOVER um pagamento de um orçamento
-router.delete('/:id/pagamentos/:pagamentoId', orcamentosController.removerPagamento);
+router.delete('/:id/pagamentos/:pagamentoId', checkPermission('editar_orcamentos'), orcamentosController.removerPagamento);
 
 // Rota para gerar um link de pagamento do Mercado Pago para um orçamento
-router.post('/:id/gerar-link-pagamento', orcamentosController.gerarLinkPagamento);
+router.post('/:id/gerar-link-pagamento', checkPermission('editar_orcamentos'), orcamentosController.gerarLinkPagamento);
 
 // Rotas genéricas depois
-router.get('/', orcamentosController.getAllOrcamentos);
-router.get('/:id', orcamentosController.getOrcamentoById);
-router.post('/', orcamentoValidationRules(), validate, orcamentosController.createOrcamento);
-router.put('/:id', orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
-router.delete('/:id', orcamentosController.deleteOrcamento);
-router.post('/:orcamentoId/materiais', orcamentosController.adicionarMaterialAoPedido);
-router.delete('/:orcamentoId/materiais/:materialUsadoId', orcamentosController.removerMaterialDoPedido);
+router.get('/', checkPermission('ver_orcamentos'), orcamentosController.getAllOrcamentos);
+router.get('/:id', checkPermission('ver_orcamentos'), orcamentosController.getOrcamentoById);
+router.post('/', checkPermission('editar_orcamentos'), orcamentoValidationRules(), validate, orcamentosController.createOrcamento);
+router.put('/:id', checkPermission('editar_orcamentos'), orcamentoValidationRules(), validate, orcamentosController.updateOrcamento);
+router.delete('/:id', checkPermission('editar_orcamentos'), orcamentosController.deleteOrcamento);
+router.post('/:orcamentoId/materiais', checkPermission('editar_orcamentos'), orcamentosController.adicionarMaterialAoPedido);
+router.delete('/:orcamentoId/materiais/:materialUsadoId', checkPermission('editar_orcamentos'), orcamentosController.removerMaterialDoPedido);
 //  Rota para a ação rápida de marcar como pago
-router.post('/:id/marcar-pago', orcamentosController.marcarComoPago);
+router.post('/:id/marcar-pago', checkPermission('editar_orcamentos'), orcamentosController.marcarComoPago);
 
-router.patch('/:id/attach-invoice', orcamentosController.attachInvoice);
+router.patch('/:id/attach-invoice', checkPermission('editar_orcamentos'), orcamentosController.attachInvoice);
 
-router.delete('/:orcamentoId/custos/:custoId', orcamentosController.removeCustoMaterial);
+router.delete('/:orcamentoId/custos/:custoId', checkPermission('editar_orcamentos'), orcamentosController.removeCustoMaterial);
 
 module.exports = router;
