@@ -8,6 +8,7 @@ const chrono = require('chrono-node');
 const axios = require('axios');
 const Conversa = require('../models/conversa.model');
 const WhatsappTemplate = require('../models/whatsappTemplate.model.js');
+const Conta = require('../models/conta.model.js');
 
 
 /**
@@ -173,12 +174,20 @@ const handleCheckOrderStatus = async (user) => {
 // FUNÇÃO 4: Lidar com TODAS as mensagens que chegam do webhook
 // =======================================================
 const handleIncomingMessage = async (req) => {
-
-     const prestadorPhone = process.env.PRESTADOR_TELEFONE;
-
     try {
-        const { From, ProfileName, Body, NumMedia, ButtonPayload } = req.body;
-        if (!From) { return console.log("Requisição ignorada por não conter remetente 'From'."); }
+        const { From, ProfileName, Body, NumMedia, ButtonPayload, To } = req.body;
+        if (!From || !To) { return console.log("Requisição ignorada por não conter remetente 'From' ou destinatário 'To'."); }
+
+        // 1. Identificar a conta do prestador pelo número que recebeu a mensagem
+        const twilioDestinatario = To.replace('whatsapp:', '');
+        const conta = await Conta.findOne({ "configuracoes.twilio.numero": twilioDestinatario });
+
+        if (!conta) {
+            console.error(`[SERVICE] Nenhuma conta encontrada para o número Twilio: ${twilioDestinatario}. Mensagem ignorada.`);
+            return;
+        }
+        const contaId = conta._id;
+        const prestadorPhone = conta.telefone; // Usar o telefone da conta para notificações
 
         const senderPhone = From.replace('whatsapp:', '');
         const messageBody = Body || '';
@@ -188,140 +197,73 @@ const handleIncomingMessage = async (req) => {
                 mediaUrls.push(req.body[`MediaUrl${i}`]);
             }
         }
-         const interactiveReplyId = Body || ButtonPayload;
+        const interactiveReplyId = Body || ButtonPayload;
 
-
-        // ETAPA 1: Processar respostas de botões/listas primeiro
-         if (interactiveReplyId && interactiveReplyId.startsWith('rating_')) {
-            console.log(`[SERVICE] Recebida avaliação via interactiveReplyId: ${interactiveReplyId}`);
-            const parts = interactiveReplyId.split('_'); // Usamos a variável unificada
+        // ETAPA 1: Processar respostas de botões/listas primeiro (sem alterações necessárias aqui)
+        if (interactiveReplyId && interactiveReplyId.startsWith('rating_')) {
+            const parts = interactiveReplyId.split('_');
             const nota = parseInt(parts[1], 10);
             const orcamentoId = parts[2];
-
-            // O resto da sua lógica de salvar a nota continua exatamente igual...
-            const orcamento = await Orcamento.findById(orcamentoId);
+            const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }); // Adicionado contaId
             if (orcamento && !orcamento.notaSatisfacao) {
                 orcamento.notaSatisfacao = nota;
                 orcamento.historico.push({ evento: `Cliente avaliou o serviço com nota ${nota}.` });
                 await orcamento.save();
                 await sendWhatsAppMessage(senderPhone, 'Obrigado pelo seu feedback! 👍');
-            } else if (orcamento && orcamento.notaSatisfacao) {
-                // Opcional: Responder se o cliente tentar avaliar de novo
-                await sendWhatsAppMessage(senderPhone, 'Este pedido já foi avaliado. Agradecemos novamente!');
             }
-            return; // Importante para não continuar para a lógica de conversa
+            return;
         }
 
+        // ETAPA 2: Lógica de conversa normal, AGORA COM CONTAID
+        let user = await Cliente.findOne({ telefone: senderPhone, contaId: contaId });
 
-        // ETAPA 2: Lógica de conversa normal
-        let user = await Cliente.findOne({ telefone: senderPhone });
+        if (!user) {
+            const clienteNome = ProfileName || `Cliente ${senderPhone.slice(-4)}`;
+            const isPrestador = (senderPhone.replace(/\D/g, '') === prestadorPhone.replace(/\D/g, ''));
 
-       if (!user) {
-    const clienteNome = ProfileName || `Cliente ${senderPhone.slice(-4)}`;
-
-    // ==========================================================
-    // ==> LÓGICA DE COMPARAÇÃO FINAL E À PROVA DE FALHAS <==
-    // ==========================================================
-    // Limpa tudo o que não for um dígito numérico de ambos os números
-    const numeroLimpoDoWhatsapp = senderPhone.replace(/\D/g, '');
-    const numeroLimpoDoEnv = process.env.PRESTADOR_TELEFONE.replace(/\D/g, '');
-
-    console.log('--- VERIFICAÇÃO FINAL ---');
-    console.log(`Número Limpo do WhatsApp: |${numeroLimpoDoWhatsapp}|`);
-    console.log(`Número Limpo do .env:     |${numeroLimpoDoEnv}|`);
-
-    const isPrestador = (numeroLimpoDoWhatsapp === numeroLimpoDoEnv);
-    console.log('São iguais?', isPrestador);
-    console.log('---------------------------');
-if (user && user.role === 'CLIENTE_FINAL' && user.conversationState === 'AWAITING_RATING') {
-    const textoAvaliacao = (Body || '').trim();
-    let nota = null;
-
-    // Lógica inteligente para "entender" a nota do cliente
-    if (textoAvaliacao.includes('⭐⭐⭐⭐⭐') || textoAvaliacao.match(/\b5\b/)) nota = 5;
-    else if (textoAvaliacao.includes('⭐⭐⭐⭐') || textoAvaliacao.match(/\b4\b/)) nota = 4;
-    else if (textoAvaliacao.includes('⭐⭐⭐') || textoAvaliacao.match(/\b3\b/)) nota = 3;
-    else if (textoAvaliacao.includes('⭐⭐') || textoAvaliacao.match(/\b2\b/)) nota = 2;
-    else if (textoAvaliacao.includes('⭐') || textoAvaliacao.match(/\b1\b/)) nota = 1;
-
-    if (nota !== null && user.pendingRating && user.pendingRating.orcamentoId) {
-        // Encontrámos a nota E sabemos qual pedido avaliar!
-        const orcamentoId = user.pendingRating.orcamentoId;
-        const orcamento = await Orcamento.findById(orcamentoId);
-
-        if (orcamento) {
-            orcamento.notaSatisfacao = nota;
-            orcamento.historico.push({ evento: `Cliente avaliou o serviço com nota ${nota} via WhatsApp.` });
-            await orcamento.save();
-            await sendWhatsAppMessage(senderPhone, 'Obrigado pelo seu feedback! 👍');
+            if (isPrestador) {
+                // A lógica para o prestador pode ser simplificada ou removida se não for usada.
+                // Se mantida, também precisa do contaId.
+                console.log(`[SERVICE] Número ${senderPhone} identificado como PRESTADOR da conta ${contaId}.`);
+                // Não vamos criar um "cliente" para o prestador aqui para evitar confusão.
+                await sendWhatsAppMessage(senderPhone, "Modo de comando ativado. Para ver a lista de comandos, envie 'ajuda'.");
+            } else {
+                console.log(`[SERVICE] Criando novo cliente para o número: ${senderPhone} na conta ${contaId}`);
+                user = new Cliente({
+                    nome: clienteNome,
+                    telefone: senderPhone,
+                    contaId: contaId, // **FIX APLICADO**
+                    conversationState: 'AWAITING_REQUEST_TYPE'
+                });
+                await user.save();
+                const welcomeMessage = `Olá, ${clienteNome}! Bem-vindo(a) ao Faz&Resolve.\n\nComo podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente\n\n(A qualquer momento, envie *voltar* para ir ao passo anterior).`;
+                await sendWhatsAppMessage(senderPhone, welcomeMessage);
+            }
+            return;
         }
 
-        // Limpa o estado e volta a conversa ao normal
-        user.conversationState = 'AWAITING_REQUEST_TYPE';
-        user.pendingRating = {};
-        await user.save();
-
-    } else {
-        // Não entendeu a nota, pede para tentar de novo
-        await sendWhatsAppMessage(senderPhone, 'Não entendi a sua avaliação. Por favor, escolha uma das opções da lista ou envie um número de 1 a 5.');
-    }
-
-    return; // ESSENCIAL: Interrompe o resto da execução para não enviar o menu principal
-}
-
-    if (isPrestador) {
-        console.log(`[SERVICE] Número ${senderPhone} identificado como PRESTADOR.`);
-        user = new Cliente({
-            nome: "Prestador Principal",
-            telefone: senderPhone,
-            role: 'PRESTADOR',
-            conversationState: 'NONE'
-        });
-        await user.save();
-        await sendWhatsAppMessage(senderPhone, "Modo de comando ativado. Para ver a lista de comandos, envie 'ajuda'.");
-    } else {
-        console.log(`[SERVICE] Criando novo cliente para o número: ${senderPhone}`);
-        user = new Cliente({
-            nome: clienteNome,
-            telefone: senderPhone,
-            role: 'CLIENTE_FINAL',
-            conversationState: 'AWAITING_REQUEST_TYPE'
-        });
-        await user.save();
-        const welcomeMessage = `Olá, ${clienteNome}! Bem-vindo(a) ao Faz&Resolve.\n\nComo podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente\n\n(A qualquer momento, envie *voltar* para ir ao passo anterior).`;
-        await sendWhatsAppMessage(senderPhone, welcomeMessage);
-    }
-    return; // Encerra a execução aqui, pois o resto do fluxo é para mensagens seguintes.
-}
-
-        if (user.role === 'PRESTADOR') {
+        if (user.role === 'PRESTADOR') { // Esta lógica pode precisar de revisão
             const responseMessage = await commandParser.parseAndExecute(messageBody, user, sendWhatsAppMessage);
             if (responseMessage) { await sendWhatsAppMessage(user.telefone, responseMessage); }
         } else { // Role: 'CLIENTE_FINAL'
-              // Lógica para guardar a mensagem na conversa
-    if (messageBody || mediaUrls.length > 0) {
-        const conversa = await Conversa.findOneAndUpdate(
-            { cliente: user._id }, // Encontra a conversa pelo ID do cliente
-            {
-                $push: {
-                    mensagens: {
-                        remetente: 'cliente',
-                        texto: messageBody,
-                        // Pega apenas a primeira imagem, se houver
-                        mediaUrl: mediaUrls.length > 0 ? mediaUrls[0] : undefined
-                    }
-                },
-                lidaPeloPrestador: false // Marca como não lida
-            },
-            {
-                upsert: true, // Se a conversa não existir, cria uma nova
-                new: true,
-                // Assumindo que você tem o ID do prestador. No seu código atual, ele parece ser global.
-                // Se não, você precisará encontrá-lo primeiro.
-                // setOnInsert: { prestador: ID_DO_PRESTADOR_AQUI }
+            // Lógica para guardar a mensagem na conversa **COM CONTAID**
+            if (messageBody || mediaUrls.length > 0) {
+                await Conversa.findOneAndUpdate(
+                    { cliente: user._id, contaId: contaId }, // **FIX APLICADO**
+                    {
+                        $push: {
+                            mensagens: {
+                                remetente: 'cliente',
+                                texto: messageBody,
+                                mediaUrl: mediaUrls.length > 0 ? mediaUrls[0] : undefined
+                            }
+                        },
+                        lidaPeloPrestador: false,
+                        $setOnInsert: { contaId: contaId, cliente: user._id } // **FIX APLICADO**
+                    },
+                    { upsert: true, new: true }
+                );
             }
-        );
-    }
             const clientCommand = messageBody.toLowerCase().trim();
             if (clientCommand === 'voltar') {
                 let previousState = 'AWAITING_REQUEST_TYPE';
