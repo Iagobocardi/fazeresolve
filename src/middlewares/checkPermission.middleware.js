@@ -7,8 +7,13 @@
  */
 const checkPermission = (requiredPermission) => {
   return (req, res, next) => {
+    console.log('--- DEBUG: checkPermission ---');
+    console.log('Required Permission:', requiredPermission);
+    console.log('User Object:', req.user);
+
     // O authMiddleware deve garantir que req.user exista.
     if (!req.user || !req.user.permissions) {
+      console.log('--- DEBUG: REJEITADO - User ou permissions em falta.');
       return res.status(403).json({ message: 'Acesso negado. Informações de permissão em falta.' });
     }
 
