@@ -5,6 +5,7 @@ const router = express.Router();
 const orcamentosController = require('../controllers/orcamentos.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 const checkPermission = require('../middlewares/checkPermission.middleware');
+const checkPlan = require('../middlewares/checkPlan.middleware');
 
 // Aplica o middleware de autenticação a todas as rotas
 router.use(authMiddleware);
@@ -57,5 +58,9 @@ router.post('/:id/marcar-pago', checkPermission('editar_orcamentos'), orcamentos
 router.patch('/:id/attach-invoice', checkPermission('editar_orcamentos'), orcamentosController.attachInvoice);
 
 router.delete('/:orcamentoId/custos/:custoId', checkPermission('editar_orcamentos'), orcamentosController.removeCustoMaterial);
+
+// --- Rota para Automação de Cobrança ---
+router.post('/:id/enviar-cobranca', checkPlan(['Premium']), checkPermission('editar_orcamentos'), orcamentosController.enviarCobranca);
+
 
 module.exports = router;
