@@ -694,6 +694,42 @@ const renderPreview = async (templateString, orcamentoId, contaId) => {
 // =======================================================
 // EXPORTANDO AS FUNÇÕES CORRETAMENTE
 // =======================================================
+const renderTemplateById = async (templateId, contaId, data) => {
+    try {
+        const template = await WhatsappTemplate.findOne({ _id: templateId, contaId });
+        if (!template) {
+            // Lançamos um erro para ser capturado pelo serviço que chamou
+            throw new Error(`Template com ID "${templateId}" não encontrado ou não pertence a esta conta.`);
+        }
+
+        let mensagemRenderizada = template.mensagem;
+
+        // Itera sobre todos os dados fornecidos para substituir os placeholders
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                // Lida com objetos aninhados (ex: cliente.nome)
+                if (typeof value === 'object' && value !== null) {
+                    for (const subKey in value) {
+                        if (Object.prototype.hasOwnProperty.call(value, subKey)) {
+                            const placeholder = new RegExp(`{{${key}.${subKey}}}`, 'g');
+                            mensagemRenderizada = mensagemRenderizada.replace(placeholder, value[subKey]);
+                        }
+                    }
+                } else {
+                    const placeholder = new RegExp(`{{${key}}}`, 'g');
+                    mensagemRenderizada = mensagemRenderizada.replace(placeholder, value);
+                }
+            }
+        }
+        return mensagemRenderizada;
+    } catch (error) {
+        console.error("Erro ao renderizar o template por ID:", error);
+        // Propaga o erro para ser tratado pelo chamador
+        throw error;
+    }
+};
+
 module.exports = {
     handleIncomingMessage,
     sendWhatsAppMessage,
@@ -704,5 +740,6 @@ module.exports = {
     deleteTemplate,
     renderTemplateMessage,
     renderTemplate,
-    renderPreview
+    renderPreview,
+    renderTemplateById
 };
