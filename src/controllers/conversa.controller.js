@@ -2,16 +2,13 @@ const Conversa = require('../models/conversa.model');
 const whatsappService = require('../services/whatsapp.service');
 const Cliente = require('../models/cliente.model');
 
-// Obter todas as conversas de um prestador
+// Obter todas as conversas de uma conta
 const getConversas = async (req, res) => {
     try {
-        if (!req.user || !req.user.id) {
-            return res.status(401).json({ message: 'Não autorizado. Faça o login novamente.' });
-        }
+        // O authMiddleware já garante que req.user e req.user.contaId existem
+        const { contaId } = req.user;
         
-        const prestadorId = req.user.id;
-        
-        const conversas = await Conversa.find({ prestador: prestadorId })
+        const conversas = await Conversa.find({ contaId: contaId })
             .populate('cliente', 'nome telefone')
             .sort({ updatedAt: -1 });
 
@@ -57,4 +54,30 @@ const enviarMensagem = async (req, res) => {
     }
 };
 
-module.exports = { getConversas, enviarMensagem };
+// Obter uma conversa específica por ID
+const getConversaById = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { id } = req.params;
+
+        const conversa = await Conversa.findOne({ _id: id, contaId: contaId })
+            .populate('cliente', 'nome telefone email');
+
+        if (!conversa) {
+            return res.status(404).json({ message: 'Conversa não encontrada ou não pertence a esta conta.' });
+        }
+
+        // Marca a conversa como lida ao ser aberta
+        if (!conversa.lidaPeloPrestador) {
+            conversa.lidaPeloPrestador = true;
+            await conversa.save();
+        }
+
+        res.status(200).json(conversa);
+    } catch (error) {
+        console.error("Erro ao buscar conversa por ID:", error);
+        res.status(500).json({ message: 'Erro ao buscar conversa.' });
+    }
+};
+
+module.exports = { getConversas, getConversaById, enviarMensagem };
