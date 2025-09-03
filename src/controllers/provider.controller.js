@@ -1,5 +1,6 @@
 const Cliente = require('../models/cliente.model');
 const Usuario = require('../models/usuario.model');
+const Conta = require('../models/conta.model');
 
 /**
  * Controller para atualizar as configurações de pagamento de um prestador.
@@ -168,7 +169,7 @@ const getProviderDashboard = async (req, res) => {
         }
 
         // We specifically need the account info as well for the frontend
-        const conta = await require('../models/conta.model').findById(user.contaId);
+        const conta = await Conta.findById(user.contaId);
 
         res.status(200).json({ user, conta });
 
