@@ -171,7 +171,7 @@ const getProviderDashboard = async (req, res) => {
         // We specifically need the account info as well for the frontend
         const conta = await Conta.findById(user.contaId);
 
-        res.status(200).json({ user, conta });
+        res.status(200).json({ user, conta, userType: 'provider' });
 
     } catch (error) {
         console.error('Erro ao buscar dados do dashboard do prestador:', error);
