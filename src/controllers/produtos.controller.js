@@ -6,10 +6,10 @@ const MovimentoEstoque = require('../models/movimentoEstoque.model');
 // Criar um novo produto
 const createProduto = async (req, res) => {
     try {
-        const { nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor } = req.body;
+        const { nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor, estoqueMinimo } = req.body;
         
         // Cria o produto
-        const novoProduto = new Produto({ nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor });
+        const novoProduto = new Produto({ nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor, estoqueMinimo });
         await novoProduto.save();
 
         // Se uma quantidade inicial for informada, regista o primeiro movimento de estoque
@@ -43,8 +43,8 @@ const getAllProdutos = async (req, res) => {
 // Atualizar os detalhes de um produto (NÃO o estoque)
 const updateProduto = async (req, res) => {
     try {
-        // Remove 'quantidadeEmEstoque' do corpo da requisição para evitar atualização direta
-        const { quantidadeEmEstoque, ...updateData } = req.body;
+        // Remove campos que não devem ser atualizados diretamente por esta rota
+        const { quantidadeEmEstoque, alertaEstoqueBaixo, ...updateData } = req.body;
 
         const produto = await Produto.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
         if (!produto) {
