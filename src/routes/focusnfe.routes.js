@@ -7,7 +7,7 @@ const roleMiddleware = require('../middlewares/role.middleware');
 
 // Protege todas as rotas neste arquivo
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR', 'ADMIN']));
+router.use(roleMiddleware(['Dono', 'ADMIN']));
 
 // Rota para salvar e validar o token da Focus NFe
 // POST /api/focusnfe/token
