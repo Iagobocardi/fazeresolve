@@ -19,7 +19,8 @@ const handleWhatsAppWebhook = async (req, res) => {
 
 const getAllTemplates = async (req, res) => {
     try {
-        const templates = await whatsappService.findAllTemplates();
+        const { contaId } = req.user; // Extrai contaId do usuário autenticado
+        const templates = await whatsappService.findAllTemplates(contaId);
         res.status(200).json(templates);
     } catch (error) {
         res.status(500).json({ message: 'Erro ao buscar templates.', error: error.message });
@@ -28,7 +29,8 @@ const getAllTemplates = async (req, res) => {
 
 const createTemplate = async (req, res) => {
     try {
-        const novoTemplate = await whatsappService.createTemplate(req.body);
+        const { contaId } = req.user; // Extrai contaId
+        const novoTemplate = await whatsappService.createTemplate(req.body, contaId);
         res.status(201).json(novoTemplate);
     } catch (error) {
         res.status(400).json({ message: 'Erro ao criar template.', error: error.message });
@@ -38,9 +40,10 @@ const createTemplate = async (req, res) => {
 const updateTemplate = async (req, res) => {
     try {
         const { id } = req.params;
-        const templateAtualizado = await whatsappService.updateTemplate(id, req.body);
+        const { contaId } = req.user; // Extrai contaId
+        const templateAtualizado = await whatsappService.updateTemplate(id, req.body, contaId);
         if (!templateAtualizado) {
-            return res.status(404).json({ message: 'Template não encontrado.' });
+            return res.status(404).json({ message: 'Template não encontrado ou não pertence à sua conta.' });
         }
         res.status(200).json(templateAtualizado);
     } catch (error) {
@@ -51,9 +54,10 @@ const updateTemplate = async (req, res) => {
 const deleteTemplate = async (req, res) => {
     try {
         const { id } = req.params;
-        const templateDeletado = await whatsappService.deleteTemplate(id);
+        const { contaId } = req.user; // Extrai contaId
+        const templateDeletado = await whatsappService.deleteTemplate(id, contaId);
         if (!templateDeletado) {
-            return res.status(404).json({ message: 'Template não encontrado.' });
+            return res.status(404).json({ message: 'Template não encontrado ou não pertence à sua conta.' });
         }
         res.status(200).json({ message: 'Template deletado com sucesso.' });
     } catch (error) {
