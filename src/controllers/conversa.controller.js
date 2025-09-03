@@ -22,31 +22,36 @@ const getConversas = async (req, res) => {
 // Enviar uma mensagem a partir da Caixa de Entrada
 const enviarMensagem = async (req, res) => {
     try {
-        if (!req.user || !req.user.id) {
-            return res.status(401).json({ message: 'Não autorizado. Faça o login novamente.' });
+        const { contaId } = req.user;
+        const { conversaId, texto } = req.body;
+
+        if (!conversaId || !texto) {
+            return res.status(400).json({ message: 'Os campos "conversaId" e "texto" são obrigatórios.' });
         }
 
-        const { conversaId, texto } = req.body;
-        const prestadorId = req.user.id;
+        const conversa = await Conversa.findOne({ _id: conversaId, contaId: contaId });
 
-        const conversa = await Conversa.findById(conversaId);
-
-        if (!conversa || conversa.prestador.toString() !== prestadorId) {
-            return res.status(404).json({ message: 'Conversa não encontrada ou não pertence a este prestador.' });
+        if (!conversa) {
+            return res.status(404).json({ message: 'Conversa não encontrada ou não pertence a esta conta.' });
         }
 
         conversa.mensagens.push({
             remetente: 'prestador',
             texto: texto
         });
-        await conversa.save();
+        // Quando o prestador envia, a conversa é considerada "lida" por ele.
+        conversa.lidaPeloPrestador = true; 
+        const conversaAtualizada = await conversa.save();
 
         const cliente = await Cliente.findById(conversa.cliente);
+        if (!cliente) {
+            // Isso seria um erro de dados, mas é bom ter um fallback.
+            return res.status(404).json({ message: 'Cliente da conversa não encontrado.' });
+        }
         
-        // A chamada ao whatsappService permanece aqui
         await whatsappService.sendWhatsAppMessage(cliente.telefone, texto);
 
-        res.status(201).json({ message: 'Mensagem enviada com sucesso!', conversa });
+        res.status(201).json({ message: 'Mensagem enviada com sucesso!', conversa: conversaAtualizada });
 
     } catch (error) {
         console.error("Erro ao enviar mensagem:", error);
