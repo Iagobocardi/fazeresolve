@@ -9,7 +9,21 @@ const createProduto = async (req, res) => {
         const { nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor, estoqueMinimo } = req.body;
         
         // Cria o produto
-        const novoProduto = new Produto({ nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor, estoqueMinimo });
+        const novoProduto = new Produto({ 
+            nome, 
+            descricao, 
+            unidade, 
+            quantidadeEmEstoque, 
+            custoUnitario, 
+            fornecedor, 
+            estoqueMinimo 
+        });
+
+        // Verifica o alerta de estoque no momento da criação
+        if (novoProduto.quantidadeEmEstoque <= novoProduto.estoqueMinimo) {
+            novoProduto.alertaEstoqueBaixo = true;
+        }
+
         await novoProduto.save();
 
         // Se uma quantidade inicial for informada, regista o primeiro movimento de estoque
@@ -96,6 +110,13 @@ const ajustarEstoque = async (req, res) => {
             produto.quantidadeEmEstoque -= quantidadeNumerica;
         } else {
             return res.status(400).json({ message: "Tipo de movimento inválido. Use 'Entrada' ou 'Saída'."});
+        }
+
+        // Verifica e atualiza o status do alerta de estoque baixo
+        if (produto.quantidadeEmEstoque <= produto.estoqueMinimo) {
+            produto.alertaEstoqueBaixo = true;
+        } else {
+            produto.alertaEstoqueBaixo = false;
         }
         
         await produto.save();
