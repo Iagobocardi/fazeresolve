@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const whatsappTemplateSchema = new Schema({
+    contaId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
     titulo: {
         type: String,
         required: [true, 'O título do template é obrigatório.'],
