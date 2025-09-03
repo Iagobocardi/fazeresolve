@@ -1,4 +1,5 @@
 const Cliente = require('../models/cliente.model');
+const Usuario = require('../models/usuario.model');
 
 /**
  * Controller para atualizar as configurações de pagamento de um prestador.
@@ -157,10 +158,31 @@ const updateCompanyInfo = async (req, res) => {
     }
 };
 
+const getProviderDashboard = async (req, res) => {
+    try {
+        // The auth middleware gives us the user, but we re-fetch to be sure we have the latest data
+        const user = await Usuario.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        // We specifically need the account info as well for the frontend
+        const conta = await require('../models/conta.model').findById(user.contaId);
+
+        res.status(200).json({ user, conta });
+
+    } catch (error) {
+        console.error('Erro ao buscar dados do dashboard do prestador:', error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
+
 module.exports = {
     getPaymentSettings,
     updatePaymentSettings,
     connectMercadoPago,
     handleMercadoPagoCallback,
     updateCompanyInfo,
+    getProviderDashboard,
 };
