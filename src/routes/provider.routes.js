@@ -7,9 +7,9 @@ const roleMiddleware = require('../middlewares/role.middleware.js');
 // Rota PÚBLICA para o callback do Mercado Pago OAuth
 router.get('/mercadopago-callback', providerController.handleMercadoPagoCallback);
 
-// Todas as rotas abaixo exigem que o usuário esteja autenticado como PRESTADOR
+// Todas as rotas abaixo exigem que o usuário seja o Dono da conta
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['Dono']));
 
 // Rota para buscar as configurações de pagamento do prestador
 router.get('/payment-settings', providerController.getPaymentSettings);
