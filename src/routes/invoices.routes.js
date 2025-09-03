@@ -6,7 +6,7 @@ const roleMiddleware = require('../middlewares/role.middleware.js');
 
 // Protege todas as rotas de invoices, acessíveis apenas para prestadores
 router.use(authMiddleware);
-router.use(roleMiddleware(['PRESTADOR']));
+router.use(roleMiddleware(['Dono']));
 
 // Rotas CRUD
 router.post('/', invoicesController.createInvoice);
