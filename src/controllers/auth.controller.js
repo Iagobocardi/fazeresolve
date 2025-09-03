@@ -106,9 +106,18 @@ const register = async (req, res) => {
             return res.status(409).json({ message: 'Um usuário com este email já existe.' });
         }
         
+        // --- Lógica para associar plano e permissões ---
+        const PLANS = require('../config/plans.config.js');
+        const selectedPlan = PLANS.find(p => p.id === planoId);
+
+        if (!selectedPlan) {
+            return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
+        }
+
         // 1. Cria a nova Conta
         const novaConta = new Conta({
             nome: nomeEmpresa || nome, // Usa o nome da empresa ou o nome do usuário
+            plano: selectedPlan.name, // Define o nome do plano na conta
             planId: planoId,
             companyInfo: {
                 nomeFantasia: nomeEmpresa || nome,
@@ -117,12 +126,6 @@ const register = async (req, res) => {
         });
         await novaConta.save();
 
-        // Define as permissões padrão para o Dono da conta
-        const defaultPermissions = [
-            'ver_dashboard', 'ver_agenda', 'editar_agenda', 'ver_clientes', 
-            'editar_clientes', 'ver_orcamentos', 'editar_orcamentos', 'ver_financeiro'
-        ];
-
         // 2. Cria o novo Usuário, associado à conta
         const novoUsuario = new Usuario({
             nome,
@@ -130,7 +133,7 @@ const register = async (req, res) => {
             password, // O pre-save hook no modelo irá encriptar
             contaId: novaConta._id, // Associa o usuário à nova conta
             role: 'Dono', // O primeiro usuário é sempre o Dono
-            permissoes: defaultPermissions // Atribui as permissões padrão
+            permissoes: selectedPlan.permissions // Atribui as permissões com base no plano
         });
         await novoUsuario.save();
         console.log('[Registro] Usuário criado com ID:', novoUsuario._id); // <-- LOG DE DIAGNÓSTICO
