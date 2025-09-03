@@ -4,6 +4,9 @@ const Servico = require('../models/servico.model');
 const Financeiro = require('../models/financeiro.model');
 const Orcamento = require('../models/orcamento.model');
 const Agendamento = require('../models/agendamento.model');
+const Produto = require('../models/produto.model');
+const MovimentoEstoque = require('../models/movimentoEstoque.model');
+const mongoose = require('mongoose');
 
 // Importa e configura o pdfmake para uso no servidor
 const Pdfmake = require('pdfmake');
@@ -17,9 +20,6 @@ const fonts = {
 };
 const printer = new Pdfmake(fonts);
 
-/**
- * Função genérica para criar e enviar um PDF como resposta de forma segura
- */
 const sendPdfResponse = (res, docDefinition, fileName) => {
     try {
         const pdfDoc = printer.createPdfKitDocument(docDefinition);
@@ -33,90 +33,80 @@ const sendPdfResponse = (res, docDefinition, fileName) => {
     }
 };
 
-// Gera relatório de Serviços em PDF
-exports.gerarRelatorioServicosPDF = async (req, res) => {
+const gerarRelatorioServicosPDF = async (req, res) => {
     try {
         const bodyData = await relatoriosService.getServicosReportData();
-
         const docDefinition = {
-            content: [
-                { text: 'Relatório de Serviços', style: 'header' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['*', 'auto', 'auto', 'auto', '*'],
-                        body: [['Tipo de Serviço', 'Status', 'Valor', 'Data Solicitação', 'Cliente'], ...bodyData]
-                    }
-                }
-            ],
+            content: [ { text: 'Relatório de Serviços', style: 'header' }, { table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto', '*'], body: [['Tipo de Serviço', 'Status', 'Valor', 'Data Solicitação', 'Cliente'], ...bodyData] } } ],
             styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] } }
         };
         sendPdfResponse(res, docDefinition, 'relatorio_servicos.pdf');
     } catch (error) {
-        // Este console.error é a sua ferramenta mais importante para depuração!
         console.error('Erro detalhado ao buscar dados para relatório de serviços:', error);
         res.status(500).json({ error: 'Erro ao buscar dados para relatório.' });
     }
 };
 
-// Gera relatório de Receitas vs. Despesas em PDF
-exports.gerarRelatorioReceitaVsDespesa = async (req, res) => {
+const getValorTotalEstoque = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const result = await Produto.aggregate([
+            { $match: { contaId: new mongoose.Types.ObjectId(contaId) } },
+            { $group: { _id: null, totalValue: { $sum: { $multiply: ["$quantidadeEmEstoque", "$custoUnitario"] } } } }
+        ]);
+        const totalValue = result.length > 0 ? result[0].totalValue : 0;
+        res.status(200).json({ totalValue });
+    } catch (error) {
+        console.error("Erro ao calcular valor total do estoque:", error);
+        res.status(500).json({ message: "Erro ao calcular valor total do estoque." });
+    }
+};
+
+const getNiveisEstoque = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { sort = 'desc' } = req.query;
+        const sortOrder = sort === 'asc' ? 1 : -1;
+        const produtos = await Produto.find({ contaId }).sort({ quantidadeEmEstoque: sortOrder }).limit(50);
+        res.status(200).json(produtos);
+    } catch (error) {
+        console.error("Erro ao buscar níveis de estoque:", error);
+        res.status(500).json({ message: "Erro ao buscar níveis de estoque." });
+    }
+};
+
+const getHistoricoProduto = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { produtoId } = req.params;
+        const produto = await Produto.findOne({ _id: produtoId, contaId });
+        if (!produto) {
+            return res.status(404).json({ message: "Produto não encontrado ou não pertence a esta conta." });
+        }
+        const historico = await MovimentoEstoque.find({ produto: produtoId }).sort({ createdAt: -1 });
+        res.status(200).json(historico);
+    } catch (error) {
+        console.error("Erro ao buscar histórico do produto:", error);
+        res.status(500).json({ message: "Erro ao buscar histórico do produto." });
+    }
+};
+
+const gerarRelatorioReceitaVsDespesa = async (req, res) => {
     try {
         const data = await relatoriosService.getRevenueVsExpensesData();
-
-        const revenueDetails = data.revenueRecords.map(r => [
-            new Date(r.dataPagamento).toLocaleDateString('pt-BR'),
-            r.formaPagamento,
-            `R$ ${r.valorRecebido.toFixed(2)}`
-        ]);
-
-        const expenseDetails = data.expenseRecords.map(e => [
-            new Date(e.data).toLocaleDateString('pt-BR'),
-            e.descricao,
-            e.categoria,
-            `R$ ${e.valor.toFixed(2)}`
-        ]);
-
+        const revenueDetails = data.revenueRecords.map(r => [ new Date(r.dataPagamento).toLocaleDateString('pt-BR'), r.formaPagamento, `R$ ${r.valorRecebido.toFixed(2)}` ]);
+        const expenseDetails = data.expenseRecords.map(e => [ new Date(e.data).toLocaleDateString('pt-BR'), e.descricao, e.categoria, `R$ ${e.valor.toFixed(2)}` ]);
         const docDefinition = {
             content: [
                 { text: 'Relatório de Receitas vs. Despesas', style: 'header' },
                 { text: 'Resumo Financeiro', style: 'subheader' },
-                {
-                    style: 'summaryTable',
-                    table: {
-                        widths: ['*', '*'],
-                        body: [
-                            ['Receita Total', `R$ ${data.totalRevenue.toFixed(2)}`],
-                            ['Despesa Total', `R$ ${data.totalExpenses.toFixed(2)}`],
-                            [{ text: 'Resultado Líquido', bold: true }, { text: `R$ ${data.netResult.toFixed(2)}`, bold: true }]
-                        ]
-                    },
-                    layout: 'noBorders'
-                },
-
+                { style: 'summaryTable', table: { widths: ['*', '*'], body: [ ['Receita Total', `R$ ${data.totalRevenue.toFixed(2)}`], ['Despesa Total', `R$ ${data.totalExpenses.toFixed(2)}`], [{ text: 'Resultado Líquido', bold: true }, { text: `R$ ${data.netResult.toFixed(2)}`, bold: true }] ] }, layout: 'noBorders' },
                 { text: 'Detalhes de Receitas', style: 'subheader', margin: [0, 20, 0, 10] },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', '*', 'auto'],
-                        body: [['Data', 'Forma de Pagamento', 'Valor'], ...revenueDetails]
-                    }
-                },
-
+                { table: { headerRows: 1, widths: ['auto', '*', 'auto'], body: [['Data', 'Forma de Pagamento', 'Valor'], ...revenueDetails] } },
                 { text: 'Detalhes de Despesas', style: 'subheader', margin: [0, 20, 0, 10] },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', '*', 'auto', 'auto'],
-                        body: [['Data', 'Descrição', 'Categoria', 'Valor'], ...expenseDetails]
-                    }
-                }
+                { table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto'], body: [['Data', 'Descrição', 'Categoria', 'Valor'], ...expenseDetails] } }
             ],
-            styles: {
-                header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
-                subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
-                summaryTable: { margin: [0, 5, 0, 15] }
-            }
+            styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] }, subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] }, summaryTable: { margin: [0, 5, 0, 15] } }
         };
         sendPdfResponse(res, docDefinition, 'relatorio_receita_vs_despesa.pdf');
     } catch (error) {
@@ -125,49 +115,23 @@ exports.gerarRelatorioReceitaVsDespesa = async (req, res) => {
     }
 };
 
-// Gera relatório de Satisfação do Cliente em PDF
-exports.gerarRelatorioSatisfacaoCliente = async (req, res) => {
+const gerarRelatorioSatisfacaoCliente = async (req, res) => {
     try {
         const data = await relatoriosService.getCustomerSatisfactionReportData();
-
         const docDefinition = {
             content: [
                 { text: 'Relatório de Satisfação do Cliente', style: 'header' },
                 { text: 'Resumo Geral', style: 'subheader' },
-                {
-                    style: 'summaryTable',
-                    table: {
-                        widths: ['*', '*'],
-                        body: [
-                            ['Total de Avaliações', data.totalRatings],
-                            [{ text: 'Média Geral de Satisfação', bold: true }, { text: `${data.averageRating} / 5.00`, bold: true }]
-                        ]
-                    },
-                    layout: 'noBorders'
-                },
-
+                { style: 'summaryTable', table: { widths: ['*', '*'], body: [ ['Total de Avaliações', data.totalRatings], [{ text: 'Média Geral de Satisfação', bold: true }, { text: `${data.averageRating} / 5.00`, bold: true }] ] }, layout: 'noBorders' },
                 { text: 'Detalhes das Avaliações', style: 'subheader', margin: [0, 20, 0, 10] },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', 'auto', 'auto', '*'],
-                        body: [['Pedido ID', 'Cliente', 'Nota', 'Feedback'], ...data.bodyData]
-                    }
-                }
+                { table: { headerRows: 1, widths: ['auto', 'auto', 'auto', '*'], body: [['Pedido ID', 'Cliente', 'Nota', 'Feedback'], ...data.bodyData] } }
             ],
-            styles: {
-                header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
-                subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
-                summaryTable: { margin: [0, 5, 0, 15] }
-            }
+            styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] }, subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] }, summaryTable: { margin: [0, 5, 0, 15] } }
         };
-        
-        // Tratar caso de não haver dados
         if (data.totalRatings === 0) {
             docDefinition.content.push({ text: 'Nenhuma avaliação de cliente encontrada no período.', italics: true, margin: [0, 20] });
-            docDefinition.content.splice(1, 2); // Remove as tabelas de resumo e detalhes
+            docDefinition.content.splice(1, 2);
         }
-
         sendPdfResponse(res, docDefinition, 'relatorio_satisfacao_cliente.pdf');
     } catch (error) {
         console.error('Erro detalhado ao gerar relatório de satisfação:', error);
@@ -175,22 +139,11 @@ exports.gerarRelatorioSatisfacaoCliente = async (req, res) => {
     }
 };
 
-// Gera relatório Financeiro em PDF
-exports.gerarRelatorioFinanceiroPDF = async (req, res) => {
+const gerarRelatorioFinanceiroPDF = async (req, res) => {
     try {
         const bodyData = await relatoriosService.getFinanceiroReportData();
-
         const docDefinition = {
-            content: [
-                { text: 'Relatório Financeiro', style: 'header' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', '*', 'auto', 'auto'],
-                        body: [['Data', 'Cliente', 'Forma de Pagamento', 'Valor Recebido'], ...bodyData]
-                    }
-                }
-            ],
+            content: [ { text: 'Relatório Financeiro', style: 'header' }, { table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto'], body: [['Data', 'Cliente', 'Forma de Pagamento', 'Valor Recebido'], ...bodyData] } } ],
             styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] } }
         };
         sendPdfResponse(res, docDefinition, 'relatorio_financeiro.pdf');
@@ -200,22 +153,11 @@ exports.gerarRelatorioFinanceiroPDF = async (req, res) => {
     }
 };
 
-// Gera relatório de Orçamentos em PDF
-exports.gerarRelatorioOrcamentosPDF = async (req, res) => {
+const gerarRelatorioOrcamentosPDF = async (req, res) => {
     try {
         const bodyData = await relatoriosService.getOrcamentosReportData();
-
         const docDefinition = {
-            content: [
-                { text: 'Relatório de Orçamentos', style: 'header' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['*', '*', 'auto', 'auto', 'auto'],
-                        body: [['Cliente', 'Serviço', 'Valor Proposto', 'Status', 'Validade'], ...bodyData]
-                    }
-                }
-            ],
+            content: [ { text: 'Relatório de Orçamentos', style: 'header' }, { table: { headerRows: 1, widths: ['*', '*', 'auto', 'auto', 'auto'], body: [['Cliente', 'Serviço', 'Valor Proposto', 'Status', 'Validade'], ...bodyData] } } ],
             styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] } }
         };
         sendPdfResponse(res, docDefinition, 'relatorio_orcamentos.pdf');
@@ -225,22 +167,11 @@ exports.gerarRelatorioOrcamentosPDF = async (req, res) => {
     }
 };
 
-// Gera relatório de Agendamentos em PDF
-exports.gerarRelatorioAgendamentos = async (req, res) => {
+const gerarRelatorioAgendamentos = async (req, res) => {
     try {
         const bodyData = await relatoriosService.getAgendamentosReportData();
-
         const docDefinition = {
-            content: [
-                { text: 'Relatório de Agendamentos', style: 'header' },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['auto', '*', '*', 'auto'],
-                        body: [['Data/Hora', 'Serviço', 'Cliente', 'Status'], ...bodyData]
-                    }
-                }
-            ],
+            content: [ { text: 'Relatório de Agendamentos', style: 'header' }, { table: { headerRows: 1, widths: ['auto', '*', '*', 'auto'], body: [['Data/Hora', 'Serviço', 'Cliente', 'Status'], ...bodyData] } } ],
             styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] } }
         };
         sendPdfResponse(res, docDefinition, 'relatorio_agendamentos.pdf');
@@ -248,4 +179,16 @@ exports.gerarRelatorioAgendamentos = async (req, res) => {
         console.error('Erro detalhado ao buscar dados para relatório de agendamentos:', error);
         res.status(500).json({ error: 'Erro ao buscar dados para relatório.' });
     }
+};
+
+module.exports = {
+    gerarRelatorioServicosPDF,
+    gerarRelatorioFinanceiroPDF,
+    gerarRelatorioOrcamentosPDF,
+    gerarRelatorioAgendamentos,
+    gerarRelatorioReceitaVsDespesa,
+    gerarRelatorioSatisfacaoCliente,
+    getValorTotalEstoque,
+    getNiveisEstoque,
+    getHistoricoProduto,
 };
