@@ -9,7 +9,7 @@ router.get('/mercadopago-callback', providerController.handleMercadoPagoCallback
 
 // Todas as rotas abaixo exigem que o usuário esteja autenticado como PRESTADOR
 router.use(authMiddleware);
-router.use(roleMiddleware(['Dono', 'Membro']));
+router.use(roleMiddleware(['PRESTADOR']));
 
 // Rota para buscar as configurações de pagamento do prestador
 router.get('/payment-settings', providerController.getPaymentSettings);
@@ -22,5 +22,9 @@ router.post('/connect-mercadopago', providerController.connectMercadoPago);
 
 // Rota para atualizar as informações da empresa para NFe
 router.put('/company-info', providerController.updateCompanyInfo);
+
+// Rota para buscar os dados do "dashboard" do prestador (dados do usuário/conta)
+router.get('/dashboard', providerController.getProviderDashboard);
+
 
 module.exports = router;
