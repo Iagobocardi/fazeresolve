@@ -13,6 +13,9 @@ router.use(roleMiddleware(['Dono', 'ADMIN']));
 // Rota para obter as variáveis de template disponíveis
 router.get('/variables', whatsappController.getAvailableVariables);
 
+// Rota para renderizar um preview de um template
+router.post('/preview', whatsappController.renderPreview);
+
 router.get('/', whatsappController.getAllTemplates);
 router.get('/render/:templateId/:orcamentoId', whatsappController.renderTemplate);
 
