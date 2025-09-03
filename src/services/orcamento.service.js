@@ -273,6 +273,11 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
     }
 
     produto.quantidadeEmEstoque -= quantidadeNum;
+
+    // Lógica de verificação de estoque baixo
+    if (produto.quantidadeEmEstoque <= produto.estoqueMinimo) {
+        produto.alertaEstoqueBaixo = true;
+    }
     
     orcamento.materiaisUsados.push({
         produto: produtoId,
@@ -317,6 +322,12 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
     const produto = await Produto.findOne({ _id: materialUsado.produto, contaId });
     if (produto) {
         produto.quantidadeEmEstoque += materialUsado.quantidade;
+
+        // Lógica para desativar o alerta se o estoque voltar ao normal
+        if (produto.quantidadeEmEstoque > produto.estoqueMinimo) {
+            produto.alertaEstoqueBaixo = false;
+        }
+        
         await produto.save();
     }
 
