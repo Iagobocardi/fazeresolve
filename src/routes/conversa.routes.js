@@ -7,9 +7,10 @@ const conversaController = require('../controllers/conversa.controller');
 // Se o seu ficheiro tiver outro nome, por favor, ajuste o 'require' e o uso abaixo.
 const authMiddleware = require('../middlewares/auth.middleware');
 
-// Agora, ambas as rotas estão protegidas. O middleware irá adicionar
+// Agora, todas as rotas estão protegidas. O middleware irá adicionar
 // as informações do utilizador logado (req.user) a cada pedido.
 router.get('/', authMiddleware, conversaController.getConversas);
+router.get('/:id', authMiddleware, conversaController.getConversaById);
 router.post('/enviar', authMiddleware, conversaController.enviarMensagem);
 
 module.exports = router;
