@@ -71,13 +71,15 @@ const login = async (req, res) => {
         res.status(200).json({
             message: 'Login bem-sucedido!',
             token,
+            userType: 'provider', // Adiciona o sinalizador para o frontend
             usuario: {
                 id: usuario._id,
                 nome: usuario.nome,
                 email: usuario.email,
                 role: usuario.role,
                 plano: conta.plano,
-                statusAssinatura: conta.statusAssinatura
+                statusAssinatura: conta.statusAssinatura,
+                permissoes: usuario.permissoes
             },
             conta: conta // Retorna os dados da conta também
         });
