@@ -98,6 +98,8 @@ const register = async (req, res) => {
     }
 
     try {
+        console.log('--- DEBUG: Registration Request Body ---');
+        console.log(req.body);
         const { nomeEmpresa, nome, email, password, planoId } = req.body;
 
         // Checa se o usuário já existe
