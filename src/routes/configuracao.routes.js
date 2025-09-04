@@ -6,21 +6,19 @@ const configuracaoController = require('../controllers/configuracao.controller.j
 const authMiddleware = require('../middlewares/auth.middleware');
 const roleMiddleware = require('../middlewares/role.middleware');
 
-// Aplica o middleware de autenticação e verificação de função a todas as rotas
-router.use(authMiddleware);
-router.use(roleMiddleware(['Dono', 'ADMIN']));
+const needsAuth = [authMiddleware, roleMiddleware(['Dono', 'ADMIN'])];
 
 // Rota para OBTER a configuração
 // GET /api/configuracoes
-router.get('/', configuracaoController.getConfiguracao);
+router.get('/', needsAuth, configuracaoController.getConfiguracao);
 
 // Rota para ATUALIZAR a configuração
 // PUT /api/configuracoes
-router.put('/', configuracaoController.updateConfiguracao);
+router.put('/', needsAuth, configuracaoController.updateConfiguracao);
 
 // --- NOVAS ROTAS PARA A INTEGRAÇÃO ---
-router.get('/google/connect', configuracaoController.connectGoogleCalendar);
-router.get('/google/callback', configuracaoController.handleGoogleCallback);
-router.delete('/google/disconnect', configuracaoController.disconnectGoogleCalendar);
+router.get('/google/connect', needsAuth, configuracaoController.connectGoogleCalendar);
+router.get('/google/callback', configuracaoController.handleGoogleCallback); // Esta rota não deve ter autenticação
+router.delete('/google/disconnect', needsAuth, configuracaoController.disconnectGoogleCalendar);
 
 module.exports = router;
