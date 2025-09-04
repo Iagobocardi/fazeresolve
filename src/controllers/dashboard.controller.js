@@ -1,4 +1,5 @@
 const Orcamento = require('../models/orcamento.model');
+const Servico = require('../models/servico.model');
 const NodeGeocoder = require('node-geocoder');
 
 // Configuração do Geocoder
@@ -207,4 +208,32 @@ exports.getPedidosCoordenadas = async (req, res) => {
     console.error('Erro ao geocodificar endereços:', error);
     res.status(500).json({ message: 'Erro ao processar as coordenadas dos pedidos' });
   }
+};
+
+exports.getTopServicosPorCategoria = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const topServicos = await Servico.aggregate([
+            { $match: { contaId: contaId } },
+            {
+                $group: {
+                    _id: '$categoria',
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 7 },
+            {
+                $project: {
+                    _id: 0,
+                    categoria: '$_id',
+                    quantidade: '$count'
+                }
+            }
+        ]);
+        res.json(topServicos);
+    } catch (error) {
+        console.error('Erro ao buscar top serviços por categoria:', error);
+        res.status(500).json({ message: 'Erro interno do servidor' });
+    }
 };
