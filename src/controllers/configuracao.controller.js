@@ -81,40 +81,44 @@ exports.connectGoogleCalendar = (req, res) => {
 
 // Recebe o callback da Google após o consentimento
 exports.handleGoogleCallback = async (req, res) => {
-    try {
+    console.log('[Google Callback] Recebido callback da Google.');
+     try {
         const { code } = req.query;
-        const { tokens } = await oauth2Client.getToken(code);
-        oauth2Client.setCredentials(tokens);
+        const { code, state } = req.query;
+        if (!code) {
+            console.error('[Google Callback] Erro: Código de autorização não recebido.');
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=error_no_code`);
+        }
+        console.log('[Google Callback] Código recebido. A trocar por tokens...');
 
-        // O `state` que definimos no `connect` continha o contaId
+         const { tokens } = await oauth2Client.getToken(code);
+         oauth2Client.setCredentials(tokens);
+        console.log('[Google Callback] Tokens recebidos com sucesso.');
+ 
+       // O `state` que definimos no `connect` continha o contaId
         const { contaId } = JSON.parse(req.query.state);
-
+        const { contaId } = JSON.parse(state);
+        if (!contaId) {
+            console.error('[Google Callback] Erro: contaId não encontrado no parâmetro state.');
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=error_no_state`);
+        }
+        console.log(`[Google Callback] A atualizar a conta: ${contaId}`);
+ 
         // **FIX APLICADO**: Atualiza o documento da CONTA, não da configuração
-        await Conta.findByIdAndUpdate(contaId, {
-            googleCalendarConnected: true,
-            googleTokens: tokens
-        });
-        
+         await Conta.findByIdAndUpdate(contaId, {
+             googleCalendarConnected: true,
+             googleTokens: tokens
+         });
+        console.log(`[Google Callback] Conta ${contaId} atualizada com sucesso.`);
+         
         // Redireciona de volta para a página de configurações com uma mensagem de sucesso
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=success`);
-
-    } catch (error) {
+        console.log('[Google Callback] A redirecionar para o frontend...');
+         res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=success`);
+ 
+     } catch (error) {
         console.error('Erro no callback do Google:', error.message);
         res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=error`);
-    }
-};
-
-// Desconecta a conta do Google Calendar
-exports.disconnectGoogleCalendar = async (req, res) => {
-    try {
-        const { contaId } = req.user;
-        // **FIX APLICADO**: Atualiza o documento da CONTA
-        await Conta.findByIdAndUpdate(contaId, {
-            googleCalendarConnected: false,
-            googleTokens: {} // Limpa os tokens
-        });
-        res.status(200).json({ message: 'Google Calendar desconectado com sucesso.' });
-    } catch (error) {
-        res.status(500).json({ message: 'Erro ao desconectar o Google Calendar.' });
-    }
-};
+       console.error('[Google Callback] ERRO CRÍTICO no processamento do callback:', error);
+        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=error_critical`);
+     }
+ };
