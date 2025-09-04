@@ -38,6 +38,10 @@ const orcamentoSchema = new mongoose.Schema({
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
     // O prestadorId foi removido, a referência agora é feita pelo contaId
     descricao: { type: String },
+    categoria: {
+        type: String,
+        trim: true
+    },
     media: [{ url: String, sid: String }],
     tipo: {
         type: String,
