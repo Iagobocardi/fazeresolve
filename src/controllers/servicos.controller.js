@@ -116,11 +116,23 @@ const deleteServico = async (req, res) => {
     }
 };
 
+// Obtém todas as categorias de serviços únicas de uma conta
+const getDistinctCategorias = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const categorias = await Servico.distinct('categoria', { contaId: contaId });
+        res.status(200).json(categorias);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar categorias de serviços.' });
+    }
+};
+
 module.exports = {
     servicoValidationRules,
     getAllServicos,
     getServicoById,
     createServico,
     updateServico,
-    deleteServico
+    deleteServico,
+    getDistinctCategorias
 };
