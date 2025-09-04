@@ -61,6 +61,10 @@ exports.updateConfiguracao = async (req, res) => {
 
 // Inicia o processo de conexão com o Google
 exports.connectGoogleCalendar = (req, res) => {
+   // Verificação de segurança adicionada
+    if (!req.user || !req.user.contaId) {
+    return res.status(400).send('Erro: O seu utilizador não está associado a uma conta de empresa. Não é possível conectar ao Google Calendar.');
+    }
     const scopes = [
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/userinfo.email'
