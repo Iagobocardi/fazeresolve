@@ -62,32 +62,10 @@ connectDB();
 
 const cors = require('cors');
 
-// Configuração de CORS usando o pacote padrão
-const allowedOrigins = [
-    'http://localhost:3000',
-    'https://app.fazeresolve.com',
-    'https://fazeresolve.com',
-    'https://accounts.google.com' // Adicionado para permitir o fluxo OAuth
-];
-if (process.env.APP_URL) {
-    allowedOrigins.push(process.env.APP_URL);
-}
-
-const corsOptions = {
-    origin: (origin, callback) => {
-        // Permite requisições sem 'origin' (como apps mobile ou Postman)
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-};
-
-app.use(cors(corsOptions));
+// Configuração de CORS (simplificada para depuração)
+// AVISO: Esta configuração permite TODAS as origens.
+// Deve ser tornada mais restritiva em produção.
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
