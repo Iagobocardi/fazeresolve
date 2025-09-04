@@ -13,6 +13,7 @@ const path = require('path');
 const orcamentoService = require('../services/orcamento.service');
 const Configuracao = require('../models/configuracao.model.js');
 const Cliente = require('../models/cliente.model.js');
+const Conta = require('../models/conta.model.js');
 
 
 // Regras de validação (podem ser expandidas)
@@ -250,7 +251,7 @@ const createOrcamento = async (req, res) => {
             );
         }
 
-        // Cria um objeto seguro para o orçamento, pegando apenas os campos esperados
+        // Cria um objeto seguro para o orçamento, incluindo o histórico inicial
         const dadosSegurosOrcamento = {
             descricao: orcamentoData.descricao,
             categoria: orcamentoData.categoria,
@@ -259,14 +260,25 @@ const createOrcamento = async (req, res) => {
             dataAgendamento: orcamentoData.dataAgendamento,
             address: orcamentoData.address,
             cliente: cliente._id,
-            contaId: contaId
+            contaId: contaId,
+            historico: [{ evento: 'Pedido criado via sistema.' }] // Adiciona histórico
         };
         // Remove campos undefined para não os salvar no DB
         Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
 
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
-
         const orcamentoSalvo = await novoOrcamento.save();
+
+        // Envia notificação para o prestador
+        const conta = await Conta.findById(contaId);
+        if (conta && conta.telefone) {
+             const notificationToPrestador = `🔔 *Novo Pedido Criado no Sistema!*\n\n` +
+                                          `*Cliente:* ${cliente.nome}\n` +
+                                          `*Descrição:* ${(orcamentoSalvo.descricao || '').slice(0, 80)}...\n\n` +
+                                          `Para ver todos os detalhes, acesse o sistema.`;
+            await whatsappService.sendWhatsAppMessage(conta.telefone, notificationToPrestador);
+        }
+
         res.status(201).json(orcamentoSalvo);
     } catch (error) {
         console.error("Erro detalhado ao criar orçamento:", error);
