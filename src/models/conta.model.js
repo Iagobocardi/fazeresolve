@@ -66,6 +66,10 @@ const contaSchema = new Schema({
     },
 
     // Integração Google (a ser reavaliado se deve ser por usuário)
+    googleCalendarConnected: {
+        type: Boolean,
+        default: false
+    },
     googleTokens: {
         access_token: String,
         refresh_token: String,
