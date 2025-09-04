@@ -134,11 +134,40 @@ exports.getTopRegioes = async (req, res) => {
   try {
     const baseQuery = getBaseQuery(req);
     const topRegioes = await Orcamento.aggregate([
-      { $match: { ...baseQuery, address: { $exists: true, $ne: "" } } },
-      { $group: { _id: '$address', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
+      // Estágio 1: Filtrar os orçamentos da conta correta
+      { $match: baseQuery },
+      // Estágio 2: Juntar com a coleção de clientes para obter detalhes do endereço
+      {
+        $lookup: {
+          from: 'clientes', // O nome da coleção de clientes
+          localField: 'cliente',
+          foreignField: '_id',
+          as: 'clienteInfo'
+        }
+      },
+      // Estágio 3: Desconstruir o array para trabalhar com cada cliente individualmente
+      { $unwind: '$clienteInfo' },
+      // Estágio 4: Filtrar para garantir que temos um bairro para agrupar
+      { $match: { 'clienteInfo.endereco.bairro': { $exists: true, $ne: null, $ne: "" } } },
+      // Estágio 5: Agrupar pelo bairro do cliente e contar os pedidos
+      {
+        $group: {
+          _id: '$clienteInfo.endereco.bairro',
+          pedidos: { $sum: 1 }
+        }
+      },
+      // Estágio 6: Ordenar para mostrar os bairros com mais pedidos primeiro
+      { $sort: { pedidos: -1 } },
+      // Estágio 7: Limitar aos 5 primeiros resultados
       { $limit: 5 },
-      { $project: { _id: 0, regiao: '$_id', pedidos: '$count' } }
+      // Estágio 8: Formatar o resultado final
+      {
+        $project: {
+          _id: 0,
+          regiao: '$_id',
+          pedidos: '$pedidos'
+        }
+      }
     ]);
     res.json(topRegioes);
   } catch (error) {
