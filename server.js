@@ -62,10 +62,33 @@ connectDB();
 
 const cors = require('cors');
 
-// Configuração de CORS (simplificada para depuração)
-// AVISO: Esta configuração permite TODAS as origens.
-// Deve ser tornada mais restritiva em produção.
-app.use(cors());
+// Configuração de CORS usando o pacote padrão
+const allowedOrigins = [
+    'http://localhost:3000',
+    'https://app.fazeresolve.com',
+    'https://app.fazeresolve.com/', // Adicionado para robustez
+    'https://fazeresolve.com',
+    'https://accounts.google.com' // Adicionado para permitir o fluxo OAuth
+];
+if (process.env.APP_URL) {
+    allowedOrigins.push(process.env.APP_URL);
+}
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Permite requisições sem 'origin' (como apps mobile ou Postman)
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
@@ -101,7 +124,7 @@ app.use('/api/dashboard', providerAuthMiddlewares, dashboardRoutes);
 app.use('/api/despesas', providerAuthMiddlewares, despesasRoutes);
 app.use('/api/produtos', providerAuthMiddlewares, produtosRoutes);
 app.use('/api/fornecedores', providerAuthMiddlewares, fornecedorRoutes);
-app.use('/api/configuracoes', configuracaoRoutes);
+app.use('/api/configuracoes', providerAuthMiddlewares, configuracaoRoutes);
 app.use('/api/produtos-fornecedor', providerAuthMiddlewares, produtosFornecedorRoutes);
 app.use('/api/checklist', providerAuthMiddlewares, checklistRoutes);
 app.use('/api/google', providerAuthMiddlewares, googleRoutes);
