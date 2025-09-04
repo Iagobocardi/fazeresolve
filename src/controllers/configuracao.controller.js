@@ -23,8 +23,13 @@ exports.getConfiguracao = async (req, res) => {
             config = await Configuracao.create({ contaId });
         }
         
+        // Busca a informação de conexão do Google na conta separadamente
+        const conta = await Conta.findById(contaId).select('googleCalendarConnected').lean();
+
         const configObject = config.toObject();
         configObject.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+        // Adiciona a informação de conexão ao objeto de resposta
+        configObject.googleCalendarConnected = conta ? conta.googleCalendarConnected : false;
 
         res.status(200).json(configObject);
     } catch (error) {
