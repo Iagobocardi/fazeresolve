@@ -1,6 +1,7 @@
 // src/controllers/configuracao.controller.js
 
 const Configuracao = require('../models/configuracao.model.js');
+const Conta = require('../models/conta.model.js');
 const { google } = require('googleapis');
 
 // 2. Defina o cliente OAuth2 AQUI, no topo do ficheiro
@@ -81,19 +82,14 @@ exports.handleGoogleCallback = async (req, res) => {
         const { tokens } = await oauth2Client.getToken(code);
         oauth2Client.setCredentials(tokens);
 
-        // Busca o email da conta conectada para mostrar na UI
-        const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-        const { data } = await oauth2.userinfo.get();
-
         // O `state` que definimos no `connect` continha o contaId
         const { contaId } = JSON.parse(req.query.state);
 
-        // Atualiza o documento de configuração com os tokens e o estado
-        await Configuracao.findOneAndUpdate({ contaId }, {
+        // **FIX APLICADO**: Atualiza o documento da CONTA, não da configuração
+        await Conta.findByIdAndUpdate(contaId, {
             googleCalendarConnected: true,
-            googleCalendarEmail: data.email,
             googleTokens: tokens
-        }, { upsert: true });
+        });
         
         // Redireciona de volta para a página de configurações com uma mensagem de sucesso
         res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3001'}/configuracoes?google_auth=success`);
@@ -108,9 +104,9 @@ exports.handleGoogleCallback = async (req, res) => {
 exports.disconnectGoogleCalendar = async (req, res) => {
     try {
         const { contaId } = req.user;
-        await Configuracao.findOneAndUpdate({ contaId }, {
+        // **FIX APLICADO**: Atualiza o documento da CONTA
+        await Conta.findByIdAndUpdate(contaId, {
             googleCalendarConnected: false,
-            googleCalendarEmail: '',
             googleTokens: {} // Limpa os tokens
         });
         res.status(200).json({ message: 'Google Calendar desconectado com sucesso.' });
