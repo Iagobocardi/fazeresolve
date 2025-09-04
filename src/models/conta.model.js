@@ -77,6 +77,10 @@ const contaSchema = new Schema({
         token_type: String,
         expiry_date: Number,
     },
+    googleAccountEmail: {
+        type: String,
+        trim: true
+    },
 
 }, {
     timestamps: true
