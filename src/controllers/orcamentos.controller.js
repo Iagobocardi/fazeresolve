@@ -221,11 +221,18 @@ const createOrcamento = async (req, res) => {
 
     try {
         const { contaId } = req.user;
-        const { clienteData, orcamentoData } = req.body;
+        const body = req.body;
 
-        if (!clienteData || !orcamentoData) {
-            return res.status(400).json({ message: 'Dados do cliente e do orçamento são obrigatórios.' });
+        // --- Início da Lógica Robusta de Dados ---
+        // Se a estrutura aninhada existir, use-a. Caso contrário, assume uma estrutura plana.
+        const clienteData = body.clienteData || body;
+        const orcamentoData = body.orcamentoData || body;
+
+        // Validação dos dados do cliente
+        if (!clienteData.telefone && !clienteData._id) {
+            return res.status(400).json({ message: 'O telefone (para novos clientes) ou o ID do cliente (para existentes) é obrigatório.' });
         }
+        // --- Fim da Lógica Robusta de Dados ---
 
         let cliente;
         if (clienteData._id) {
@@ -234,16 +241,14 @@ const createOrcamento = async (req, res) => {
                 return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
             }
         } else {
-            if (!clienteData.telefone) {
-                 return res.status(400).json({ message: 'O telefone é obrigatório para novos clientes.' });
-            }
-            // Cria um objeto seguro para o cliente, pegando apenas os campos esperados
             const dadosSegurosCliente = {
                 nome: clienteData.nome,
                 email: clienteData.email,
                 endereco: clienteData.endereco,
                 contaId: contaId
             };
+            Object.keys(dadosSegurosCliente).forEach(key => dadosSegurosCliente[key] === undefined && delete dadosSegurosCliente[key]);
+
             cliente = await Cliente.findOneAndUpdate(
                 { telefone: clienteData.telefone, contaId },
                 { $set: dadosSegurosCliente },
@@ -251,7 +256,6 @@ const createOrcamento = async (req, res) => {
             );
         }
 
-        // Cria um objeto seguro para o orçamento, incluindo o histórico inicial
         const dadosSegurosOrcamento = {
             descricao: orcamentoData.descricao,
             categoria: orcamentoData.categoria,
@@ -261,15 +265,13 @@ const createOrcamento = async (req, res) => {
             address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId,
-            historico: [{ evento: 'Pedido criado via sistema.' }] // Adiciona histórico
+            historico: [{ evento: 'Pedido criado via sistema.' }]
         };
-        // Remove campos undefined para não os salvar no DB
         Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
 
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
         const orcamentoSalvo = await novoOrcamento.save();
 
-        // Envia notificação para o prestador
         const conta = await Conta.findById(contaId);
         if (conta && conta.telefone) {
              const notificationToPrestador = `🔔 *Novo Pedido Criado no Sistema!*\n\n` +
@@ -282,10 +284,9 @@ const createOrcamento = async (req, res) => {
         res.status(201).json(orcamentoSalvo);
     } catch (error) {
         console.error("Erro detalhado ao criar orçamento:", error);
-        // Retorna um erro mais informativo para o frontend.
         res.status(500).json({ 
             error: 'Ocorreu um erro ao salvar o orçamento.',
-            message: error.message // A mensagem de erro do Mongoose é útil para depuração.
+            message: error.message
         });
     }
 };
