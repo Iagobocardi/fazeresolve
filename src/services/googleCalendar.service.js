@@ -1,29 +1,36 @@
 // src/services/googleCalendar.service.js
 
 const { google } = require('googleapis');
-const Configuracao = require('../models/configuracao.model.js');
+const Conta = require('../models/conta.model.js');
 
 /**
  * Cria um evento no Google Calendar do utilizador com base num orçamento agendado.
- * @param {object} orcamento - O documento completo do orçamento, incluindo os dados do cliente.
+ * @param {object} orcamento - O documento completo do orçamento, que deve conter o contaId e os dados do cliente.
  */
 const createEvent = async (orcamento) => {
     try {
-        const config = await Configuracao.obterConfiguracao();
+        // O orçamento DEVE ter o contaId.
+        if (!orcamento.contaId) {
+            console.error('Erro: Orçamento sem contaId recebido pelo serviço do Google Calendar.');
+            return;
+        }
 
-        // Se o calendário não estiver conectado ou não tivermos um refresh_token, não fazemos nada.
-        if (!config.googleCalendarConnected || !config.googleTokens?.refresh_token) {
-            console.log('Google Calendar não está configurado para criar eventos. A saltar.');
+        const conta = await Conta.findById(orcamento.contaId);
+
+        // A verificação agora é feita por conta.
+        if (!conta || !conta.googleCalendarConnected || !conta.googleTokens?.refresh_token) {
+            console.log(`Google Calendar não configurado para a conta ${orcamento.contaId}. A saltar.`);
             return;
         }
 
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
-            `${process.env.API_URL || 'http://localhost:3000/api'}/configuracoes/google/callback`
+            // O callback URL deve ser o mesmo usado para obter os tokens
+            `${process.env.API_URL || 'http://localhost:3000'}/api/configuracoes/google/callback`
         );
 
-        oauth2Client.setCredentials(config.googleTokens);
+        oauth2Client.setCredentials(conta.googleTokens);
         
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
