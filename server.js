@@ -66,7 +66,8 @@ const cors = require('cors');
 const allowedOrigins = [
     'http://localhost:3000',
     'https://app.fazeresolve.com',
-    'https://fazeresolve.com'
+    'https://fazeresolve.com',
+    'https://accounts.google.com'
 ];
 if (process.env.APP_URL) {
     allowedOrigins.push(process.env.APP_URL);
