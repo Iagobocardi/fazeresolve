@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
 const Configuracao = require('../models/configuracao.model.js');
+const Cliente = require('../models/cliente.model.js');
 
 
 // Regras de validação (podem ser expandidas)
@@ -210,24 +211,50 @@ const calcularPrecoSugerido = async (req, res) => {
     }
 };
 
-// Cria um novo orçamento
+// Cria um novo orçamento, com lógica para criar ou encontrar o cliente
 const createOrcamento = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
+
     try {
         const { contaId } = req.user;
+        const { clienteData, orcamentoData } = req.body;
 
-        const dadosOrcamento = {
-            ...req.body,
+        if (!clienteData || !orcamentoData) {
+            return res.status(400).json({ message: 'Dados do cliente e do orçamento são obrigatórios.' });
+        }
+
+        let cliente;
+        // Se um ID de cliente for fornecido, use-o.
+        if (clienteData._id) {
+            cliente = await Cliente.findOne({ _id: clienteData._id, contaId });
+            if (!cliente) {
+                return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
+            }
+        } else {
+            // Caso contrário, tente encontrar um cliente pelo telefone ou crie um novo.
+            if (!clienteData.telefone) {
+                 return res.status(400).json({ message: 'O telefone é obrigatório para novos clientes.' });
+            }
+            cliente = await Cliente.findOneAndUpdate(
+                { telefone: clienteData.telefone, contaId },
+                { $set: { ...clienteData, contaId } },
+                { upsert: true, new: true, runValidators: true }
+            );
+        }
+
+        const novoOrcamento = new Orcamento({
+            ...orcamentoData,
+            cliente: cliente._id,
             contaId: contaId
-        };
+        });
 
-        const novoOrcamento = new Orcamento(dadosOrcamento);
         const orcamentoSalvo = await novoOrcamento.save();
         res.status(201).json(orcamentoSalvo);
     } catch (error) {
+        console.error("Erro ao criar orçamento:", error);
         res.status(500).json({ error: 'Erro ao criar orçamento.' });
     }
 };
