@@ -1001,6 +1001,17 @@ const enviarCobranca = async (req, res) => {
     }
 };
 
+const getDistinctCategorias = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const categorias = await Orcamento.distinct('categoria', { contaId, categoria: { $ne: null, $ne: "" } });
+        res.status(200).json(categorias);
+    } catch (error) {
+        console.error("Erro ao buscar categorias de orçamentos:", error);
+        res.status(500).json({ error: 'Erro ao buscar categorias.' });
+    }
+};
+
 module.exports = {
     orcamentoValidationRules,
     getAllOrcamentos,
@@ -1033,4 +1044,5 @@ module.exports = {
     removerMaterialDoPedido,
     gerarLinkPagamento,
     enviarCobranca,
+    getDistinctCategorias,
 };
