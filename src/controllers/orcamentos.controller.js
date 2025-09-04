@@ -236,26 +236,33 @@ const createOrcamento = async (req, res) => {
             if (!clienteData.telefone) {
                  return res.status(400).json({ message: 'O telefone é obrigatório para novos clientes.' });
             }
+            // Cria um objeto seguro para o cliente, pegando apenas os campos esperados
+            const dadosSegurosCliente = {
+                nome: clienteData.nome,
+                email: clienteData.email,
+                endereco: clienteData.endereco,
+                contaId: contaId
+            };
             cliente = await Cliente.findOneAndUpdate(
                 { telefone: clienteData.telefone, contaId },
-                { $set: { ...clienteData, contaId } },
+                { $set: dadosSegurosCliente },
                 { upsert: true, new: true, runValidators: true }
             );
         }
 
-        // --- Refatoração para Segurança ---
-        // Em vez de espalhar o objeto inteiro, pegamos apenas os campos esperados.
-        // Isso evita que dados malformados do frontend causem erros de validação no Mongoose.
+        // Cria um objeto seguro para o orçamento, pegando apenas os campos esperados
         const dadosSegurosOrcamento = {
             descricao: orcamentoData.descricao,
             categoria: orcamentoData.categoria,
             valorProposto: orcamentoData.valorProposto,
-            status: orcamentoData.status, // O modelo já tem 'Pendente' como padrão
+            status: orcamentoData.status,
             dataAgendamento: orcamentoData.dataAgendamento,
             address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId
         };
+        // Remove campos undefined para não os salvar no DB
+        Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
 
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
 
