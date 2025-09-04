@@ -14,6 +14,7 @@ const { validate } = require('../middlewares/validation.middleware');
 const upload = require('../config/multer.config.js');
 
 // Rotas mais específicas primeiro
+router.get('/dados/categorias', checkPermission('ver_orcamentos'), orcamentosController.getDistinctCategorias);
 router.get('/recentes', checkPermission('ver_orcamentos'), orcamentosController.getRecentOrcamentos);
 router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao); // Rota pública, sem verificação de permissão
 router.get('/agendados', checkPermission('ver_agenda'), orcamentosController.getAgendamentosParaCalendario); // Requer permissão de agenda
