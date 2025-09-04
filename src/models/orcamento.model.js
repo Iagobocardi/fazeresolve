@@ -50,6 +50,7 @@ const orcamentoSchema = new mongoose.Schema({
     },
     shortId: { type: String, unique: true },
     dataAgendamento: { type: Date },
+    googleEventId: { type: String },
     address: { type: String },
 
     // --- Campos de Satisfação ---
