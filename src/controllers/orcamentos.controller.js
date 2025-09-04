@@ -227,14 +227,12 @@ const createOrcamento = async (req, res) => {
         }
 
         let cliente;
-        // Se um ID de cliente for fornecido, use-o.
         if (clienteData._id) {
             cliente = await Cliente.findOne({ _id: clienteData._id, contaId });
             if (!cliente) {
                 return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
             }
         } else {
-            // Caso contrário, tente encontrar um cliente pelo telefone ou crie um novo.
             if (!clienteData.telefone) {
                  return res.status(400).json({ message: 'O telefone é obrigatório para novos clientes.' });
             }
@@ -245,17 +243,31 @@ const createOrcamento = async (req, res) => {
             );
         }
 
-        const novoOrcamento = new Orcamento({
-            ...orcamentoData,
+        // --- Refatoração para Segurança ---
+        // Em vez de espalhar o objeto inteiro, pegamos apenas os campos esperados.
+        // Isso evita que dados malformados do frontend causem erros de validação no Mongoose.
+        const dadosSegurosOrcamento = {
+            descricao: orcamentoData.descricao,
+            categoria: orcamentoData.categoria,
+            valorProposto: orcamentoData.valorProposto,
+            status: orcamentoData.status, // O modelo já tem 'Pendente' como padrão
+            dataAgendamento: orcamentoData.dataAgendamento,
+            address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId
-        });
+        };
+
+        const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
 
         const orcamentoSalvo = await novoOrcamento.save();
         res.status(201).json(orcamentoSalvo);
     } catch (error) {
-        console.error("Erro ao criar orçamento:", error);
-        res.status(500).json({ error: 'Erro ao criar orçamento.' });
+        console.error("Erro detalhado ao criar orçamento:", error);
+        // Retorna um erro mais informativo para o frontend.
+        res.status(500).json({ 
+            error: 'Ocorreu um erro ao salvar o orçamento.',
+            message: error.message // A mensagem de erro do Mongoose é útil para depuração.
+        });
     }
 };
 
