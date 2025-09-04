@@ -12,5 +12,6 @@ router.get('/pedidos-pendentes', dashboardController.getPedidosPendentes);
 router.get('/pagamentos-atrasados', dashboardController.getPagamentosAtrasados);
 router.get('/top-regioes', dashboardController.getTopRegioes);
 router.get('/pedidos-coordenadas', dashboardController.getPedidosCoordenadas);
+router.get('/top-servicos', dashboardController.getTopServicosPorCategoria);
 
 module.exports = router;
