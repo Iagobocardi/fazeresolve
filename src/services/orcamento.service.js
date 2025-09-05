@@ -153,8 +153,6 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
     orcamento.historico.push({ evento: `Serviço agendado para ${parsedDate.toLocaleString('pt-BR')}.` });
     
     const orcamentoSalvo = await orcamento.save();
-
-    // A lógica de notificação foi movida para o controller
     
     googleCalendarService.createEvent(orcamentoSalvo);
 
@@ -213,7 +211,6 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
     
     const orcamentoSalvo = await orcamento.save();
 
-    // A lógica de notificação foi movida para o controller para quebrar a dependência circular.
     return orcamentoSalvo;
 };
 
