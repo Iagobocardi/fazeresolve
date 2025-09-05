@@ -87,6 +87,7 @@ const corsOptions = {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 };
 
+app.options('*', cors()); // Enable pre-flight for all routes
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -123,7 +124,7 @@ app.use('/api/dashboard', providerAuthMiddlewares, dashboardRoutes);
 app.use('/api/despesas', providerAuthMiddlewares, despesasRoutes);
 app.use('/api/produtos', providerAuthMiddlewares, produtosRoutes);
 app.use('/api/fornecedores', providerAuthMiddlewares, fornecedorRoutes);
-app.use('/api/configuracoes', providerAuthMiddlewares, configuracaoRoutes);
+app.use('/api/configuracoes', configuracaoRoutes);
 app.use('/api/produtos-fornecedor', providerAuthMiddlewares, produtosFornecedorRoutes);
 app.use('/api/checklist', providerAuthMiddlewares, checklistRoutes);
 app.use('/api/google', providerAuthMiddlewares, googleRoutes);
