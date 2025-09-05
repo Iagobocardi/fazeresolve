@@ -73,6 +73,11 @@ if (process.env.APP_URL) {
     allowedOrigins.push(process.env.APP_URL);
 }
 
+// Adiciona a URL de preview do Render se aplicável
+if (process.env.IS_PULL_REQUEST === "true" && process.env.RENDER_EXTERNAL_URL) {
+    allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
+}
+
 const corsOptions = {
     origin: (origin, callback) => {
         // Permite requisições sem 'origin' (como apps mobile ou Postman)
