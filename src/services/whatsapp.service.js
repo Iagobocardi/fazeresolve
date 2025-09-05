@@ -472,7 +472,8 @@ case 'AWAITING_AVAILABILITY':
     await user.save();
 
     // Envia a confirmação para o cliente, com a data formatada corretamente.
-    await sendWhatsAppMessage(user.telefone, "Tudo certo! A sua solicitação foi registada com sucesso. Entraremos em contato em breve para confirmar.\n\nObrigado por usar o Faz & Resolve!");
+    const confirmationMessage = `Perfeito, recebemos todos os detalhes! A sua solicitação foi registada com o número de pedido #${newOrcamento.shortId}. A nossa equipa irá analisar as informações e enviará o seu orçamento através desta conversa em breve. Obrigado!`;
+    await sendWhatsAppMessage(user.telefone, confirmationMessage);
 
     // Notifica o prestador sobre o novo pedido.
     const prestadorPhone = process.env.PRESTADOR_TELEFONE;
