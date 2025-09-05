@@ -223,13 +223,17 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
     
     const orcamentoSalvo = await orcamento.save();
 
-    if (orcamento.cliente && orcamento.cliente.telefone) {
-        const whatsappService = require('./whatsapp.service');
-        const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
-        const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
-        if (mensagemRenderizada) {
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
+    try {
+        if (orcamento.cliente && orcamento.cliente.telefone) {
+            const whatsappService = require('./whatsapp.service');
+            const templateData = { orcamento: orcamentoSalvo, cliente: orcamento.cliente };
+            const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
+            if (mensagemRenderizada) {
+                await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
+            }
         }
+    } catch (notificationError) {
+        console.error(`[Serviço de Orçamento] Falha ao enviar notificação para o pedido #${orcamento.shortId}, mas o processo principal não foi interrompido. Erro:`, notificationError.message);
     }
 
     return orcamentoSalvo;
