@@ -55,8 +55,7 @@ const checkSubscription = require('./src/middlewares/checkSubscription.middlewar
 
 const app = express();
 
-// PASSO 4: Conectar à Base de Dados
-connectDB();
+// PASSO 4: Conectar à Base de Dados (movido para startServer)
 
 // PASSO 5: Middlewares Essenciais
 
@@ -147,8 +146,19 @@ app.get('/', (req, res) => {
 // PASSO 7: Middleware de Erro
 app.use(errorMiddleware);
 
-// PASSO 8: Iniciar o Servidor
+// PASSO 8: Iniciar o Servidor de forma segura
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
-});
+
+const startServer = async () => {
+    try {
+        await connectDB();
+        app.listen(PORT, () => {
+            console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
+        });
+    } catch (error) {
+        console.error("Falha ao iniciar o servidor:", error);
+        process.exit(1);
+    }
+};
+
+startServer();
