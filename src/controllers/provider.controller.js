@@ -7,11 +7,11 @@ const Conta = require('../models/conta.model');
  */
 const getPaymentSettings = async (req, res) => {
     try {
-        const provider = await Cliente.findById(req.user.id).select('metodoRecebimento chavePixManual credenciaisMercadoPago');
-        if (!provider) {
-            return res.status(404).json({ message: 'Prestador não encontrado.' });
+        const conta = await Conta.findById(req.user.contaId).select('metodoRecebimento chavePixManual credenciaisMercadoPago');
+        if (!conta) {
+            return res.status(404).json({ message: 'Conta do prestador não encontrada.' });
         }
-        res.status(200).json(provider);
+        res.status(200).json(conta);
     } catch (error) {
         console.error('Erro ao buscar configurações de pagamento:', error);
         res.status(500).json({ message: 'Erro interno no servidor.' });
@@ -20,7 +20,7 @@ const getPaymentSettings = async (req, res) => {
 
 const updatePaymentSettings = async (req, res) => {
     try {
-        const providerId = req.user.id; // ID do prestador logado, vindo do authMiddleware
+        const { contaId } = req.user;
         const { metodoRecebimento, chavePixManual } = req.body;
 
         // Validação básica
@@ -39,17 +39,17 @@ const updatePaymentSettings = async (req, res) => {
             updateData.chavePixManual = null; // Limpa a chave pix se mudar para Mercado Pago
         }
 
-        const updatedProvider = await Cliente.findByIdAndUpdate(
-            providerId,
+        const updatedConta = await Conta.findByIdAndUpdate(
+            contaId,
             { $set: updateData },
-            { new: true, select: '-password' } // Retorna o doc atualizado e exclui a senha
+            { new: true }
         );
 
-        if (!updatedProvider) {
-            return res.status(404).json({ message: 'Prestador não encontrado.' });
+        if (!updatedConta) {
+            return res.status(404).json({ message: 'Conta do prestador não encontrada.' });
         }
 
-        res.status(200).json({ message: 'Configurações de pagamento atualizadas com sucesso!', provider: updatedProvider });
+        res.status(200).json({ message: 'Configurações de pagamento atualizadas com sucesso!', conta: updatedConta });
 
     } catch (error) {
         console.error('Erro ao atualizar configurações de pagamento:', error);
@@ -59,7 +59,7 @@ const updatePaymentSettings = async (req, res) => {
 
 const connectMercadoPago = async (req, res) => {
     try {
-        const providerId = req.user.id;
+        const { contaId } = req.user;
         const clientId = process.env.MERCADO_PAGO_CLIENT_ID; // Seu App ID do Mercado Pago
         const redirectUri = `${process.env.API_URL}/api/provider/mercadopago-callback`;
 
@@ -67,7 +67,7 @@ const connectMercadoPago = async (req, res) => {
             throw new Error('MERCADO_PAGO_CLIENT_ID não está definido no ambiente.');
         }
 
-        const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${providerId}&redirect_uri=${redirectUri}`;
+        const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${clientId}&response_type=code&platform_id=mp&state=${contaId}&redirect_uri=${redirectUri}`;
 
         res.status(200).json({ authorization_url: authUrl });
 
@@ -82,7 +82,7 @@ const axios = require('axios');
 const handleMercadoPagoCallback = async (req, res) => {
     try {
         const { code, state, error } = req.query;
-        const providerId = state; // O 'state' contém o ID do nosso prestador
+        const contaId = state; // O 'state' agora contém o ID da conta
 
         // Se o usuário negar a permissão, o MP redireciona com um parâmetro 'error'
         if (error) {
@@ -113,8 +113,8 @@ const handleMercadoPagoCallback = async (req, res) => {
         const tokenData = response.data;
         console.log('[DEBUG] Tokens recebidos do Mercado Pago:', tokenData);
 
-        // Salva as credenciais e atualiza o status do prestador
-        await Cliente.findByIdAndUpdate(providerId, {
+        // Salva as credenciais e atualiza o status da conta
+        await Conta.findByIdAndUpdate(contaId, {
             $set: {
                 credenciaisMercadoPago: tokenData,
                 metodoRecebimento: 'MERCADOPAGO',
@@ -122,7 +122,7 @@ const handleMercadoPagoCallback = async (req, res) => {
             }
         });
 
-        console.log(`[INFO] Credenciais do Mercado Pago salvas para o prestador ${providerId}`);
+        console.log(`[INFO] Credenciais do Mercado Pago salvas para a conta ${contaId}`);
 
         res.redirect(`${process.env.FRONTEND_URL}/settings?connect=success`);
 
@@ -134,7 +134,7 @@ const handleMercadoPagoCallback = async (req, res) => {
 
 const updateCompanyInfo = async (req, res) => {
     try {
-        const providerId = req.user.id;
+        const { contaId } = req.user;
         const { companyInfo, focusNFeApiToken } = req.body;
 
         const updateData = {
@@ -142,17 +142,17 @@ const updateCompanyInfo = async (req, res) => {
             focusNFeApiToken
         };
 
-        const updatedProvider = await Cliente.findByIdAndUpdate(
-            providerId,
+        const updatedConta = await Conta.findByIdAndUpdate(
+            contaId,
             { $set: updateData },
-            { new: true, select: '-password' }
+            { new: true }
         );
 
-        if (!updatedProvider) {
-            return res.status(404).json({ message: 'Prestador não encontrado.' });
+        if (!updatedConta) {
+            return res.status(404).json({ message: 'Conta do prestador não encontrada.' });
         }
 
-        res.status(200).json({ message: 'Informações da empresa atualizadas com sucesso!', provider: updatedProvider });
+        res.status(200).json({ message: 'Informações da empresa atualizadas com sucesso!', conta: updatedConta });
     } catch (error) {
         console.error('Erro ao atualizar informações da empresa:', error);
         res.status(500).json({ message: 'Erro interno no servidor.' });
