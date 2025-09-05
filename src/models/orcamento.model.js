@@ -36,6 +36,12 @@ const orcamentoSchema = new mongoose.Schema({
     data: { type: Date, default: Date.now },
     valorProposto: { type: Number, min: 0, default: 0 },
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
+    contaId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
     // O prestadorId foi removido, a referência agora é feita pelo contaId
     descricao: { type: String },
     categoria: {
