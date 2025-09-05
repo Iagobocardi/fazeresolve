@@ -30,28 +30,38 @@ const getAllOrcamentos = async (req, res) => {
         const { contaId } = req.user;
         const { search, statusPagamento, dataInicio, dataFim } = req.query;
 
+        // --- DEBUGGING INÍCIO ---
+        const debugLog = (filename, data) => {
+            fs.writeFileSync(`./${filename}`, JSON.stringify(data, null, 2));
+        };
+
         // Estágio inicial do pipeline de agregação
         const pipeline = [
             {
                 $match: { contaId: new mongoose.Types.ObjectId(contaId) }
-            },
-            {
-                $lookup: {
-                    from: 'clientes', // nome da sua collection de clientes
-                    localField: 'cliente',
-                    foreignField: '_id',
-                    as: 'clienteInfo'
-                }
-            },
-            // Usamos um unwind mais seguro, que não descarta pedidos
-            // se o cliente por acaso for deletado.
-            {
-                $unwind: {
-                    path: '$clienteInfo',
-                    preserveNullAndEmptyArrays: true 
-                }
             }
         ];
+
+        const step1_result = await Orcamento.aggregate(pipeline);
+        debugLog('debug_step1_match.json', { count: step1_result.length, data: step1_result.map(d => ({ _id: d._id, cliente: d.cliente })) });
+
+        pipeline.push({
+            $lookup: {
+                from: 'clientes', // nome da sua collection de clientes
+                localField: 'cliente',
+                foreignField: '_id',
+                as: 'clienteInfo'
+            }
+        });
+        pipeline.push({
+            $unwind: {
+                path: '$clienteInfo',
+                preserveNullAndEmptyArrays: true 
+            }
+        });
+
+        const step2_result = await Orcamento.aggregate(pipeline);
+        debugLog('debug_step2_lookup.json', { count: step2_result.length, data: step2_result.map(d => ({ _id: d._id, clienteInfo: d.clienteInfo ? { _id: d.clienteInfo._id, nome: d.clienteInfo.nome } : null })) });
 
         // 1. Adicionar campos calculados para facilitar a filtragem
         pipeline.push({
@@ -106,10 +116,14 @@ const getAllOrcamentos = async (req, res) => {
             cliente: orc.clienteInfo
         }));
 
+        debugLog('debug_final_response.json', { count: orcamentosComCliente.length, data: orcamentosComCliente });
+        // --- DEBUGGING FIM ---
+
         res.json(orcamentosComCliente);
         
     } catch (error) {
         console.error("Erro ao buscar orçamentos com filtros:", error);
+        fs.writeFileSync('./debug_error.json', JSON.stringify({ error: error.message, stack: error.stack }, null, 2));
         res.status(500).json({ message: error.message });
     }
 };
@@ -220,19 +234,15 @@ const createOrcamento = async (req, res) => {
     }
 
     try {
-        const { contaId } = req.user;
+        const { contaId, id: prestadorId } = req.user; // Captura ambos os IDs
         const body = req.body;
 
-        // --- Início da Lógica Robusta de Dados ---
-        // Se a estrutura aninhada existir, use-a. Caso contrário, assume uma estrutura plana.
         const clienteData = body.clienteData || body;
         const orcamentoData = body.orcamentoData || body;
 
-        // Validação dos dados do cliente
         if (!clienteData.telefone && !clienteData._id) {
             return res.status(400).json({ message: 'O telefone (para novos clientes) ou o ID do cliente (para existentes) é obrigatório.' });
         }
-        // --- Fim da Lógica Robusta de Dados ---
 
         let cliente;
         if (clienteData._id) {
@@ -265,7 +275,7 @@ const createOrcamento = async (req, res) => {
             address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId,
-            prestadorId: req.user.id, // Adiciona o ID do prestador
+            prestadorId: prestadorId, // Salva o ID do usuário que criou
             historico: [{ evento: 'Pedido criado via sistema.' }]
         };
         Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
