@@ -154,20 +154,9 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
     
     const orcamentoSalvo = await orcamento.save();
 
-    // --- LÓGICA DE NOTIFICAÇÃO ATUALIZADA ---
-    if (orcamento.cliente && orcamento.cliente.telefone) {
-        const whatsappService = require('./whatsapp.service');
-        const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
-        const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', templateData);
-        
-        if (mensagemRenderizada) {
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
-        }
-    }
-
-    // --- 3. CHAMA A FUNÇÃO PARA CRIAR O EVENTO NO GOOGLE CALENDAR ---
+    // A lógica de notificação foi movida para o controller
+    
     googleCalendarService.createEvent(orcamentoSalvo);
-    // -----------------------------------------------------------
 
     return orcamentoSalvo;
 };
@@ -219,42 +208,12 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
     }
 
     orcamento.valorProposto = parseFloat(valorProposto);
-    orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} proposto ao cliente.` });
+    orcamento.status = 'Aceito';
+    orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} aceite pelo prestador.` });
     
     const orcamentoSalvo = await orcamento.save();
 
-    try {
-        if (orcamento.cliente && orcamento.cliente.telefone) {
-            const whatsappService = require('./whatsapp.service');
-            const templateData = { orcamento: orcamentoSalvo, cliente: orcamento.cliente };
-            const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
-            if (mensagemRenderizada) {
-                await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
-            }
-        }
-    } catch (notificationError) {
-        console.error(`[Serviço de Orçamento] Falha ao enviar notificação via template para o pedido #${orcamento.shortId}. Erro: ${notificationError.message}. Tentando enviar mensagem padrão.`);
-        
-        // Fallback: Envia uma mensagem de texto padrão se o template falhar
-        try {
-            const portalUrl = `https://app.fazeresolve.com/status/${orcamento.publicId}`;
-            const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0);
-            
-            const fallbackMessage = `Olá, ${orcamento.cliente.nome}! Segue o seu orçamento da Faz&Resolve:\n\n` +
-                                  `*Serviço:* ${orcamento.descricao}\n` +
-                                  `*Valor:* ${valorFormatado}\n\n` +
-                                  `Para ver os detalhes completos e aprovar, acesse o seu portal seguro: ${portalUrl}`;
-
-            const whatsappService = require('./whatsapp.service');
-            // Re-requer o serviço aqui dentro para garantir que está disponível
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, fallbackMessage);
-
-            console.log(`[Serviço de Orçamento] Mensagem padrão enviada com sucesso para o pedido #${orcamento.shortId}.`);
-        } catch (fallbackError) {
-            console.error(`[Serviço de Orçamento] Falha CRÍTICA ao enviar a mensagem padrão para o pedido #${orcamento.shortId}. Erro:`, fallbackError.message);
-        }
-    }
-
+    // A lógica de notificação foi movida para o controller para quebrar a dependência circular.
     return orcamentoSalvo;
 };
 
