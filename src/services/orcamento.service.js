@@ -154,6 +154,8 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
     
     const orcamentoSalvo = await orcamento.save();
     
+    // A lógica de notificação foi movida para o controller.
+    // A criação de evento no Google Calendar é uma lógica de negócio que pertence aqui.
     googleCalendarService.createEvent(orcamentoSalvo);
 
     return orcamentoSalvo;
