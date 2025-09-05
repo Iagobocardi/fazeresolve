@@ -673,6 +673,39 @@ const renderTemplateById = async (templateId, contaId, data) => {
     }
 };
 
+const renderTemplateByCategoria = async (categoria, contaId, data) => {
+    try {
+        const template = await WhatsappTemplate.findOne({ categoria: categoria, contaId: contaId });
+        if (!template) {
+            // Retorna nulo de forma segura se nenhum template para essa categoria for encontrado
+            return null;
+        }
+
+        let mensagemRenderizada = template.mensagem;
+
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                if (typeof value === 'object' && value !== null) {
+                    for (const subKey in value) {
+                        if (Object.prototype.hasOwnProperty.call(value, subKey)) {
+                            const placeholder = new RegExp(`{{${key}.${subKey}}}`, 'g');
+                            mensagemRenderizada = mensagemRenderizada.replace(placeholder, value[subKey] || '');
+                        }
+                    }
+                } else {
+                    const placeholder = new RegExp(`{{${key}}}`, 'g');
+                    mensagemRenderizada = mensagemRenderizada.replace(placeholder, value || '');
+                }
+            }
+        }
+        return mensagemRenderizada;
+    } catch (error) {
+        console.error(`Erro ao renderizar template pela categoria ${categoria}:`, error);
+        return null;
+    }
+};
+
 module.exports = {
     handleIncomingMessage,
     sendWhatsAppMessage,
@@ -684,5 +717,6 @@ module.exports = {
     renderTemplateMessage,
     renderTemplate,
     renderPreview,
-    renderTemplateById
+    renderTemplateById,
+    renderTemplateByCategoria
 };
