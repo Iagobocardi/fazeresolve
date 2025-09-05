@@ -21,7 +21,9 @@ router.get('/google/connect', needsAuth, configuracaoController.connectGoogleCal
 router.get('/google/callback', configuracaoController.handleGoogleCallback); // Esta rota não deve ter autenticação
 router.delete('/google/disconnect', needsAuth, configuracaoController.disconnectGoogleCalendar);
 
-// Rota para iniciar o onboarding do WhatsApp (placeholder)
-router.get('/whatsapp/iniciar-onboarding', authMiddleware, configuracaoController.iniciarWhatsappOnboarding);
+// Rotas para o fluxo de onboarding do WhatsApp
+router.post('/whatsapp/iniciar-onboarding', authMiddleware, configuracaoController.iniciarWhatsappOnboarding);
+router.post('/whatsapp/verificar-sender', authMiddleware, configuracaoController.verificarWhatsappSender);
+
 
 module.exports = router;
