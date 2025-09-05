@@ -370,16 +370,28 @@ const submitOrcamento = async (req, res) => {
         const orcamentoId = req.params.id;
         const { contaId } = req.user;
 
-        // O controller chama o serviço, que contém toda a lógica.
+        // 1. O controller chama o serviço, que contém a lógica de negócio principal.
         const orcamentoAtualizado = await orcamentoService.submeterOrcamento(contaId, orcamentoId, valorProposto);
 
-        // Envia a resposta HTTP.
+        // 2. O controller lida com a lógica de notificação (side-effect)
+        try {
+            if (orcamentoAtualizado.cliente && orcamentoAtualizado.cliente.telefone) {
+                const templateData = { orcamento: orcamentoAtualizado, cliente: orcamentoAtualizado.cliente };
+                const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
+                if (mensagemRenderizada) {
+                    await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, mensagemRenderizada);
+                }
+            }
+        } catch (notificationError) {
+            // Loga o erro de notificação mas não quebra a requisição principal
+            console.error(`[Controller] Falha ao enviar notificação para o pedido #${orcamentoAtualizado.shortId}. Erro:`, notificationError.message);
+        }
+
+        // 3. Envia a resposta HTTP de sucesso.
         res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
-        // Apanha erros lançados pelo serviço, como 'Valor inválido' ou 'Orçamento não encontrado'.
         console.error("ERRO na rota submitOrcamento:", error);
-        // Retorna o status 400 (Bad Request) para erros de validação, o que é mais semântico.
         if (error.message.includes('Valor') || error.message.includes('obrigatório')) {
             return res.status(400).json({ error: error.message });
         }
@@ -396,15 +408,24 @@ const scheduleOrcamento = async (req, res) => {
             return res.status(400).json({ error: 'A data de agendamento é obrigatória.' });
         }
         
-        // O controller agora apenas chama o serviço, passando os dados necessários.
-        // Toda a lógica complexa está no orcamento.service.js
         const orcamentoAtualizado = await orcamentoService.agendarServico(contaId, orcamentoId, dataAgendamento);
 
-        // A única responsabilidade do controller é enviar a resposta HTTP.
+        // Lógica de notificação movida para o controller
+        try {
+            if (orcamentoAtualizado.cliente && orcamentoAtualizado.cliente.telefone) {
+                const templateData = { orcamento: orcamentoAtualizado, cliente: orcamentoAtualizado.cliente };
+                const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', templateData);
+                if (mensagemRenderizada) {
+                    await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, mensagemRenderizada);
+                }
+            }
+        } catch (notificationError) {
+            console.error(`[Controller] Falha ao enviar notificação de agendamento para o pedido #${orcamentoAtualizado.shortId}. Erro:`, notificationError.message);
+        }
+
         res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
-        // O erro lançado pelo serviço (ex: 'Orçamento não encontrado') é apanhado aqui.
         console.error("ERRO na rota scheduleOrcamento:", error);
         res.status(500).json({ error: error.message || 'Erro interno ao agendar o serviço.' });
     }
