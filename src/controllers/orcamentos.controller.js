@@ -378,17 +378,9 @@ const submitOrcamento = async (req, res) => {
         try {
             if (orcamentoAtualizado.cliente && orcamentoAtualizado.cliente.telefone) {
                 const templateData = { orcamento: orcamentoAtualizado, cliente: orcamentoAtualizado.cliente };
-                const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
+                const mensagemRenderizada = await whatsappService.renderTemplateByCategoria('Orçamento', contaId, templateData);
                 if (mensagemRenderizada) {
                     await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, mensagemRenderizada);
-                } else {
-                    const portalUrl = `https://app.fazeresolve.com/status/${orcamentoAtualizado.publicId}`;
-                    const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamentoAtualizado.valorProposto || 0);
-                    const fallbackMessage = `Olá, ${orcamentoAtualizado.cliente.nome}! Segue o seu orçamento da Faz&Resolve:\n\n` +
-                                          `*Serviço:* ${orcamentoAtualizado.descricao}\n` +
-                                          `*Valor:* ${valorFormatado}\n\n` +
-                                          `Para ver os detalhes completos e aprovar, acesse o seu portal seguro: ${portalUrl}`;
-                    await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, fallbackMessage);
                 }
             }
         } catch (notificationError) {
@@ -420,7 +412,7 @@ const scheduleOrcamento = async (req, res) => {
         try {
             if (orcamentoAtualizado.cliente && orcamentoAtualizado.cliente.telefone) {
                 const templateData = { orcamento: orcamentoAtualizado, cliente: orcamentoAtualizado.cliente };
-                const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', templateData);
+                const mensagemRenderizada = await whatsappService.renderTemplateByCategoria('Agendamento', contaId, templateData);
                 if (mensagemRenderizada) {
                     await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, mensagemRenderizada);
                 }
