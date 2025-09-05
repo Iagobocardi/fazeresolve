@@ -4,87 +4,29 @@ const crypto = require('crypto');
 const whatsappService = require('../services/whatsapp.service');
 const mongoose = require('mongoose');
 
-// Função para listar todos os clientes de um prestador específico
+// Função para listar todos os clientes de um prestador específico (REATORADA PARA PERFORMANCE)
 const getAllClientes = async (req, res) => {
     try {
-        const contaId = new mongoose.Types.ObjectId(req.user.contaId);
+        const { contaId } = req.user;
+        const { search } = req.query;
 
-        const clientesDoPrestador = await Orcamento.aggregate([
-            // 1. Encontrar todos os orçamentos que pertencem à conta logada
-            {
-                $match: { contaId: contaId }
-            },
-            // 2. Agrupar por cliente para obter uma lista de clientes únicos
-            {
-                $group: {
-                    _id: '$cliente',
-                    // Opcional: pode-se coletar mais dados aqui se necessário
-                }
-            },
-            // 3. Juntar com a coleção de clientes para obter os seus detalhes
-            {
-                $lookup: {
-                    from: 'clientes', // nome da collection de clientes
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'clienteInfo'
-                }
-            },
-            // 4. Desconstruir o array clienteInfo
-            {
-                $unwind: '$clienteInfo'
-            },
-            // 5. Juntar novamente com os orçamentos para calcular os totais, mas agora apenas para os clientes deste prestador
-            {
-                $lookup: {
-                    from: 'orcamentos',
-                    localField: 'clienteInfo._id',
-                    foreignField: 'cliente',
-                    as: 'pedidos'
-                }
-            },
-            // 6. Calcular os totais para cada cliente
-            {
-                $addFields: {
-                    totalPedidos: { $size: '$pedidos' },
-                    valorTotalGasto: {
-                        $sum: {
-                            $map: {
-                                input: {
-                                    $filter: {
-                                        input: '$pedidos',
-                                        as: 'pedido',
-                                        cond: { $eq: ['$$pedido.status', 'Finalizado'] }
-                                    }
-                                },
-                                as: 'pedidoFinalizado',
-                                in: '$$pedidoFinalizado.valorProposto'
-                            }
-                        }
-                    }
-                }
-            },
-            // 7. Formatar a saída final
-            {
-                $project: {
-                    _id: '$clienteInfo._id',
-                    nome: '$clienteInfo.nome',
-                    telefone: '$clienteInfo.telefone',
-                    totalPedidos: 1,
-                    valorTotalGasto: 1
-                }
-            },
-            // 8. Ordenar
-            {
-                $sort: {
-                    valorTotalGasto: -1
-                }
-            }
-        ]);
+        let query = { contaId: contaId };
 
-        res.status(200).json(clientesDoPrestador);
+        if (search) {
+            const regex = new RegExp(search, 'i');
+            query.$or = [
+                { nome: regex },
+                { email: regex },
+                { telefone: regex }
+            ];
+        }
+        
+        // Busca os clientes diretamente e ordena pelos que gastaram mais.
+        const clientes = await Cliente.find(query).sort({ valorTotalGasto: -1 });
+
+        res.status(200).json(clientes);
     } catch (error) {
-        console.error("Erro ao buscar clientes do prestador:", error);
+        console.error("Erro ao buscar clientes:", error);
         res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
     }
 };
