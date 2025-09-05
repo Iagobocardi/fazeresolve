@@ -265,6 +265,7 @@ const createOrcamento = async (req, res) => {
             address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId,
+            prestadorId: req.user.id, // Adiciona o ID do prestador
             historico: [{ evento: 'Pedido criado via sistema.' }]
         };
         Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
