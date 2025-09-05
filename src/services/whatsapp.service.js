@@ -445,6 +445,7 @@ case 'AWAITING_AVAILABILITY':
     user.conversationState = 'COMPLETED'; // Agora sim, mudamos o estado.
 
      const newOrcamento = await Orcamento.create({
+                        contaId: contaId,
                         cliente: user._id,
                         tipo: 'ORCAMENTO',
                         status: 'Pendente', // 1. O status agora é 'Pendente', como deveria ser.
