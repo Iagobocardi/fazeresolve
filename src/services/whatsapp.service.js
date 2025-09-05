@@ -189,6 +189,9 @@ const handleIncomingMessage = async (req) => {
         const contaId = conta._id;
         const prestadorPhone = conta.telefone; // Usar o telefone da conta para notificações
 
+        // Carrega a configuração da conta para verificar as condições de automação
+        const configuracao = await require('../models/configuracao.model').findOne({ contaId: contaId });
+
         const senderPhone = From.replace('whatsapp:', '');
         const messageBody = Body || '';
         const mediaUrls = [];
@@ -246,6 +249,15 @@ const handleIncomingMessage = async (req) => {
             const responseMessage = await commandParser.parseAndExecute(messageBody, user, sendWhatsAppMessage);
             if (responseMessage) { await sendWhatsAppMessage(user.telefone, responseMessage); }
         } else { // Role: 'CLIENTE_FINAL'
+
+            // --- VERIFICAÇÃO DE CONDIÇÕES DA AUTOMAÇÃO ---
+            if (!configuracao || conta.plano !== 'Premium' || configuracao.whatsappMode !== 'completo') {
+                // Se as condições não forem atendidas, a automação não prossegue.
+                // Uma lógica futura poderia ser encaminhar a mensagem para o prestador.
+                console.log(`[SERVICE] Automação de WhatsApp não ativa para a conta ${contaId}. A lógica de conversação foi ignorada.`);
+                return;
+            }
+
             // Lógica para guardar a mensagem na conversa **COM CONTAID**
             if (messageBody || mediaUrls.length > 0) {
                 await Conversa.findOneAndUpdate(
