@@ -283,6 +283,9 @@ const createOrcamento = async (req, res) => {
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
         const orcamentoSalvo = await novoOrcamento.save();
 
+        // Atualiza o contador de pedidos do cliente
+        await Cliente.findByIdAndUpdate(cliente._id, { $inc: { totalPedidos: 1 } });
+
         const conta = await Conta.findById(contaId);
         if (conta && conta.telefone) {
              const notificationToPrestador = `🔔 *Novo Pedido Criado no Sistema!*\n\n` +
