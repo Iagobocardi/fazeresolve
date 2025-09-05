@@ -136,3 +136,16 @@ exports.disconnectGoogleCalendar = async (req, res) => {
         res.status(500).json({ message: 'Erro ao desconectar o Google Calendar.' });
     }
 };
+
+exports.iniciarWhatsappOnboarding = async (req, res) => {
+    // Placeholder function
+    res.status(200).json({ 
+        message: 'Funcionalidade em desenvolvimento.',
+        instructions: 'Para conectar a sua conta do WhatsApp, por favor, siga o nosso guia de configuração manual ou entre em contato com o suporte.'
+    });
+};
+
+exports.handleWhatsappCallback = async (req, res) => {
+    // Placeholder function
+    res.status(200).send('Callback do WhatsApp recebido. Funcionalidade em desenvolvimento.');
+};
