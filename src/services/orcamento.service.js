@@ -233,7 +233,26 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
             }
         }
     } catch (notificationError) {
-        console.error(`[Serviço de Orçamento] Falha ao enviar notificação para o pedido #${orcamento.shortId}, mas o processo principal não foi interrompido. Erro:`, notificationError.message);
+        console.error(`[Serviço de Orçamento] Falha ao enviar notificação via template para o pedido #${orcamento.shortId}. Erro: ${notificationError.message}. Tentando enviar mensagem padrão.`);
+        
+        // Fallback: Envia uma mensagem de texto padrão se o template falhar
+        try {
+            const portalUrl = `https://app.fazeresolve.com/status/${orcamento.publicId}`;
+            const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orcamento.valorProposto || 0);
+            
+            const fallbackMessage = `Olá, ${orcamento.cliente.nome}! Segue o seu orçamento da Faz&Resolve:\n\n` +
+                                  `*Serviço:* ${orcamento.descricao}\n` +
+                                  `*Valor:* ${valorFormatado}\n\n` +
+                                  `Para ver os detalhes completos e aprovar, acesse o seu portal seguro: ${portalUrl}`;
+
+            // Re-requer o serviço aqui dentro para garantir que está disponível
+            const whatsappService = require('./whatsapp.service');
+            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, fallbackMessage);
+
+            console.log(`[Serviço de Orçamento] Mensagem padrão enviada com sucesso para o pedido #${orcamento.shortId}.`);
+        } catch (fallbackError) {
+            console.error(`[Serviço de Orçamento] Falha CRÍTICA ao enviar a mensagem padrão para o pedido #${orcamento.shortId}. Erro:`, fallbackError.message);
+        }
     }
 
     return orcamentoSalvo;
