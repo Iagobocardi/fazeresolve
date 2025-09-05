@@ -183,6 +183,8 @@ const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
 
     if (novoStatus === 'Finalizado' && statusAntigo !== 'Finalizado') {
         orcamento.dataFinalizacao = new Date();
+        // Atualiza o valor total gasto pelo cliente
+        await Cliente.findByIdAndUpdate(orcamento.cliente._id, { $inc: { valorTotalGasto: orcamento.valorProposto } });
     }
     
     const orcamentoAtualizado = await orcamento.save();
