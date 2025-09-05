@@ -82,6 +82,12 @@ const contaSchema = new Schema({
         trim: true
     },
 
+    // Integração Twilio WhatsApp
+    twilioAccountSid: { type: String, trim: true },
+    twilioAuthToken: { type: String, trim: true },
+    whatsappSender: { type: String, trim: true }, // O número de WhatsApp registrado
+    whatsappSenderSid: { type: String, trim: true }, // O SID do Sender (XE...)
+
 }, {
     timestamps: true
 });
