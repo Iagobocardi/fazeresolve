@@ -1,8 +1,9 @@
 // src/controllers/configuracao.controller.js
 
+const { google } = require('googleapis');
+const axios = require('axios');
 const Configuracao = require('../models/configuracao.model.js');
 const Conta = require('../models/conta.model.js');
-const { google } = require('googleapis');
 
 // Defina o cliente OAuth2 AQUI, no topo do ficheiro
 const oauth2Client = new google.auth.OAuth2(
@@ -28,6 +29,7 @@ exports.getConfiguracao = async (req, res) => {
 
         const configObject = config.toObject();
         configObject.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+
         // Adiciona a informação de conexão ao objeto de resposta
         configObject.googleCalendarConnected = conta ? conta.googleCalendarConnected : false;
         configObject.googleAccountEmail = conta ? conta.googleAccountEmail : null;
@@ -93,7 +95,6 @@ exports.handleGoogleCallback = async (req, res) => {
         oauth2Client.setCredentials(tokens);
         console.log('[Google Callback] Tokens recebidos com sucesso.');
 
-        // Buscar o email do usuário
         const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
         const { data: userInfo } = await oauth2.userinfo.get();
         const email = userInfo.email;
@@ -133,19 +134,106 @@ exports.disconnectGoogleCalendar = async (req, res) => {
         });
         res.status(200).json({ message: 'Google Calendar desconectado com sucesso.' });
     } catch (error) {
+        console.error("Erro ao desconectar o Google Calendar:", error);
         res.status(500).json({ message: 'Erro ao desconectar o Google Calendar.' });
     }
 };
 
+// Inicia o processo de onboarding do WhatsApp com a Twilio
 exports.iniciarWhatsappOnboarding = async (req, res) => {
-    // Placeholder function
-    res.status(200).json({ 
-        message: 'Funcionalidade em desenvolvimento.',
-        instructions: 'Para conectar a sua conta do WhatsApp, por favor, siga o nosso guia de configuração manual ou entre em contato com o suporte.'
-    });
+    try {
+        const { contaId } = req.user;
+        const { numero, nomeExibicao, twilioAccountSid, twilioAuthToken } = req.body;
+
+        if (!numero || !nomeExibicao || !twilioAccountSid || !twilioAuthToken) {
+            return res.status(400).json({ message: 'Todos os campos são obrigatórios: número, nome de exibição e credenciais da Twilio.' });
+        }
+        
+        const conta = await Conta.findById(contaId);
+        if (!conta) {
+            return res.status(404).json({ message: "Conta não encontrada. Não é possível iniciar o onboarding." });
+        }
+
+        // Salva as credenciais da Twilio na conta ANTES de chamar a API
+        conta.twilioAccountSid = twilioAccountSid;
+        conta.twilioAuthToken = twilioAuthToken;
+        conta.whatsappSender = numero;
+        await conta.save();
+
+        const twilioUrl = 'https://messaging.twilio.com/v2/Channels/Senders';
+        const basicAuth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
+
+        const requestBody = {
+            sender_id: `whatsapp:${numero}`,
+            profile: { name: nomeExibicao },
+            webhook: {
+                callback_url: `${process.env.API_URL}/api/whatsapp/webhook`,
+                callback_method: 'POST'
+            }
+        };
+
+        const response = await axios.post(twilioUrl, requestBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${basicAuth}`
+            }
+        });
+
+        // Salva o SID do Sender retornado pela Twilio
+        conta.whatsappSenderSid = response.data.sid;
+        await conta.save();
+
+        res.status(200).json({ 
+            message: 'Processo de registo do número iniciado. Um código de verificação foi enviado para o seu número via WhatsApp.',
+            senderSid: response.data.sid 
+        });
+
+    } catch (error) {
+        console.error("Erro ao iniciar onboarding do WhatsApp:", error.response ? error.response.data : error.message);
+        const errorMessage = error.response?.data?.message || 'Erro ao iniciar o processo de onboarding do WhatsApp.';
+        const errorCode = error.response?.status || 500;
+        res.status(errorCode).json({ message: errorMessage });
+    }
 };
 
-exports.handleWhatsappCallback = async (req, res) => {
-    // Placeholder function
-    res.status(200).send('Callback do WhatsApp recebido. Funcionalidade em desenvolvimento.');
+// Verifica o código de verificação do número de WhatsApp
+exports.verificarWhatsappSender = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { verificationCode } = req.body;
+
+        if (!verificationCode) {
+            return res.status(400).json({ message: 'O código de verificação é obrigatório.' });
+        }
+
+        const conta = await Conta.findById(contaId);
+        if (!conta || !conta.twilioAccountSid || !conta.whatsappSenderSid) {
+            return res.status(404).json({ message: 'Configuração da Twilio não encontrada ou processo de onboarding não iniciado para esta conta.' });
+        }
+
+        const twilioUrl = `https://messaging.twilio.com/v2/Channels/Senders/${conta.whatsappSenderSid}`;
+        const basicAuth = Buffer.from(`${conta.twilioAccountSid}:${conta.twilioAuthToken}`).toString('base64');
+
+        const requestBody = {
+            configuration: {
+                verification_code: verificationCode
+            }
+        };
+
+        // Note: A API da Twilio para verificar o sender é um POST no mesmo endpoint de criação
+        await axios.post(twilioUrl, requestBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${basicAuth}`
+            }
+        });
+
+        res.status(200).json({ message: 'Número verificado com sucesso! A sua automação de WhatsApp está pronta para ser ativada.' });
+
+    } catch (error) {
+        console.error("Erro ao verificar o sender do WhatsApp:", error.response ? error.response.data : error.message);
+        const errorMessage = error.response?.data?.message || 'Erro ao verificar o código.';
+        const errorCode = error.response?.status || 500;
+        res.status(errorCode).json({ message: errorMessage });
+    }
 };
