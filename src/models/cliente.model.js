@@ -57,6 +57,16 @@ const clienteSchema = new Schema({
         default: null
     },
 
+    // Campos denormalizados para performance na listagem
+    totalPedidos: {
+        type: Number,
+        default: 0
+    },
+    valorTotalGasto: {
+        type: Number,
+        default: 0
+    },
+
 }, {
     timestamps: true
 }); 
