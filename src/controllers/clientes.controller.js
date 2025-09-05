@@ -7,12 +7,12 @@ const mongoose = require('mongoose');
 // Função para listar todos os clientes de um prestador específico
 const getAllClientes = async (req, res) => {
     try {
-        const prestadorId = new mongoose.Types.ObjectId(req.user.id);
+        const contaId = new mongoose.Types.ObjectId(req.user.contaId);
 
         const clientesDoPrestador = await Orcamento.aggregate([
-            // 1. Encontrar todos os orçamentos que pertencem ao prestador logado
+            // 1. Encontrar todos os orçamentos que pertencem à conta logada
             {
-                $match: { prestadorId: prestadorId }
+                $match: { contaId: contaId }
             },
             // 2. Agrupar por cliente para obter uma lista de clientes únicos
             {
