@@ -1,6 +1,5 @@
 // Em: src/services/orcamento.service.js
 const Orcamento = require('../models/orcamento.model');
-const whatsappService = require('./whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
 const { MercadoPagoConfig, Preference } = require('mercadopago');
@@ -157,6 +156,7 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
 
     // --- LÓGICA DE NOTIFICAÇÃO ATUALIZADA ---
     if (orcamento.cliente && orcamento.cliente.telefone) {
+        const whatsappService = require('./whatsapp.service');
         const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
         const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', templateData);
         
@@ -224,6 +224,7 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
     const orcamentoSalvo = await orcamento.save();
 
     if (orcamento.cliente && orcamento.cliente.telefone) {
+        const whatsappService = require('./whatsapp.service');
         const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
         const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
         if (mensagemRenderizada) {
