@@ -245,8 +245,8 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
                                   `*Valor:* ${valorFormatado}\n\n` +
                                   `Para ver os detalhes completos e aprovar, acesse o seu portal seguro: ${portalUrl}`;
 
-            // Re-requer o serviço aqui dentro para garantir que está disponível
             const whatsappService = require('./whatsapp.service');
+            // Re-requer o serviço aqui dentro para garantir que está disponível
             await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, fallbackMessage);
 
             console.log(`[Serviço de Orçamento] Mensagem padrão enviada com sucesso para o pedido #${orcamento.shortId}.`);
