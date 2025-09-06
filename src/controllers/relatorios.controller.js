@@ -1,7 +1,5 @@
 // Importa os services e models necessários
 const relatoriosService = require('../services/relatorios.service');
-const Servico = require('../models/servico.model');
-const Financeiro = require('../models/financeiro.model');
 const Orcamento = require('../models/orcamento.model');
 const Agendamento = require('../models/agendamento.model');
 const Produto = require('../models/produto.model');
@@ -93,16 +91,30 @@ const getHistoricoProduto = async (req, res) => {
 
 const gerarRelatorioReceitaVsDespesa = async (req, res) => {
     try {
-        const data = await relatoriosService.getRevenueVsExpensesData();
-        const revenueDetails = data.revenueRecords.map(r => [ new Date(r.dataPagamento).toLocaleDateString('pt-BR'), r.formaPagamento, `R$ ${r.valorRecebido.toFixed(2)}` ]);
-        const expenseDetails = data.expenseRecords.map(e => [ new Date(e.data).toLocaleDateString('pt-BR'), e.descricao, e.categoria, `R$ ${e.valor.toFixed(2)}` ]);
+        const { contaId } = req.user; // Passar a contaId para o service
+        const data = await relatoriosService.getRevenueVsExpensesData(contaId);
+
+        // Mapeia os dados da nova 'Transacao'
+        const revenueDetails = data.revenueRecords.map(r => [
+            new Date(r.data).toLocaleDateString('pt-BR'),
+            r.descricao, // A descrição é mais informativa
+            r.metodoPagamento || 'N/A',
+            `R$ ${r.valor.toFixed(2)}`
+        ]);
+        const expenseDetails = data.expenseRecords.map(e => [
+            new Date(e.data).toLocaleDateString('pt-BR'),
+            e.descricao,
+            e.categoria,
+            `R$ ${e.valor.toFixed(2)}`
+        ]);
+
         const docDefinition = {
             content: [
                 { text: 'Relatório de Receitas vs. Despesas', style: 'header' },
                 { text: 'Resumo Financeiro', style: 'subheader' },
                 { style: 'summaryTable', table: { widths: ['*', '*'], body: [ ['Receita Total', `R$ ${data.totalRevenue.toFixed(2)}`], ['Despesa Total', `R$ ${data.totalExpenses.toFixed(2)}`], [{ text: 'Resultado Líquido', bold: true }, { text: `R$ ${data.netResult.toFixed(2)}`, bold: true }] ] }, layout: 'noBorders' },
                 { text: 'Detalhes de Receitas', style: 'subheader', margin: [0, 20, 0, 10] },
-                { table: { headerRows: 1, widths: ['auto', '*', 'auto'], body: [['Data', 'Forma de Pagamento', 'Valor'], ...revenueDetails] } },
+                { table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto'], body: [['Data', 'Descrição', 'Forma de Pagamento', 'Valor'], ...revenueDetails] } },
                 { text: 'Detalhes de Despesas', style: 'subheader', margin: [0, 20, 0, 10] },
                 { table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto'], body: [['Data', 'Descrição', 'Categoria', 'Valor'], ...expenseDetails] } }
             ],
@@ -141,9 +153,10 @@ const gerarRelatorioSatisfacaoCliente = async (req, res) => {
 
 const gerarRelatorioFinanceiroPDF = async (req, res) => {
     try {
-        const bodyData = await relatoriosService.getFinanceiroReportData();
+        const { contaId } = req.user; // Passar a contaId para o service
+        const bodyData = await relatoriosService.getFinanceiroReportData(contaId);
         const docDefinition = {
-            content: [ { text: 'Relatório Financeiro', style: 'header' }, { table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto'], body: [['Data', 'Cliente', 'Forma de Pagamento', 'Valor Recebido'], ...bodyData] } } ],
+            content: [ { text: 'Relatório Financeiro (Receitas)', style: 'header' }, { table: { headerRows: 1, widths: ['auto', '*', 'auto', 'auto'], body: [['Data', 'Cliente/Origem', 'Forma de Pagamento', 'Valor Recebido'], ...bodyData] } } ],
             styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] } }
         };
         sendPdfResponse(res, docDefinition, 'relatorio_financeiro.pdf');
