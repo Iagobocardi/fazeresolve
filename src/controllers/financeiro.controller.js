@@ -1,96 +1,142 @@
-const Financeiro = require('../models/financeiro.model');
-const Servico = require('../models/servico.model');
-const { validationResult, body } = require('express-validator');
+const Transacao = require('../models/transacao.model.js');
+const mongoose = require('mongoose');
 
-const financeiroValidationRules = [
-    body('valorRecebido').notEmpty().isNumeric().isFloat({ min: 0 }).withMessage('Valor recebido deve ser um número maior ou igual a zero'),
-    body('formaPagamento').notEmpty().isString().trim().withMessage('Forma de pagamento é obrigatória'),
-    body('taxaAplicada').optional().isNumeric().isFloat({ min: 0 }).withMessage('Taxa aplicada deve ser um número maior ou igual a zero'),
-    body('servico').notEmpty().isMongoId().withMessage('ID de serviço inválido'),
-];
-
-// Obtém todos os registros financeiros
-const getAllFinanceiro = async (req, res) => {
+/**
+ * Calcula e retorna um resumo financeiro para um determinado período.
+ */
+const getResumoFinanceiro = async (req, res) => {
     try {
-        const registros = await Financeiro.find().populate('servico');
-        res.status(200).json(registros);
+        const { contaId } = req.user;
+        const { periodo = 'mes_atual' } = req.query; // Ex: 'mes_atual', 'ultimos_30_dias', 'ano_atual'
+
+        // Define o intervalo de datas com base no período solicitado
+        const agora = new Date();
+        let dataInicio;
+
+        switch (periodo) {
+            case 'ultimos_30_dias':
+                dataInicio = new Date(agora.setDate(agora.getDate() - 30));
+                break;
+            case 'ano_atual':
+                dataInicio = new Date(agora.getFullYear(), 0, 1);
+                break;
+            case 'mes_atual':
+            default:
+                dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
+                break;
+        }
+
+        const matchStage = {
+            contaId: new mongoose.Types.ObjectId(contaId),
+            data: { $gte: dataInicio }
+        };
+
+        const resultado = await Transacao.aggregate([
+            { $match: matchStage },
+            {
+                $group: {
+                    _id: "$tipo",
+                    total: { $sum: "$valor" }
+                }
+            }
+        ]);
+
+        let faturamentoBruto = 0;
+        let totalDespesas = 0;
+
+        resultado.forEach(item => {
+            if (item._id === 'Receita') {
+                faturamentoBruto = item.total;
+            } else if (item._id === 'Despesa') {
+                totalDespesas = item.total;
+            }
+        });
+
+        const lucroLiquido = faturamentoBruto - totalDespesas;
+        const margemLucro = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
+
+        res.status(200).json({
+            faturamentoBruto,
+            totalDespesas,
+            lucroLiquido,
+            margemLucro,
+            periodo,
+            dataInicio
+        });
+
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao buscar registros financeiros.' });
+        console.error("Erro ao gerar resumo financeiro:", error);
+        res.status(500).json({ message: "Erro ao gerar resumo financeiro.", error: error.message });
     }
 };
 
-// Obtém um registro financeiro por ID
-const getFinanceiroById = async (req, res) => {
+/**
+ * Retorna uma lista paginada do histórico de transações.
+ */
+const getHistoricoTransacoes = async (req, res) => {
     try {
-        const registro = await Financeiro.findById(req.params.id).populate('servico');
-        if (!registro) {
-            return res.status(404).json({ error: 'Registro financeiro não encontrado.' });
-        }
-        res.status(200).json(registro);
+        const { contaId } = req.user;
+        // Adiciona paginação para performance
+        const pagina = parseInt(req.query.pagina, 10) || 1;
+        const limite = parseInt(req.query.limite, 10) || 20;
+        const skip = (pagina - 1) * limite;
+
+        const transacoes = await Transacao.find({ contaId })
+            .sort({ data: -1 })
+            .skip(skip)
+            .limit(limite);
+
+        const totalTransacoes = await Transacao.countDocuments({ contaId });
+
+        res.status(200).json({
+            transacoes,
+            pagina,
+            totalPaginas: Math.ceil(totalTransacoes / limite)
+        });
+
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao buscar registro financeiro.' });
+        console.error("Erro ao buscar histórico de transações:", error);
+        res.status(500).json({ message: "Erro ao buscar histórico de transações.", error: error.message });
     }
 };
 
-// Cria um novo registro financeiro
-const createFinanceiro = async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-
+/**
+ * Cria uma nova transação manual (receita ou despesa).
+ */
+const createManualTransacao = async (req, res) => {
     try {
-        // Verifica se o serviço existe
-        const servico = await Servico.findById(req.body.servico);
-        if (!servico) {
-            return res.status(400).json({ error: 'Serviço não encontrado.' });
-        }
-        const novoFinanceiro = new Financeiro(req.body);
-        const registroSalvo = await novoFinanceiro.save();
-        res.status(201).json(registroSalvo);
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao criar registro financeiro.' });
-    }
-};
+        const { contaId } = req.user;
+        const { tipo, descricao, valor, categoria, data, metodoPagamento } = req.body;
 
-// Atualiza um registro financeiro por ID
-const updateFinanceiro = async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-    try {
-        const registroAtualizado = await Financeiro.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        }).populate('servico');
-        if (!registroAtualizado) {
-            return res.status(404).json({ error: 'Registro financeiro não encontrado.' });
+        // Validação básica
+        if (!tipo || !descricao || !valor) {
+            return res.status(400).json({ message: "Tipo, descrição e valor são obrigatórios." });
         }
-        res.status(200).json(registroAtualizado);
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao atualizar registro financeiro.' });
-    }
-};
+        if (tipo !== 'Receita' && tipo !== 'Despesa') {
+            return res.status(400).json({ message: "O tipo da transação deve ser 'Receita' ou 'Despesa'." });
+        }
 
-// Deleta um registro financeiro por ID
-const deleteFinanceiro = async (req, res) => {
-    try {
-        const registroDeletado = await Financeiro.findByIdAndDelete(req.params.id);
-        if (!registroDeletado) {
-            return res.status(404).json({ error: 'Registro financeiro não encontrado.' });
-        }
-        res.status(200).json({ message: 'Registro financeiro deletado com sucesso.' });
+        const novaTransacao = new Transacao({
+            contaId,
+            tipo,
+            descricao,
+            valor,
+            categoria,
+            data: data ? new Date(data) : new Date(),
+            metodoPagamento
+        });
+
+        const transacaoSalva = await novaTransacao.save();
+        res.status(201).json(transacaoSalva);
+
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao deletar registro financeiro.' });
+        console.error("Erro ao criar transação manual:", error);
+        res.status(500).json({ message: "Erro ao criar transação manual.", error: error.message });
     }
 };
 
 module.exports = {
-    financeiroValidationRules,
-    getAllFinanceiro,
-    getFinanceiroById,
-    createFinanceiro,
-    updateFinanceiro,
-    deleteFinanceiro
+    getResumoFinanceiro,
+    getHistoricoTransacoes,
+    createManualTransacao
 };
