@@ -1,7 +1,7 @@
 // src/services/relatorios.service.js
 
 const Servico = require('../models/servico.model');
-const Financeiro = require('../models/financeiro.model');
+const Transacao = require('../models/transacao.model'); // SUBSTITUÍDO
 const Orcamento = require('../models/orcamento.model');
 const Agendamento = require('../models/agendamento.model');
 const Despesa = require('../models/despesa.model');
@@ -60,42 +60,59 @@ exports.getCustomerSatisfactionReportData = async () => {
 /**
  * Busca e calcula os dados para o relatório de receitas vs. despesas.
  */
-exports.getRevenueVsExpensesData = async () => {
-    // Calcula o total de receitas
-    const revenueRecords = await Financeiro.find({});
-    const totalRevenue = revenueRecords.reduce((acc, record) => acc + record.valorRecebido, 0);
+exports.getRevenueVsExpensesData = async (contaId) => {
+    // Busca todas as transações da conta
+    const transacoes = await Transacao.find({ contaId });
 
-    // Calcula o total de despesas
-    const expenseRecords = await Despesa.find({});
-    const totalExpenses = expenseRecords.reduce((acc, record) => acc + record.valor, 0);
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    const revenueRecords = [];
+    const expenseRecords = [];
 
-    // Calcula o resultado líquido
+    // Separa as transações em receitas e despesas
+    for (const transacao of transacoes) {
+        if (transacao.tipo === 'Receita') {
+            totalRevenue += transacao.valor;
+            revenueRecords.push(transacao);
+        } else if (transacao.tipo === 'Despesa') {
+            totalExpenses += transacao.valor;
+            expenseRecords.push(transacao);
+        }
+    }
+
     const netResult = totalRevenue - totalExpenses;
 
     return {
         totalRevenue,
         totalExpenses,
         netResult,
-        revenueRecords, // Para detalhamento no PDF
-        expenseRecords, // Para detalhamento no PDF
+        revenueRecords,
+        expenseRecords,
     };
 };
 
 /**
  * Busca e formata os dados para o relatório financeiro.
  */
-exports.getFinanceiroReportData = async () => {
-    const registros = await Financeiro.find().populate({
-        path: 'servico',
-        populate: { path: 'cliente' }
-    });
+exports.getFinanceiroReportData = async (contaId) => {
+    const registros = await Transacao.find({ contaId: contaId, tipo: 'Receita' })
+        .populate({
+            path: 'orcamentoAssociado',
+            populate: { path: 'cliente', select: 'nome' } // Popula o cliente dentro do orçamento
+        });
 
-    const bodyData = registros.map(registro => [
-        registro.dataPagamento ? new Date(registro.dataPagamento).toLocaleDateString('pt-BR') : 'N/A',
-        registro.servico && registro.servico.cliente ? registro.servico.cliente.nome : 'N/A',
-        registro.formaPagamento || 'Não informada',
-        registro.valorRecebido ? registro.valorRecebido.toFixed(2) : '0.00'
-    ]);
+    const bodyData = registros.map(registro => {
+        const clienteNome = registro.orcamentoAssociado && registro.orcamentoAssociado.cliente 
+            ? registro.orcamentoAssociado.cliente.nome 
+            : 'Receita Manual';
+
+        return [
+            registro.data ? new Date(registro.data).toLocaleDateString('pt-BR') : 'N/A',
+            clienteNome,
+            registro.metodoPagamento || 'Não informado',
+            registro.valor ? registro.valor.toFixed(2) : '0.00'
+        ];
+    });
 
     return bodyData;
 };
