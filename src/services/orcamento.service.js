@@ -167,6 +167,8 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
  * @param {string} novoStatus - O novo status a ser aplicado.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
  */
+const Transacao = require('../models/transacao.model.js'); // Importar o novo modelo
+
 const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
     const allowedStatus = ['Pendente', 'Aceito', 'Agendado', 'Finalizado', 'Rejeitado'];
     if (!allowedStatus.includes(novoStatus)) {
@@ -183,10 +185,28 @@ const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
     orcamento.status = novoStatus;
     orcamento.historico.push({ evento: `Status alterado para "${novoStatus}".` });
 
+    // Se o status for alterado para 'Finalizado', cria as transações financeiras
     if (novoStatus === 'Finalizado' && statusAntigo !== 'Finalizado') {
         orcamento.dataFinalizacao = new Date();
-        // Atualiza o valor total gasto pelo cliente
+        
+        // 1. Atualiza o valor total gasto pelo cliente (lógica existente)
         await Cliente.findByIdAndUpdate(orcamento.cliente._id, { $inc: { valorTotalGasto: orcamento.valorProposto } });
+
+        // 2. Cria uma transação de 'Receita' para cada pagamento registrado no pedido
+        if (orcamento.pagamentos && orcamento.pagamentos.length > 0) {
+            const transacoesParaCriar = orcamento.pagamentos.map(pagamento => ({
+                contaId: contaId,
+                tipo: 'Receita',
+                descricao: `Receita referente ao Pedido #${orcamento.shortId}`,
+                valor: pagamento.valor,
+                categoria: 'Receita de Serviço',
+                data: pagamento.data || orcamento.dataFinalizacao,
+                orcamentoAssociado: orcamento._id,
+                metodoPagamento: pagamento.metodo
+            }));
+
+            await Transacao.insertMany(transacoesParaCriar);
+        }
     }
     
     const orcamentoAtualizado = await orcamento.save();
