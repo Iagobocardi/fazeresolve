@@ -357,6 +357,7 @@ const deleteOrcamento = async (req, res) => {
 
         // 2. Deleta o documento
         const deleteResult = await orcamento.deleteOne();
+        console.log('Resultado da operação de deleção:', deleteResult);
         
         // Verificação explícita do resultado da deleção
         if (deleteResult.deletedCount === 0) {
@@ -372,8 +373,8 @@ const deleteOrcamento = async (req, res) => {
             if (valorProposto > 0) {
                 updateData.$inc.valorTotalEmPedidos = -valorProposto;
             }
-            await Cliente.findByIdAndUpdate(clienteId, updateData);
-            console.log(`Cliente ${clienteId} atualizado após deleção.`);
+            const clienteUpdateResult = await Cliente.findByIdAndUpdate(clienteId, updateData);
+            console.log(`Cliente ${clienteId} atualizado após deleção. Resultado:`, clienteUpdateResult);
         }
 
         res.status(200).json({ message: 'Orçamento deletado com sucesso.' });
