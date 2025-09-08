@@ -872,27 +872,15 @@ const removerPagamento = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Encontra o pagamento específico para saber seu valor antes de remover
-        const pagamento = orcamento.pagamentos.id(pagamentoId);
-        if (!pagamento) {
-            return res.status(404).json({ message: 'Pagamento não encontrado neste orçamento.' });
-        }
-        const valorRemovido = pagamento.valor;
-
-        // Remove o pagamento do array
+        // Encontra o pagamento específico e o remove do array
+        // O método .pull do Mongoose é perfeito para isso
         orcamento.pagamentos.pull({ _id: pagamentoId });
 
-        // Salva as alterações no orçamento
-        const orcamentoAtualizado = await orcamento.save();
+        // Salva as alterações
+        await orcamento.save();
 
-        // Atualiza o valor total gasto pelo cliente (decrementa)
-        if (orcamento.cliente && valorRemovido > 0) {
-            await financeiroService.atualizarValorGastoCliente(orcamento.cliente, -valorRemovido);
-            // Idealmente, também removeríamos ou invalidaríamos a Transacao correspondente.
-            // Por agora, vamos focar em corrigir o total gasto.
-        }
-
-        res.status(200).json(orcamentoAtualizado);
+        // Retorna o orçamento atualizado
+        res.status(200).json(orcamento);
 
     } catch (error) {
         console.error("Erro ao remover pagamento:", error);
@@ -973,8 +961,7 @@ const getAgendadosParaCalendario = async (req, res) => {
 const marcarComoPago = async (req, res) => {
     try {
         const { contaId } = req.user;
-        // Popula o cliente para ter acesso ao ID para o service financeiro
-        const pedido = await Orcamento.findOne({ _id: req.params.id, contaId }).populate('cliente');
+        const pedido = await Orcamento.findOne({ _id: req.params.id, contaId });
         if (!pedido) {
             return res.status(404).json({ message: "Pedido não encontrado ou não pertence a esta conta." });
         }
@@ -984,30 +971,11 @@ const marcarComoPago = async (req, res) => {
         const valorRestante = valorTotal - totalJaPago;
 
         if (valorRestante > 0) {
-            const novoPagamento = {
+            pedido.pagamentos.push({
                 valor: valorRestante,
                 metodo: 'Automático',
                 observacao: 'Pagamento liquidado pela ação rápida.'
-            };
-            pedido.pagamentos.push(novoPagamento);
-
-            // Cria a transação de Receita correspondente
-            const novaTransacao = new Transacao({
-                contaId: contaId,
-                tipo: 'Receita',
-                descricao: `Receita de liquidação para Pedido #${pedido.shortId}`,
-                valor: valorRestante,
-                categoria: 'Receita de Serviço',
-                data: new Date(),
-                orcamentoAssociado: pedido._id,
-                metodoPagamento: 'Automático'
             });
-            await novaTransacao.save();
-
-            // Atualiza o valor total gasto pelo cliente
-            if (pedido.cliente) {
-                await financeiroService.atualizarValorGastoCliente(pedido.cliente._id, valorRestante);
-            }
         }
 
         pedido.statusPagamento = 'Pago';
