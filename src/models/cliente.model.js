@@ -66,6 +66,10 @@ const clienteSchema = new Schema({
         type: Number,
         default: 0
     },
+    valorTotalEmPedidos: {
+        type: Number,
+        default: 0
+    },
 
 }, {
     timestamps: true
