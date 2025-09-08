@@ -11,6 +11,8 @@ const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
+const financeiroService = require('../services/financeiro.service.js');
+const Transacao = require('../models/transacao.model.js');
 const Configuracao = require('../models/configuracao.model.js');
 const Cliente = require('../models/cliente.model.js');
 const Conta = require('../models/conta.model.js');
@@ -826,10 +828,30 @@ const adicionarPagamento = async (req, res) => {
         orcamento.pagamentos.push({ valor, metodo, observacao });
 
         // Salva as alterações no banco de dados
-        await orcamento.save();
+        const orcamentoAtualizado = await orcamento.save();
+
+        // --- LÓGICA FINANCEIRA CENTRALIZADA ---
+        // Cria a transação de Receita
+        const novaTransacao = new Transacao({
+            contaId: contaId,
+            tipo: 'Receita',
+            descricao: `Receita referente ao Pedido #${orcamento.shortId}`,
+            valor: valor,
+            categoria: 'Receita de Serviço',
+            data: new Date(),
+            orcamentoAssociado: orcamento._id,
+            metodoPagamento: metodo
+        });
+        await novaTransacao.save();
+
+        // Atualiza o valor total gasto pelo cliente
+        if (orcamento.cliente) {
+            await financeiroService.atualizarValorGastoCliente(orcamento.cliente, valor);
+        }
+        // --- FIM DA LÓGICA FINANCEIRA ---
 
         // Retorna o orçamento completo e atualizado
-        res.status(200).json(orcamento);
+        res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
         console.error("Erro ao adicionar pagamento:", error);
