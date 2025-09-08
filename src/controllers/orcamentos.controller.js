@@ -344,26 +344,41 @@ const updateOrcamento = async (req, res) => {
 const deleteOrcamento = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const orcamentoDeletado = await Orcamento.findOneAndDelete({ _id: req.params.id, contaId });
         
-        if (!orcamentoDeletado) {
+        // 1. Encontra o orçamento primeiro
+        const orcamento = await Orcamento.findOne({ _id: req.params.id, contaId });
+        if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        console.log(`Orcamento ${orcamentoDeletado._id} deletado com sucesso. Cliente ${orcamentoDeletado.cliente} será atualizado.`);
+        // Guarda os detalhes necessários antes de deletar
+        const clienteId = orcamento.cliente;
+        const valorProposto = orcamento.valorProposto;
 
-        // Apenas tenta atualizar o cliente se ele existir no orçamento deletado
-        if (orcamentoDeletado.cliente) {
+        // 2. Deleta o documento
+        const deleteResult = await orcamento.deleteOne();
+        
+        // Verificação explícita do resultado da deleção
+        if (deleteResult.deletedCount === 0) {
+             console.log(`Falha ao deletar o orçamento ${req.params.id}. O documento foi encontrado mas não deletado.`);
+             return res.status(500).json({ error: 'Falha ao deletar o orçamento, o documento não foi removido.' });
+        }
+        
+        console.log(`Orcamento ${req.params.id} deletado com sucesso do banco de dados.`);
+
+        // 3. Apenas tenta atualizar o cliente se ele existir
+        if (clienteId) {
             const updateData = { $inc: { totalPedidos: -1 } };
-            if (orcamentoDeletado.valorProposto > 0) {
-                updateData.$inc.valorTotalEmPedidos = -orcamentoDeletado.valorProposto;
+            if (valorProposto > 0) {
+                updateData.$inc.valorTotalEmPedidos = -valorProposto;
             }
-            await Cliente.findByIdAndUpdate(orcamentoDeletado.cliente, updateData);
+            await Cliente.findByIdAndUpdate(clienteId, updateData);
+            console.log(`Cliente ${clienteId} atualizado após deleção.`);
         }
 
         res.status(200).json({ message: 'Orçamento deletado com sucesso.' });
     } catch (error) {
-        console.error("Erro ao deletar orçamento:", error); // Log do erro
+        console.error("Erro detalhado ao deletar orçamento:", error);
         res.status(500).json({ error: 'Erro ao deletar orçamento.' });
     }
 };
