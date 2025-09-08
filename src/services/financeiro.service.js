@@ -1,5 +1,6 @@
 const Transacao = require('../models/transacao.model');
 const Orcamento = require('../models/orcamento.model');
+const Cliente = require('../models/cliente.model');
 const mongoose = require('mongoose');
 
 /**
@@ -79,7 +80,20 @@ const getReceitasFuturas = async (contaId) => {
 };
 
 
+/**
+ * Atualiza o valor total gasto por um cliente.
+ * @param {string} clienteId - O ID do cliente a ser atualizado.
+ * @param {number} valor - O valor a ser adicionado ao total gasto.
+ */
+const atualizarValorGastoCliente = async (clienteId, valor) => {
+    if (!clienteId || !valor || valor <= 0) {
+        return;
+    }
+    await Cliente.findByIdAndUpdate(clienteId, { $inc: { valorTotalGasto: valor } });
+};
+
 module.exports = {
     getResumoFinanceiro,
-    getReceitasFuturas
+    getReceitasFuturas,
+    atualizarValorGastoCliente
 };
