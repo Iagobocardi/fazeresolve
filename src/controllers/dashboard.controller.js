@@ -1,6 +1,7 @@
 const Orcamento = require('../models/orcamento.model');
 const Servico = require('../models/servico.model');
 const NodeGeocoder = require('node-geocoder');
+const financeiroService = require('../services/financeiro.service.js');
 
 // Configuração do Geocoder
 const options = {
@@ -15,23 +16,17 @@ const getBaseQuery = (req) => ({ contaId: req.user.contaId });
 
 exports.getDashboardData = async (req, res) => {
     try {
+        const { contaId } = req.user;
         const baseQuery = getBaseQuery(req);
         const umMesAtras = new Date();
         umMesAtras.setMonth(umMesAtras.getMonth() - 1);
 
         const novasSolicitacoes = await Orcamento.countDocuments({ ...baseQuery, data: { $gte: umMesAtras } });
 
-        const faturamentoResult = await Orcamento.aggregate([
-            { $match: { ...baseQuery, status: 'Finalizado', dataFinalizacao: { $gte: umMesAtras } } },
-            { $group: { _id: null, total: { $sum: '$valorProposto' } } }
-        ]);
-        const faturamento = faturamentoResult[0]?.total || 0;
-
-        const receitasFuturasResult = await Orcamento.aggregate([
-            { $match: { ...baseQuery, status: { $in: ['Aceito', 'Agendado'] } } },
-            { $group: { _id: null, total: { $sum: '$valorProposto' } } }
-        ]);
-        const receitasFuturas = receitasFuturasResult[0]?.total || 0;
+        // Utiliza o serviço financeiro centralizado
+        const resumoFinanceiro = await financeiroService.getResumoFinanceiro(contaId, 'mes_atual');
+        const faturamento = resumoFinanceiro.faturamentoBruto;
+        const receitasFuturas = await financeiroService.getReceitasFuturas(contaId);
 
         const satisfacaoResult = await Orcamento.aggregate([
             { $match: { ...baseQuery, status: 'Finalizado', notaSatisfacao: { $exists: true, $ne: null } } },
