@@ -285,8 +285,12 @@ const createOrcamento = async (req, res) => {
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
         const orcamentoSalvo = await novoOrcamento.save();
 
-        // Atualiza o contador de pedidos do cliente
-        await Cliente.findByIdAndUpdate(cliente._id, { $inc: { totalPedidos: 1 } });
+        // Atualiza os contadores no cliente
+        const updateData = { $inc: { totalPedidos: 1 } };
+        if (orcamentoSalvo.valorProposto > 0) {
+            updateData.$inc.valorTotalEmPedidos = orcamentoSalvo.valorProposto;
+        }
+        await Cliente.findByIdAndUpdate(cliente._id, updateData);
 
         const conta = await Conta.findById(contaId);
         if (conta && conta.telefone) {
@@ -311,10 +315,25 @@ const createOrcamento = async (req, res) => {
 const updateOrcamento = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const orcamentoAtualizado = await Orcamento.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true });
-        if (!orcamentoAtualizado) {
+
+        // 1. Encontra o orçamento original para saber o valor antigo
+        const orcamentoOriginal = await Orcamento.findOne({ _id: req.params.id, contaId }).lean();
+        if (!orcamentoOriginal) {
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
+        const valorAntigo = orcamentoOriginal.valorProposto || 0;
+
+        // 2. Atualiza o orçamento
+        const orcamentoAtualizado = await Orcamento.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true });
+        
+        // 3. Calcula a diferença e atualiza o cliente se o valor mudou
+        const valorNovo = orcamentoAtualizado.valorProposto || 0;
+        const diferenca = valorNovo - valorAntigo;
+
+        if (diferenca !== 0) {
+            await Cliente.findByIdAndUpdate(orcamentoAtualizado.cliente, { $inc: { valorTotalEmPedidos: diferenca } });
+        }
+
         res.status(200).json(orcamentoAtualizado);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao atualizar orçamento.' });
@@ -329,6 +348,14 @@ const deleteOrcamento = async (req, res) => {
         if (!orcamentoDeletado) {
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
+
+        // Decrementa os contadores do cliente
+        const updateData = { $inc: { totalPedidos: -1 } };
+        if (orcamentoDeletado.valorProposto > 0) {
+            updateData.$inc.valorTotalEmPedidos = -orcamentoDeletado.valorProposto;
+        }
+        await Cliente.findByIdAndUpdate(orcamentoDeletado.cliente, updateData);
+
         res.status(200).json({ message: 'Orçamento deletado com sucesso.' });
     } catch (error) {
         res.status(500).json({ error: 'Erro ao deletar orçamento.' });
@@ -822,6 +849,15 @@ const adicionarPagamento = async (req, res) => {
         const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
         if (!orcamento) {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
+        }
+
+        // Validação de sobrepagamento
+        const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
+        const valorProposto = orcamento.valorProposto || 0;
+        const valorNumerico = Number(valor);
+
+        if (totalPago + valorNumerico > valorProposto + 0.01) { // Adiciona uma pequena tolerância para problemas de ponto flutuante
+            return res.status(400).json({ message: `Este pagamento de R$ ${valorNumerico.toFixed(2)} excede o valor total do pedido de R$ ${valorProposto.toFixed(2)}. Total já pago: R$ ${totalPago.toFixed(2)}.` });
         }
 
         // Adiciona o novo pagamento ao array de pagamentos
