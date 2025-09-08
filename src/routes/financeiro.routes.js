@@ -1,19 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const financeiroController = require('../controllers/financeiro.controller');
-const authMiddleware = require('../middlewares/auth.middleware');
-const roleMiddleware = require('../middlewares/role.middleware');
+const financeiroController = require('../controllers/financeiro.controller.js');
+const authMiddleware = require('../middlewares/auth.middleware.js');
+const roleMiddleware = require('../middlewares/role.middleware.js');
 
-// Aplica o middleware de autenticação e verificação de função a todas as rotas
-router.use(authMiddleware);
-router.use(roleMiddleware(['Dono', 'ADMIN']));
+// Protege todas as rotas financeiras, permitindo acesso apenas ao Dono da conta.
+const needsAuth = [authMiddleware, roleMiddleware(['Dono', 'ADMIN'])];
 
-router.get('/', financeiroController.getResumoFinanceiro);
-router.post('/', financeiroController.createManualTransacao);
+/**
+ * @route GET /api/financeiro/resumo
+ * @description Retorna um resumo financeiro (faturamento, despesas, lucro).
+ * @access Privado (Dono, ADMIN)
+ */
+router.get('/resumo', needsAuth, financeiroController.getResumoFinanceiro);
 
-// As rotas abaixo foram comentadas porque as funções correspondentes não existem no controller.
-// router.get('/:id', financeiroController.getFinanceiroById);
-// router.put('/:id', financeiroValidationRules, validate, financeiroController.updateFinanceiro);
-// router.delete('/:id', financeiroController.deleteFinanceiro);
+/**
+ * @route GET /api/financeiro/historico
+ * @description Retorna o histórico de transações paginadas.
+ * @access Privado (Dono, ADMIN)
+ */
+router.get('/historico', needsAuth, financeiroController.getHistoricoTransacoes);
+
+/**
+ * @route POST /api/financeiro/transacao
+ * @description Cria uma nova transação manual (receita ou despesa).
+ * @access Privado (Dono, ADMIN)
+ */
+router.post('/transacao', needsAuth, financeiroController.createManualTransacao);
 
 module.exports = router;
