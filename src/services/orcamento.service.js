@@ -1,6 +1,5 @@
 // Em: src/services/orcamento.service.js
 const Orcamento = require('../models/orcamento.model');
-const whatsappService = require('./whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
 const { MercadoPagoConfig, Preference } = require('mercadopago');
@@ -154,20 +153,10 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
     orcamento.historico.push({ evento: `Serviço agendado para ${parsedDate.toLocaleString('pt-BR')}.` });
     
     const orcamentoSalvo = await orcamento.save();
-
-    // --- LÓGICA DE NOTIFICAÇÃO ATUALIZADA ---
-    if (orcamento.cliente && orcamento.cliente.telefone) {
-        const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
-        const mensagemRenderizada = await whatsappService.renderTemplate('Serviço Agendado', templateData);
-        
-        if (mensagemRenderizada) {
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
-        }
-    }
-
-    // --- 3. CHAMA A FUNÇÃO PARA CRIAR O EVENTO NO GOOGLE CALENDAR ---
+    
+    // A lógica de notificação foi movida para o controller.
+    // A criação de evento no Google Calendar é uma lógica de negócio que pertence aqui.
     googleCalendarService.createEvent(orcamentoSalvo);
-    // -----------------------------------------------------------
 
     return orcamentoSalvo;
 };
@@ -178,7 +167,7 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
  * @param {string} novoStatus - O novo status a ser aplicado.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
  */
-const Transacao = require('../models/transacao.model.js'); // Importar o novo modelo de transação
+const Transacao = require('../models/transacao.model.js'); // Importar o novo modelo
 
 const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
     const allowedStatus = ['Pendente', 'Aceito', 'Agendado', 'Finalizado', 'Rejeitado'];
@@ -196,8 +185,33 @@ const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
     orcamento.status = novoStatus;
     orcamento.historico.push({ evento: `Status alterado para "${novoStatus}".` });
 
+    // Se o status for alterado para 'Finalizado', cria as transações financeiras
     if (novoStatus === 'Finalizado' && statusAntigo !== 'Finalizado') {
         orcamento.dataFinalizacao = new Date();
+        
+        // O valor total gasto pelo cliente será atualizado quando a transação de receita for criada.
+
+        // 2. Cria uma transação de 'Receita' para cada pagamento registrado no pedido
+        if (orcamento.pagamentos && orcamento.pagamentos.length > 0) {
+            const transacoesParaCriar = orcamento.pagamentos.map(pagamento => ({
+                contaId: contaId,
+                tipo: 'Receita',
+                descricao: `Receita referente ao Pedido #${orcamento.shortId}`,
+                valor: pagamento.valor,
+                categoria: 'Receita de Serviço',
+                data: pagamento.data || orcamento.dataFinalizacao,
+                orcamentoAssociado: orcamento._id,
+                metodoPagamento: pagamento.metodo
+            }));
+
+            await Transacao.insertMany(transacoesParaCriar);
+
+            // Atualiza o valor total gasto pelo cliente com base nas transações criadas
+            const totalReceita = transacoesParaCriar.reduce((acc, t) => acc + t.valor, 0);
+            if (totalReceita > 0 && orcamento.cliente) {
+                await Cliente.findByIdAndUpdate(orcamento.cliente._id, { $inc: { valorTotalGasto: totalReceita } });
+            }
+        }
     }
     
     const orcamentoAtualizado = await orcamento.save();
@@ -221,17 +235,10 @@ const submeterOrcamento = async (contaId, orcamentoId, valorProposto) => {
     }
 
     orcamento.valorProposto = parseFloat(valorProposto);
-    orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} proposto ao cliente.` });
+    orcamento.status = 'Aceito';
+    orcamento.historico.push({ evento: `Orçamento de R$ ${orcamento.valorProposto.toFixed(2)} aceite pelo prestador.` });
     
     const orcamentoSalvo = await orcamento.save();
-
-    if (orcamento.cliente && orcamento.cliente.telefone) {
-        const templateData = { orcamento: orcamentoSalvo, cliente: orcamentoSalvo.cliente };
-        const mensagemRenderizada = await whatsappService.renderTemplate('Novo Orçamento', templateData);
-        if (mensagemRenderizada) {
-            await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagemRenderizada);
-        }
-    }
 
     return orcamentoSalvo;
 };
