@@ -7,15 +7,14 @@ const mongoose = require('mongoose');
 const getResumoFinanceiro = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { periodo = 'mes_atual' } = req.query; // Ex: 'mes_atual', 'ultimos_30_dias', 'ano_atual'
+        const { periodo = 'mes_atual' } = req.query;
 
-        // Define o intervalo de datas com base no período solicitado
         const agora = new Date();
         let dataInicio;
 
         switch (periodo) {
             case 'ultimos_30_dias':
-                dataInicio = new Date(agora.setDate(agora.getDate() - 30));
+                dataInicio = new Date(new Date().setDate(agora.getDate() - 30));
                 break;
             case 'ano_atual':
                 dataInicio = new Date(agora.getFullYear(), 0, 1);
@@ -59,9 +58,7 @@ const getResumoFinanceiro = async (req, res) => {
             faturamentoBruto,
             totalDespesas,
             lucroLiquido,
-            margemLucro,
-            periodo,
-            dataInicio
+            margemLucro: margemLucro.toFixed(1),
         });
 
     } catch (error) {
@@ -76,7 +73,6 @@ const getResumoFinanceiro = async (req, res) => {
 const getHistoricoTransacoes = async (req, res) => {
     try {
         const { contaId } = req.user;
-        // Adiciona paginação para performance
         const pagina = parseInt(req.query.pagina, 10) || 1;
         const limite = parseInt(req.query.limite, 10) || 20;
         const skip = (pagina - 1) * limite;
@@ -108,7 +104,6 @@ const createManualTransacao = async (req, res) => {
         const { contaId } = req.user;
         const { tipo, descricao, valor, categoria, data, metodoPagamento } = req.body;
 
-        // Validação básica
         if (!tipo || !descricao || !valor) {
             return res.status(400).json({ message: "Tipo, descrição e valor são obrigatórios." });
         }
