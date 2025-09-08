@@ -22,6 +22,7 @@ exports.getDashboardData = async (req, res) => {
         umMesAtras.setMonth(umMesAtras.getMonth() - 1);
 
         const novasSolicitacoes = await Orcamento.countDocuments({ ...baseQuery, data: { $gte: umMesAtras } });
+        const novosClientes = await Cliente.countDocuments({ contaId: contaId, createdAt: { $gte: umMesAtras } });
 
         // Utiliza o serviço financeiro centralizado
         const resumoFinanceiro = await financeiroService.getResumoFinanceiro(contaId, 'mes_atual');
@@ -54,7 +55,7 @@ exports.getDashboardData = async (req, res) => {
         const recentesClientes = Array.from(clientesUnicos.values()).slice(0, 5);
 
         res.status(200).json({
-            stats: { novasSolicitacoes, faturamento, lucro, receitasFuturas, satisfacaoMedia },
+            stats: { novasSolicitacoes, novosClientes, faturamento, lucro, receitasFuturas, satisfacaoMedia },
             recentesClientes
         });
 
