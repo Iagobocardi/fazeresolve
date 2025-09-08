@@ -26,6 +26,7 @@ exports.getDashboardData = async (req, res) => {
         // Utiliza o serviço financeiro centralizado
         const resumoFinanceiro = await financeiroService.getResumoFinanceiro(contaId, 'mes_atual');
         const faturamento = resumoFinanceiro.faturamentoBruto;
+        const lucro = resumoFinanceiro.lucroLiquido;
         const receitasFuturas = await financeiroService.getReceitasFuturas(contaId);
 
         const satisfacaoResult = await Orcamento.aggregate([
@@ -53,7 +54,7 @@ exports.getDashboardData = async (req, res) => {
         const recentesClientes = Array.from(clientesUnicos.values()).slice(0, 5);
 
         res.status(200).json({
-            stats: { novasSolicitacoes, faturamento, receitasFuturas, satisfacaoMedia },
+            stats: { novasSolicitacoes, faturamento, lucro, receitasFuturas, satisfacaoMedia },
             recentesClientes
         });
 
