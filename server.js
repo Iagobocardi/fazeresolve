@@ -67,6 +67,7 @@ const allowedOrigins = [
     'https://app.fazeresolve.com',
     'https://app.fazeresolve.com/', // Adicionado para robustez
     'https://fazeresolve.com',
+    'https://fazeresolve.onrender.com', // Adicionado para o ambiente de produção
     'https://accounts.google.com' // Adicionado para permitir o fluxo OAuth
 ];
 if (process.env.APP_URL) {
