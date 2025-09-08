@@ -11,6 +11,8 @@ const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
+const financeiroService = require('../services/financeiro.service.js');
+const Transacao = require('../models/transacao.model.js');
 const Configuracao = require('../models/configuracao.model.js');
 const Cliente = require('../models/cliente.model.js');
 const Conta = require('../models/conta.model.js');
@@ -826,10 +828,30 @@ const adicionarPagamento = async (req, res) => {
         orcamento.pagamentos.push({ valor, metodo, observacao });
 
         // Salva as alterações no banco de dados
-        await orcamento.save();
+        const orcamentoAtualizado = await orcamento.save();
+
+        // --- LÓGICA FINANCEIRA CENTRALIZADA ---
+        // Cria a transação de Receita
+        const novaTransacao = new Transacao({
+            contaId: contaId,
+            tipo: 'Receita',
+            descricao: `Receita referente ao Pedido #${orcamento.shortId}`,
+            valor: valor,
+            categoria: 'Receita de Serviço',
+            data: new Date(),
+            orcamentoAssociado: orcamento._id,
+            metodoPagamento: metodo
+        });
+        await novaTransacao.save();
+
+        // Atualiza o valor total gasto pelo cliente
+        if (orcamento.cliente) {
+            await financeiroService.atualizarValorGastoCliente(orcamento.cliente, valor);
+        }
+        // --- FIM DA LÓGICA FINANCEIRA ---
 
         // Retorna o orçamento completo e atualizado
-        res.status(200).json(orcamento);
+        res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
         console.error("Erro ao adicionar pagamento:", error);
@@ -850,15 +872,27 @@ const removerPagamento = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Encontra o pagamento específico e o remove do array
-        // O método .pull do Mongoose é perfeito para isso
+        // Encontra o pagamento específico para saber seu valor antes de remover
+        const pagamento = orcamento.pagamentos.id(pagamentoId);
+        if (!pagamento) {
+            return res.status(404).json({ message: 'Pagamento não encontrado neste orçamento.' });
+        }
+        const valorRemovido = pagamento.valor;
+
+        // Remove o pagamento do array
         orcamento.pagamentos.pull({ _id: pagamentoId });
 
-        // Salva as alterações
-        await orcamento.save();
+        // Salva as alterações no orçamento
+        const orcamentoAtualizado = await orcamento.save();
 
-        // Retorna o orçamento atualizado
-        res.status(200).json(orcamento);
+        // Atualiza o valor total gasto pelo cliente (decrementa)
+        if (orcamento.cliente && valorRemovido > 0) {
+            await financeiroService.atualizarValorGastoCliente(orcamento.cliente, -valorRemovido);
+            // Idealmente, também removeríamos ou invalidaríamos a Transacao correspondente.
+            // Por agora, vamos focar em corrigir o total gasto.
+        }
+
+        res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
         console.error("Erro ao remover pagamento:", error);
@@ -939,7 +973,8 @@ const getAgendadosParaCalendario = async (req, res) => {
 const marcarComoPago = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const pedido = await Orcamento.findOne({ _id: req.params.id, contaId });
+        // Popula o cliente para ter acesso ao ID para o service financeiro
+        const pedido = await Orcamento.findOne({ _id: req.params.id, contaId }).populate('cliente');
         if (!pedido) {
             return res.status(404).json({ message: "Pedido não encontrado ou não pertence a esta conta." });
         }
@@ -949,11 +984,30 @@ const marcarComoPago = async (req, res) => {
         const valorRestante = valorTotal - totalJaPago;
 
         if (valorRestante > 0) {
-            pedido.pagamentos.push({
+            const novoPagamento = {
                 valor: valorRestante,
                 metodo: 'Automático',
                 observacao: 'Pagamento liquidado pela ação rápida.'
+            };
+            pedido.pagamentos.push(novoPagamento);
+
+            // Cria a transação de Receita correspondente
+            const novaTransacao = new Transacao({
+                contaId: contaId,
+                tipo: 'Receita',
+                descricao: `Receita de liquidação para Pedido #${pedido.shortId}`,
+                valor: valorRestante,
+                categoria: 'Receita de Serviço',
+                data: new Date(),
+                orcamentoAssociado: pedido._id,
+                metodoPagamento: 'Automático'
             });
+            await novaTransacao.save();
+
+            // Atualiza o valor total gasto pelo cliente
+            if (pedido.cliente) {
+                await financeiroService.atualizarValorGastoCliente(pedido.cliente._id, valorRestante);
+            }
         }
 
         pedido.statusPagamento = 'Pago';

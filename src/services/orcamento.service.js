@@ -6,6 +6,7 @@ const { MercadoPagoConfig, Preference } = require('mercadopago');
 const Configuracao = require('../models/configuracao.model');
 const Cliente = require('../models/cliente.model');
 const googleCalendarService = require('./googleCalendar.service.js'); // O import já estava correto
+const financeiroService = require('./financeiro.service.js');
 
 // Custom Error Classes for better error handling
 class NotFoundError extends Error {
@@ -189,24 +190,8 @@ const atualizarStatus = async (contaId, orcamentoId, novoStatus) => {
     if (novoStatus === 'Finalizado' && statusAntigo !== 'Finalizado') {
         orcamento.dataFinalizacao = new Date();
         
-        // 1. Atualiza o valor total gasto pelo cliente (lógica existente)
-        await Cliente.findByIdAndUpdate(orcamento.cliente._id, { $inc: { valorTotalGasto: orcamento.valorProposto } });
-
-        // 2. Cria uma transação de 'Receita' para cada pagamento registrado no pedido
-        if (orcamento.pagamentos && orcamento.pagamentos.length > 0) {
-            const transacoesParaCriar = orcamento.pagamentos.map(pagamento => ({
-                contaId: contaId,
-                tipo: 'Receita',
-                descricao: `Receita referente ao Pedido #${orcamento.shortId}`,
-                valor: pagamento.valor,
-                categoria: 'Receita de Serviço',
-                data: pagamento.data || orcamento.dataFinalizacao,
-                orcamentoAssociado: orcamento._id,
-                metodoPagamento: pagamento.metodo
-            }));
-
-            await Transacao.insertMany(transacoesParaCriar);
-        }
+        // A lógica de criação de transação foi movida para o controller de orçamentos,
+        // na função de adicionar pagamento, para garantir que a transação seja criada no momento do pagamento.
     }
     
     const orcamentoAtualizado = await orcamento.save();

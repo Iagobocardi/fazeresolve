@@ -1,5 +1,6 @@
 const Transacao = require('../models/transacao.model.js');
 const mongoose = require('mongoose');
+const financeiroService = require('../services/financeiro.service.js');
 
 /**
  * Calcula e retorna um resumo financeiro para um determinado período.
@@ -7,62 +8,11 @@ const mongoose = require('mongoose');
 const getResumoFinanceiro = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { periodo = 'mes_atual' } = req.query; // Ex: 'mes_atual', 'ultimos_30_dias', 'ano_atual'
+        const { periodo } = req.query;
 
-        // Define o intervalo de datas com base no período solicitado
-        const agora = new Date();
-        let dataInicio;
+        const resumo = await financeiroService.getResumoFinanceiro(contaId, periodo);
 
-        switch (periodo) {
-            case 'ultimos_30_dias':
-                dataInicio = new Date(agora.setDate(agora.getDate() - 30));
-                break;
-            case 'ano_atual':
-                dataInicio = new Date(agora.getFullYear(), 0, 1);
-                break;
-            case 'mes_atual':
-            default:
-                dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
-                break;
-        }
-
-        const matchStage = {
-            contaId: new mongoose.Types.ObjectId(contaId),
-            data: { $gte: dataInicio }
-        };
-
-        const resultado = await Transacao.aggregate([
-            { $match: matchStage },
-            {
-                $group: {
-                    _id: "$tipo",
-                    total: { $sum: "$valor" }
-                }
-            }
-        ]);
-
-        let faturamentoBruto = 0;
-        let totalDespesas = 0;
-
-        resultado.forEach(item => {
-            if (item._id === 'Receita') {
-                faturamentoBruto = item.total;
-            } else if (item._id === 'Despesa') {
-                totalDespesas = item.total;
-            }
-        });
-
-        const lucroLiquido = faturamentoBruto - totalDespesas;
-        const margemLucro = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
-
-        res.status(200).json({
-            faturamentoBruto,
-            totalDespesas,
-            lucroLiquido,
-            margemLucro,
-            periodo,
-            dataInicio
-        });
+        res.status(200).json(resumo);
 
     } catch (error) {
         console.error("Erro ao gerar resumo financeiro:", error);
