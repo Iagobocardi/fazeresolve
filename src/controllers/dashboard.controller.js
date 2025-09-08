@@ -1,5 +1,6 @@
 const Orcamento = require('../models/orcamento.model');
 const Servico = require('../models/servico.model');
+const Cliente = require('../models/cliente.model.js');
 const NodeGeocoder = require('node-geocoder');
 const financeiroService = require('../services/financeiro.service.js');
 
