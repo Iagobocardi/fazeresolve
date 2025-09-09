@@ -35,4 +35,11 @@ router.post(
     financeiroController.createManualTransacao
 );
 
+/**
+ * @route DELETE /api/financeiro/transacoes/:id
+ * @description Deleta uma transação manual.
+ * @access Privado (Dono, ADMIN)
+ */
+router.delete('/transacoes/:id', needsAuth, financeiroController.deleteManualTransacao);
+
 module.exports = router;
