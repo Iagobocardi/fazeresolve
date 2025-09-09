@@ -72,9 +72,9 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: (origin, callback) => {
-        // Permite requisições sem 'origin' (como Postman, apps mobile)
-        // ou se a origem estiver na lista de permissões.
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Permite requisições sem 'origin' (como Postman), de origens na lista,
+        // ou a origem "null" que alguns browsers enviam.
+        if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error(`Acesso não permitido por CORS. Origem: ${origin}`));
