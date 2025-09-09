@@ -24,6 +24,8 @@ const checkPermission = (requiredPermission) => {
       next(); // Usuário tem a permissão, pode continuar.
     } else {
       // Usuário não tem a permissão, acesso negado.
+      // Adicionado log detalhado para ajudar a diagnosticar problemas de permissão.
+      console.error(`[PERMISSAO NEGADA] User ID: ${req.user.id} (Role: ${req.user.role}) tentou acessar uma rota que requer a permissão: "${requiredPermission}".`);
       res.status(403).json({ message: 'Acesso proibido. Você não tem a permissão necessária para esta ação.' });
     }
   };
