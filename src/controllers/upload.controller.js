@@ -76,33 +76,37 @@ const uploadLogo = async (req, res) => {
   }
 
   try {
-    // Caminho completo do ficheiro original que o multer guardou
-    const originalPath = req.file.path;
+    // Processa a imagem em memória com o sharp a partir do buffer
+    const processedImageBuffer = await sharp(req.file.buffer)
+      .resize(400) // Redimensiona a largura para 400px
+      .webp({ quality: 80 }) // Converte para WebP com 80% de qualidade
+      .toBuffer(); // Pega o resultado como um buffer
 
-    // Novo nome e caminho para o ficheiro otimizado (ex: .webp)
-    const newFilename = `${Date.now()}-logo.webp`;
-    const outputPath = `public/uploads/${newFilename}`;
+    // Cria um stream para o Cloudinary a partir do buffer processado
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "logos", // Salva na pasta 'logos'
+        resource_type: "image"
+      },
+      (error, result) => {
+        if (error) {
+          console.error("Erro ao fazer upload do logo para o Cloudinary:", error);
+          return res.status(500).json({ message: 'Erro ao fazer upload do logo.' });
+        }
+        // Envia a URL segura do Cloudinary como resposta
+        res.status(201).json({
+          message: "Logo enviado com sucesso!",
+          url: result.secure_url
+        });
+      }
+    );
 
-    // 2. Processa a imagem com o sharp
-    await sharp(originalPath)
-      .resize(400) // Redimensiona a largura para 400px (ajuste conforme necessário)
-      .webp({ quality: 80 }) // Converte para o formato WebP com 80% de qualidade
-      .toFile(outputPath); // Salva o novo ficheiro otimizado
-
-    // 3. Apaga o ficheiro original que o multer enviou
-    fs.unlinkSync(originalPath);
-
-    // 4. Constrói a URL do ficheiro otimizado para guardar no banco de dados
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${newFilename}`;
-
-    res.status(200).json({
-      message: 'Logo enviado e otimizado com sucesso!',
-      url: fileUrl,
-    });
+    // Envia o buffer processado para o stream do Cloudinary
+    streamifier.createReadStream(processedImageBuffer).pipe(stream);
 
   } catch (error) {
-    console.error("Erro ao otimizar a imagem:", error);
-    res.status(500).json({ message: 'Ocorreu um erro ao processar a imagem.' });
+    console.error("Erro ao processar a imagem do logo:", error);
+    res.status(500).json({ message: 'Ocorreu um erro ao processar o logo.' });
   }
 };
 
