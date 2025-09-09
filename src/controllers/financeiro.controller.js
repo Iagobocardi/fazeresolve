@@ -101,13 +101,17 @@ const getHistoricoTransacoes = async (req, res) => {
  */
 const createManualTransacao = async (req, res) => {
     try {
-        // Adiciona uma verificação para o corpo da requisição
+        // Adiciona uma verificação para o corpo da requisição (que agora é multipart)
         if (!req.body) {
             return res.status(400).json({ message: "Corpo da requisição ausente ou malformado." });
         }
 
         const { contaId } = req.user;
+        // Os dados do formulário vêm de req.body
         const { tipo, descricao, valor, categoria, data, metodoPagamento } = req.body;
+        
+        // O ficheiro vem de req.file
+        const comprovanteUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
 
         if (!tipo || !descricao || !valor) {
             return res.status(400).json({ message: "Tipo, descrição e valor são obrigatórios." });
@@ -123,7 +127,8 @@ const createManualTransacao = async (req, res) => {
             valor,
             categoria,
             data: data ? new Date(data) : new Date(),
-            metodoPagamento
+            metodoPagamento,
+            comprovanteUrl // Adiciona a URL do comprovante
         });
 
         const transacaoSalva = await novaTransacao.save();
