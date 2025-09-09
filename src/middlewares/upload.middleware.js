@@ -21,16 +21,15 @@ const storage = multer.diskStorage({
 });
 
 // 2. Filtro de ficheiros (Opcional, mas recomendado)
-// Isto garante que apenas imagens sejam aceites.
+// Garante que apenas tipos de ficheiro permitidos (imagens e PDF) sejam aceites.
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif/;
-  const mimetype = allowedTypes.test(file.mimetype);
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
 
-  if (mimetype && extname) {
-    return cb(null, true);
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Tipo de ficheiro não suportado. Apenas imagens (jpeg, jpg, png, gif) e PDF são permitidos.'), false);
   }
-  cb('Erro: O tipo de ficheiro não é suportado! Apenas imagens (jpeg, jpg, png, gif) são permitidas.');
 };
 
 // 3. Cria e exporta o middleware do multer com as configurações
