@@ -107,11 +107,7 @@ const createManualTransacao = async (req, res) => {
         }
 
         const { contaId } = req.user;
-        // Os dados do formulário vêm de req.body
         const { tipo, descricao, valor, categoria, data, metodoPagamento } = req.body;
-        
-        // O ficheiro vem de req.file
-        const comprovanteUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
 
         if (!tipo || !descricao || !valor) {
             return res.status(400).json({ message: "Tipo, descrição e valor são obrigatórios." });
@@ -128,8 +124,11 @@ const createManualTransacao = async (req, res) => {
             categoria,
             data: data ? new Date(data) : new Date(),
             metodoPagamento,
-            comprovanteUrl // Adiciona a URL do comprovante
         });
+
+        if (req.file) {
+            novaTransacao.comprovanteUrl = `/uploads/${req.file.filename}`;
+        }
 
         const transacaoSalva = await novaTransacao.save();
         res.status(201).json(transacaoSalva);
