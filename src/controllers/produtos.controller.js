@@ -6,14 +6,15 @@ const MovimentoEstoque = require('../models/movimentoEstoque.model');
 // Criar um novo produto
 const createProduto = async (req, res) => {
     try {
-        const { nome, descricao, unidade, quantidadeEmEstoque, custoUnitario, fornecedor, estoqueMinimo } = req.body;
+        // Corrigido para aceitar 'quantidade' do frontend e mapear para 'quantidadeEmEstoque'
+        const { nome, descricao, unidade, quantidade, custoUnitario, fornecedor, estoqueMinimo } = req.body;
         
         // Cria o produto
         const novoProduto = new Produto({ 
             nome, 
             descricao, 
             unidade, 
-            quantidadeEmEstoque, 
+            quantidadeEmEstoque: quantidade, // Mapeamento correto
             custoUnitario, 
             fornecedor, 
             estoqueMinimo 
@@ -27,11 +28,11 @@ const createProduto = async (req, res) => {
         await novoProduto.save();
 
         // Se uma quantidade inicial for informada, regista o primeiro movimento de estoque
-        if (quantidadeEmEstoque && quantidadeEmEstoque > 0) {
+        if (quantidade && quantidade > 0) {
             const movimento = new MovimentoEstoque({
                 produto: novoProduto._id,
                 tipo: 'Entrada',
-                quantidade: quantidadeEmEstoque,
+                quantidade: quantidade, // Usa a 'quantidade' recebida
                 motivo: 'Estoque inicial'
             });
             await movimento.save();
