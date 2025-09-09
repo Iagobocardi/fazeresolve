@@ -1,11 +1,6 @@
 const Conta = require('../models/conta.model');
 
 const checkSubscription = async (req, res, next) => {
-    // Permite que as requisições OPTIONS passem sem verificar a assinatura (importante para o CORS)
-    if (req.method === 'OPTIONS') {
-        return next();
-    }
-
     try {
         // O auth.middleware já nos fornece o usuário completo, incluindo a contaId.
         const { contaId } = req.user;
