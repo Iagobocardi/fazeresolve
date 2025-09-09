@@ -11,8 +11,6 @@ const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
-const financeiroService = require('../services/financeiro.service.js');
-const Transacao = require('../models/transacao.model.js');
 const Configuracao = require('../models/configuracao.model.js');
 const Cliente = require('../models/cliente.model.js');
 const Conta = require('../models/conta.model.js');
@@ -285,13 +283,6 @@ const createOrcamento = async (req, res) => {
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
         const orcamentoSalvo = await novoOrcamento.save();
 
-        // Atualiza os contadores no cliente
-        const updateData = { $inc: { totalPedidos: 1 } };
-        if (orcamentoSalvo.valorProposto > 0) {
-            updateData.$inc.valorTotalEmPedidos = orcamentoSalvo.valorProposto;
-        }
-        await Cliente.findByIdAndUpdate(cliente._id, updateData);
-
         const conta = await Conta.findById(contaId);
         if (conta && conta.telefone) {
              const notificationToPrestador = `🔔 *Novo Pedido Criado no Sistema!*\n\n` +
@@ -315,71 +306,37 @@ const createOrcamento = async (req, res) => {
 const updateOrcamento = async (req, res) => {
     try {
         const { contaId } = req.user;
-
-        // 1. Encontra o orçamento original para saber o valor antigo
-        const orcamentoOriginal = await Orcamento.findOne({ _id: req.params.id, contaId }).lean();
-        if (!orcamentoOriginal) {
+        const orcamentoAtualizado = await Orcamento.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true });
+        if (!orcamentoAtualizado) {
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
-        const valorAntigo = orcamentoOriginal.valorProposto || 0;
-
-        // 2. Atualiza o orçamento
-        const orcamentoAtualizado = await Orcamento.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true });
-        
-        // 3. Calcula a diferença e atualiza o cliente se o valor mudou
-        const valorNovo = orcamentoAtualizado.valorProposto || 0;
-        const diferenca = valorNovo - valorAntigo;
-
-        if (diferenca !== 0) {
-            await Cliente.findByIdAndUpdate(orcamentoAtualizado.cliente, { $inc: { valorTotalEmPedidos: diferenca } });
-        }
-
         res.status(200).json(orcamentoAtualizado);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao atualizar orçamento.' });
     }
 };
 
+const Transacao = require('../models/transacao.model.js'); // Importar o modelo Transacao
+
 // Deleta um orçamento por ID
 const deleteOrcamento = async (req, res) => {
     try {
         const { contaId } = req.user;
-        
-        // 1. Encontra o orçamento primeiro
-        const orcamento = await Orcamento.findOne({ _id: req.params.id, contaId });
-        if (!orcamento) {
+        const orcamentoId = req.params.id;
+
+        // 1. Deleta o orçamento
+        const orcamentoDeletado = await Orcamento.findOneAndDelete({ _id: orcamentoId, contaId });
+
+        if (!orcamentoDeletado) {
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Guarda os detalhes necessários antes de deletar
-        const clienteId = orcamento.cliente;
-        const valorProposto = orcamento.valorProposto;
+        // 2. Deleta as transações financeiras associadas
+        await Transacao.deleteMany({ orcamentoAssociado: orcamentoId, contaId });
 
-        // 2. Deleta o documento
-        const deleteResult = await orcamento.deleteOne();
-        console.log('Resultado da operação de deleção:', deleteResult);
-        
-        // Verificação explícita do resultado da deleção
-        if (deleteResult.deletedCount === 0) {
-             console.log(`Falha ao deletar o orçamento ${req.params.id}. O documento foi encontrado mas não deletado.`);
-             return res.status(500).json({ error: 'Falha ao deletar o orçamento, o documento não foi removido.' });
-        }
-        
-        console.log(`Orcamento ${req.params.id} deletado com sucesso do banco de dados.`);
-
-        // 3. Apenas tenta atualizar o cliente se ele existir
-        if (clienteId) {
-            const updateData = { $inc: { totalPedidos: -1 } };
-            if (valorProposto > 0) {
-                updateData.$inc.valorTotalEmPedidos = -valorProposto;
-            }
-            const clienteUpdateResult = await Cliente.findByIdAndUpdate(clienteId, updateData);
-            console.log(`Cliente ${clienteId} atualizado após deleção. Resultado:`, clienteUpdateResult);
-        }
-
-        res.status(200).json({ message: 'Orçamento deletado com sucesso.' });
+        res.status(200).json({ message: 'Orçamento e transações associadas deletados com sucesso.' });
     } catch (error) {
-        console.error("Erro detalhado ao deletar orçamento:", error);
+        console.error("Erro ao deletar orçamento e transações:", error);
         res.status(500).json({ error: 'Erro ao deletar orçamento.' });
     }
 };
@@ -424,24 +381,16 @@ const submitOrcamento = async (req, res) => {
         const orcamentoId = req.params.id;
         const { contaId } = req.user;
 
+        // O controller chama o serviço, que contém toda a lógica.
         const orcamentoAtualizado = await orcamentoService.submeterOrcamento(contaId, orcamentoId, valorProposto);
 
-        try {
-            if (orcamentoAtualizado.cliente && orcamentoAtualizado.cliente.telefone) {
-                const templateData = { orcamento: orcamentoAtualizado, cliente: orcamentoAtualizado.cliente };
-                const mensagemRenderizada = await whatsappService.renderTemplateByCategoria('Orçamento', contaId, templateData);
-                if (mensagemRenderizada) {
-                    await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, mensagemRenderizada);
-                }
-            }
-        } catch (notificationError) {
-            console.error(`[Controller] Falha ao enviar notificação para o pedido #${orcamentoAtualizado.shortId}. Erro:`, notificationError.message);
-        }
-
+        // Envia a resposta HTTP.
         res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
+        // Apanha erros lançados pelo serviço, como 'Valor inválido' ou 'Orçamento não encontrado'.
         console.error("ERRO na rota submitOrcamento:", error);
+        // Retorna o status 400 (Bad Request) para erros de validação, o que é mais semântico.
         if (error.message.includes('Valor') || error.message.includes('obrigatório')) {
             return res.status(400).json({ error: error.message });
         }
@@ -458,23 +407,15 @@ const scheduleOrcamento = async (req, res) => {
             return res.status(400).json({ error: 'A data de agendamento é obrigatória.' });
         }
         
+        // O controller agora apenas chama o serviço, passando os dados necessários.
+        // Toda a lógica complexa está no orcamento.service.js
         const orcamentoAtualizado = await orcamentoService.agendarServico(contaId, orcamentoId, dataAgendamento);
 
-        try {
-            if (orcamentoAtualizado.cliente && orcamentoAtualizado.cliente.telefone) {
-                const templateData = { orcamento: orcamentoAtualizado, cliente: orcamentoAtualizado.cliente };
-                const mensagemRenderizada = await whatsappService.renderTemplateByCategoria('Agendamento', contaId, templateData);
-                if (mensagemRenderizada) {
-                    await whatsappService.sendWhatsAppMessage(orcamentoAtualizado.cliente.telefone, mensagemRenderizada);
-                }
-            }
-        } catch (notificationError) {
-            console.error(`[Controller] Falha ao enviar notificação de agendamento para o pedido #${orcamentoAtualizado.shortId}. Erro:`, notificationError.message);
-        }
-
+        // A única responsabilidade do controller é enviar a resposta HTTP.
         res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
+        // O erro lançado pelo serviço (ex: 'Orçamento não encontrado') é apanhado aqui.
         console.error("ERRO na rota scheduleOrcamento:", error);
         res.status(500).json({ error: error.message || 'Erro interno ao agendar o serviço.' });
     }
@@ -873,43 +814,14 @@ const adicionarPagamento = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Validação de sobrepagamento
-        const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
-        const valorProposto = orcamento.valorProposto || 0;
-        const valorNumerico = Number(valor);
-
-        if (totalPago + valorNumerico > valorProposto + 0.01) { // Adiciona uma pequena tolerância para problemas de ponto flutuante
-            return res.status(400).json({ message: `Este pagamento de R$ ${valorNumerico.toFixed(2)} excede o valor total do pedido de R$ ${valorProposto.toFixed(2)}. Total já pago: R$ ${totalPago.toFixed(2)}.` });
-        }
-
         // Adiciona o novo pagamento ao array de pagamentos
         orcamento.pagamentos.push({ valor, metodo, observacao });
 
         // Salva as alterações no banco de dados
-        const orcamentoAtualizado = await orcamento.save();
-
-        // --- LÓGICA FINANCEIRA CENTRALIZADA ---
-        // Cria a transação de Receita
-        const novaTransacao = new Transacao({
-            contaId: contaId,
-            tipo: 'Receita',
-            descricao: `Receita referente ao Pedido #${orcamento.shortId}`,
-            valor: valor,
-            categoria: 'Receita de Serviço',
-            data: new Date(),
-            orcamentoAssociado: orcamento._id,
-            metodoPagamento: metodo
-        });
-        await novaTransacao.save();
-
-        // Atualiza o valor total gasto pelo cliente
-        if (orcamento.cliente) {
-            await financeiroService.atualizarValorGastoCliente(orcamento.cliente, valor);
-        }
-        // --- FIM DA LÓGICA FINANCEIRA ---
+        await orcamento.save();
 
         // Retorna o orçamento completo e atualizado
-        res.status(200).json(orcamentoAtualizado);
+        res.status(200).json(orcamento);
 
     } catch (error) {
         console.error("Erro ao adicionar pagamento:", error);
@@ -930,27 +842,15 @@ const removerPagamento = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Encontra o pagamento específico para saber seu valor antes de remover
-        const pagamento = orcamento.pagamentos.id(pagamentoId);
-        if (!pagamento) {
-            return res.status(404).json({ message: 'Pagamento não encontrado neste orçamento.' });
-        }
-        const valorRemovido = pagamento.valor;
-
-        // Remove o pagamento do array
+        // Encontra o pagamento específico e o remove do array
+        // O método .pull do Mongoose é perfeito para isso
         orcamento.pagamentos.pull({ _id: pagamentoId });
 
-        // Salva as alterações no orçamento
-        const orcamentoAtualizado = await orcamento.save();
+        // Salva as alterações
+        await orcamento.save();
 
-        // Atualiza o valor total gasto pelo cliente (decrementa)
-        if (orcamento.cliente && valorRemovido > 0) {
-            await financeiroService.atualizarValorGastoCliente(orcamento.cliente, -valorRemovido);
-            // Idealmente, também removeríamos ou invalidaríamos a Transacao correspondente.
-            // Por agora, vamos focar em corrigir o total gasto.
-        }
-
-        res.status(200).json(orcamentoAtualizado);
+        // Retorna o orçamento atualizado
+        res.status(200).json(orcamento);
 
     } catch (error) {
         console.error("Erro ao remover pagamento:", error);
@@ -1031,8 +931,7 @@ const getAgendadosParaCalendario = async (req, res) => {
 const marcarComoPago = async (req, res) => {
     try {
         const { contaId } = req.user;
-        // Popula o cliente para ter acesso ao ID para o service financeiro
-        const pedido = await Orcamento.findOne({ _id: req.params.id, contaId }).populate('cliente');
+        const pedido = await Orcamento.findOne({ _id: req.params.id, contaId });
         if (!pedido) {
             return res.status(404).json({ message: "Pedido não encontrado ou não pertence a esta conta." });
         }
@@ -1042,30 +941,11 @@ const marcarComoPago = async (req, res) => {
         const valorRestante = valorTotal - totalJaPago;
 
         if (valorRestante > 0) {
-            const novoPagamento = {
+            pedido.pagamentos.push({
                 valor: valorRestante,
                 metodo: 'Automático',
                 observacao: 'Pagamento liquidado pela ação rápida.'
-            };
-            pedido.pagamentos.push(novoPagamento);
-
-            // Cria a transação de Receita correspondente
-            const novaTransacao = new Transacao({
-                contaId: contaId,
-                tipo: 'Receita',
-                descricao: `Receita de liquidação para Pedido #${pedido.shortId}`,
-                valor: valorRestante,
-                categoria: 'Receita de Serviço',
-                data: new Date(),
-                orcamentoAssociado: pedido._id,
-                metodoPagamento: 'Automático'
             });
-            await novaTransacao.save();
-
-            // Atualiza o valor total gasto pelo cliente
-            if (pedido.cliente) {
-                await financeiroService.atualizarValorGastoCliente(pedido.cliente._id, valorRestante);
-            }
         }
 
         pedido.statusPagamento = 'Pago';
