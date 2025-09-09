@@ -127,7 +127,8 @@ const createManualTransacao = async (req, res) => {
         });
 
         if (req.file) {
-            novaTransacao.comprovanteUrl = `/uploads/${req.file.filename}`;
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            novaTransacao.comprovanteUrl = `${baseUrl}/uploads/${req.file.filename}`;
         }
 
         const transacaoSalva = await novaTransacao.save();
