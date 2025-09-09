@@ -9,7 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const uploadController = require('../controllers/upload.controller');
-const uploadMiddleware = require('../middlewares/upload.middleware');
+const { multerMemoryUpload } = require('../middlewares/cloudinary.middleware.js'); // Usa o novo middleware de memória
 const authMiddleware = require('../middlewares/auth.middleware');
 const roleMiddleware = require('../middlewares/role.middleware');
 
@@ -20,20 +20,20 @@ router.use(roleMiddleware(['Dono', 'ADMIN']));
 // POST /api/upload/product-image
 router.post(
     '/product-image',
-    uploadMiddleware.single('image'), // 'image' deve ser o nome do campo no FormData do frontend
+    multerMemoryUpload.single('image'), // Usa o novo uploader de memória
     uploadController.uploadProductImage
 );
 router.post(
     '/invoice-image',
-    uploadMiddleware.single('invoice'), // O nome do campo será 'invoice'
+    multerMemoryUpload.single('invoice'), // Usa o novo uploader de memória
     uploadController.uploadInvoiceImage
 );
-// --- ADICIONE ESTA NOVA ROTA AQUI ---
+
 // POST /api/upload/logo
 router.post(
     '/logo',
-    uploadMiddleware.single('logo'), // Espera um arquivo com a chave 'logo'
-    uploadController.uploadLogo      // Chama a nova função no controlador que vamos criar
+    multerMemoryUpload.single('logo'), // Usa o novo uploader de memória
+    uploadController.uploadLogo
 );
 // -------------------------------------
 
