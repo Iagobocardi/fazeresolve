@@ -633,11 +633,13 @@ const uploadFotoServico = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Constrói a URL pública do ficheiro
-        const fotoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        // A URL segura já vem do middleware do Cloudinary
+        if (!req.file || !req.file.cloudinaryUrl) {
+            return res.status(500).json({ message: 'O upload da foto falhou.' });
+        }
 
         orcamento.fotosServico.push({
-            url: fotoUrl,
+            url: req.file.cloudinaryUrl, // Usa a URL do Cloudinary
             descricao: descricao || 'Foto do serviço'
         });
 
