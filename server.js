@@ -61,26 +61,34 @@ const app = express();
 
 const cors = require('cors');
 
-// Configuração de CORS usando o pacote padrão
-const allowedOrigins = [
-    'http://localhost:3000',
-    'https://app.fazeresolve.com',
-    'https://app.fazeresolve.com/', // Adicionado para robustez
-    'https://fazeresolve.com',
-    'https://fazeresolve.onrender.com', // Adicionado para o ambiente de produção
-    'https://accounts.google.com' // Adicionado para permitir o fluxo OAuth
-];
-if (process.env.APP_URL) {
-    allowedOrigins.push(process.env.APP_URL);
-}
+// Configuração de CORS mais robusta para permitir subdomínios
+const allowedDomains = ['fazeresolve.com', 'onrender.com', 'accounts.google.com'];
 
 const corsOptions = {
     origin: (origin, callback) => {
         // Permite requisições sem 'origin' (como apps mobile ou Postman)
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        try {
+            const hostname = new URL(origin).hostname;
+
+            // Permite localhost para desenvolvimento
+            if (hostname === 'localhost') {
+                return callback(null, true);
+            }
+
+            // Verifica se o hostname do origin termina com um dos domínios permitidos ou é um deles
+            if (allowedDomains.some(domain => hostname.endsWith('.' + domain) || hostname === domain)) {
+                return callback(null, true);
+            }
+
+            // Se não corresponder a nenhum critério, rejeita.
+            callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
+
+        } catch (err) {
+            callback(new Error('Invalid Origin header'));
         }
     },
     credentials: true,
