@@ -39,6 +39,10 @@ const transacaoSchema = new mongoose.Schema({
     metodoPagamento: {
         type: String,
         trim: true
+    },
+    comprovanteUrl: {
+        type: String,
+        trim: true
     }
 }, {
     timestamps: true
