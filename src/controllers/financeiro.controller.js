@@ -130,9 +130,6 @@ const createManualTransacao = async (req, res) => {
             novaTransacao.comprovanteUrl = `/uploads/${req.file.filename}`;
         }
 
-        // HACK: Lançar um erro para depurar o objeto antes de salvar
-        throw new Error(`DEBUG: ${JSON.stringify(novaTransacao)}`);
-
         const transacaoSalva = await novaTransacao.save();
         res.status(201).json(transacaoSalva);
 
