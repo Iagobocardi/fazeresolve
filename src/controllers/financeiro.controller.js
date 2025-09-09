@@ -126,9 +126,9 @@ const createManualTransacao = async (req, res) => {
             metodoPagamento,
         });
 
-        if (req.file) {
-            const baseUrl = `${req.protocol}://${req.get('host')}`;
-            novaTransacao.comprovanteUrl = `${baseUrl}/uploads/${req.file.filename}`;
+        // Se o upload para o Cloudinary foi bem-sucedido, a URL estará em req.file.cloudinaryUrl
+        if (req.file && req.file.cloudinaryUrl) {
+            novaTransacao.comprovanteUrl = req.file.cloudinaryUrl;
         }
 
         const transacaoSalva = await novaTransacao.save();
