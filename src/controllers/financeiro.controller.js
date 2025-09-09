@@ -140,8 +140,31 @@ const createManualTransacao = async (req, res) => {
     }
 };
 
+/**
+ * Deleta uma transação manual.
+ */
+const deleteManualTransacao = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { id } = req.params;
+
+        const transacaoDeletada = await Transacao.findOneAndDelete({ _id: id, contaId });
+
+        if (!transacaoDeletada) {
+            return res.status(404).json({ message: "Transação não encontrada ou não pertence a esta conta." });
+        }
+
+        res.status(200).json({ message: "Transação deletada com sucesso." });
+
+    } catch (error) {
+        console.error("Erro ao deletar transação manual:", error);
+        res.status(500).json({ message: "Erro ao deletar transação manual.", error: error.message });
+    }
+};
+
 module.exports = {
     getResumoFinanceiro,
     getHistoricoTransacoes,
-    createManualTransacao
+    createManualTransacao,
+    deleteManualTransacao
 };
