@@ -17,6 +17,6 @@ router.put('/:id', produtosController.updateProduto);
 router.delete('/:id', produtosController.deleteProduto);
 
 // Rota específica para ajustar o estoque
-router.patch('/:id/ajustar-estoque', produtosController.ajustarEstoque);
+router.patch('/:id/estoque', produtosController.ajustarEstoque);
 
 module.exports = router;
