@@ -22,10 +22,10 @@ router.get('/resumo', needsAuth, financeiroController.getResumoFinanceiro);
 router.get('/historico', needsAuth, financeiroController.getHistoricoTransacoes);
 
 /**
- * @route POST /api/financeiro/transacao
+ * @route POST /api/financeiro/transacoes
  * @description Cria uma nova transação manual (receita ou despesa).
  * @access Privado (Dono, ADMIN)
  */
-router.post('/transacao', needsAuth, financeiroController.createManualTransacao);
+router.post('/transacoes', needsAuth, financeiroController.createManualTransacao);
 
 module.exports = router;
