@@ -11,14 +11,20 @@ const checkPlan = require('../middlewares/checkPlan.middleware');
 router.use(authMiddleware);
 const { orcamentoValidationRules } = require('../controllers/orcamentos.controller');
 const { validate } = require('../middlewares/validation.middleware');
-const upload = require('../config/multer.config.js');
+const { multerMemoryUpload, uploadToCloudinary } = require('../middlewares/cloudinary.middleware.js');
 
 // Rotas mais específicas primeiro
 router.get('/dados/categorias', checkPermission('ver_orcamentos'), orcamentosController.getDistinctCategorias);
 router.get('/recentes', checkPermission('ver_orcamentos'), orcamentosController.getRecentOrcamentos);
 router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao); // Rota pública, sem verificação de permissão
 router.get('/agendados', checkPermission('ver_agenda'), orcamentosController.getAgendamentosParaCalendario); // Requer permissão de agenda
-router.post('/:id/upload-foto', checkPermission('editar_orcamentos'), upload.single('foto'), orcamentosController.uploadFotoServico);
+router.post(
+    '/:id/upload-foto', 
+    checkPermission('editar_orcamentos'), 
+    multerMemoryUpload.single('foto'), 
+    uploadToCloudinary('orcamentos'), 
+    orcamentosController.uploadFotoServico
+);
 router.get('/:id/fatura-pdf', checkPermission('ver_orcamentos'), orcamentosController.gerarFaturaPDF);
 router.get('/:id/orcamento-pdf', checkPermission('ver_orcamentos'), orcamentosController.gerarOrcamentoPDF);
 router.get('/por-cliente/:clienteId', checkPermission('ver_clientes'), orcamentosController.getPedidosPorCliente); // Requer permissão de clientes
