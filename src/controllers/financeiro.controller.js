@@ -101,6 +101,11 @@ const getHistoricoTransacoes = async (req, res) => {
  */
 const createManualTransacao = async (req, res) => {
     try {
+        // Adiciona uma verificação para o corpo da requisição
+        if (!req.body) {
+            return res.status(400).json({ message: "Corpo da requisição ausente ou malformado." });
+        }
+
         const { contaId } = req.user;
         const { tipo, descricao, valor, categoria, data, metodoPagamento } = req.body;
 
