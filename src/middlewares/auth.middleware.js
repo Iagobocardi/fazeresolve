@@ -2,6 +2,11 @@ const jwt = require('jsonwebtoken');
 const Usuario = require('../models/usuario.model');
 
 const authMiddleware = async (req, res, next) => {
+    // Permite que as requisições OPTIONS passem sem autenticação (importante para o CORS)
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+
     let token;
     const authHeader = req.headers['authorization'];
 
