@@ -3,9 +3,8 @@
 
 const cron = require('node-cron');
 const Orcamento = require('../models/orcamento.model');
-const { sendWhatsAppMessage } = require('../services/whatsapp.service'); // Precisamos de importar a função de envio
-const Cliente = require('../models/cliente.model'); // ✅ Adicionado import do Cliente
-const whatsAppService = require('../services/whatsapp.service'); // ✅ Importa o serviço completo
+const Cliente = require('../models/cliente.model');
+const whatsAppService = require('../services/whatsapp.service');
 
 // Agenda a tarefa para rodar todos os dias às 9h da manhã.
 // A expressão significa: "aos 0 minutos, da 9ª hora, todos os dias do mês, todos os meses, todos os dias da semana".
@@ -38,7 +37,7 @@ const runSatisfactionSurveyJob = async () => {
                 // =======================================================
 
                 // 1. Envia a pesquisa interativa (esta mensagem já contém o texto de introdução)
-                await whatsAppService.sendSatisfactionSurvey(pedido.cliente.telefone, pedido._id);
+                await whatsAppService.sendSatisfactionSurvey(pedido); // Passa o objeto completo do pedido
                 console.log(`[CRON] Pesquisa interativa enviada para o pedido #${pedido.shortId}.`);
 
                 // 2. Encontra o documento completo do Cliente para podermos alterar o seu estado
