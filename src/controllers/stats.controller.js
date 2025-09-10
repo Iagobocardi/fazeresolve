@@ -4,6 +4,8 @@
 const Orcamento = require('../models/orcamento.model');
 const Despesa = require('../models/despesa.model');
 const Cliente = require('../models/cliente.model');
+const mongoose = require('mongoose'); // Adicionado para usar mongoose.Types.ObjectId
+const Transacao = require('../models/transacao.model.js'); // Importação que faltava
 
 // Helper para garantir que todas as queries sejam relativas à conta do usuário
 const getBaseQuery = (req) => ({ contaId: req.user.contaId });
@@ -110,45 +112,47 @@ const getResumoFinanceiro = async (req, res) => {
         res.status(500).json({ message: 'Erro ao calcular resumo financeiro.' });
     }
 };
+const Transacao = require('../models/transacao.model.js'); // Importar o modelo Transacao
+
 const getHistoricoFinanceiro = async (req, res) => {
     try {
-        // 1. Definir o período dos últimos 6 meses
-        const seisMesesAtras = new Date();
-        seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
-
-        const baseQuery = getBaseQuery(req);
-
-        // 2. AGREGAÇÃO 1: Calcular o faturamento total por mês (soma dos pagamentos)
-        const faturamentoPorMes = await Orcamento.aggregate([
-            { $match: baseQuery }, // Filtra orçamentos da conta
-            { $unwind: '$pagamentos' }, // "Desmonta" o array de pagamentos para processar cada um
-            { $match: { 'pagamentos.data': { $gte: seisMesesAtras } } }, // Filtra pagamentos nos últimos 6 meses
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m", date: "$pagamentos.data" } }, // Agrupa por ano-mês
-                    total: { $sum: '$pagamentos.valor' } // Soma os valores dos pagamentos
-                }
-            },
-            { $sort: { _id: 1 } } // Ordena por mês
-        ]);
-
-        // 3. AGREGAÇÃO 2: Calcular as despesas totais por mês
-        const despesasPorMes = await Despesa.aggregate([
-            { $match: { ...baseQuery, data: { $gte: seisMesesAtras } } }, // Filtra despesas nos últimos 6 meses
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m", date: "$data" } }, // Agrupa por ano-mês
-                    total: { $sum: '$valor' } // Soma os valores das despesas
-                }
-            },
-            { $sort: { _id: 1 } } // Ordena por mês
-        ]);
-
-        // 4. COMBINAR OS DADOS EM JAVASCRIPT
-        const resultado = {};
+        const { contaId } = req.user;
         const hoje = new Date();
+        const seisMesesAtras = new Date(hoje.getFullYear(), hoje.getMonth() - 6, 1);
 
-        // Prepara o objeto de resultado com os últimos 6 meses (garante que meses sem dados apareçam)
+        // 1. AGREGAÇÃO ÚNICA na coleção de Transações (fonte da verdade)
+        const dadosAgregados = await Transacao.aggregate([
+            {
+                $match: {
+                    contaId: new mongoose.Types.ObjectId(contaId),
+                    data: { $gte: seisMesesAtras }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        mes: { $dateToString: { format: "%Y-%m", date: "$data" } },
+                        tipo: "$tipo"
+                    },
+                    total: { $sum: "$valor" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id.mes",
+                    transacoes: {
+                        $push: {
+                            tipo: "$_id.tipo",
+                            total: "$total"
+                        }
+                    }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        // 2. PREPARAR O RESULTADO FINAL
+        const resultado = {};
         for (let i = 5; i >= 0; i--) {
             const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
             const mesChave = d.toISOString().slice(0, 7); // Formato "YYYY-MM"
@@ -160,21 +164,21 @@ const getHistoricoFinanceiro = async (req, res) => {
             };
         }
 
-        // Preenche com os dados de faturamento
-        faturamentoPorMes.forEach(item => {
-            if (resultado[item._id]) {
-                resultado[item._id].faturamento = item.total;
+        // 3. PREENCHER com os dados agregados
+        dadosAgregados.forEach(item => {
+            const mesChave = item._id;
+            if (resultado[mesChave]) {
+                item.transacoes.forEach(t => {
+                    if (t.tipo === 'Receita') {
+                        resultado[mesChave].faturamento = t.total;
+                    } else if (t.tipo === 'Despesa') {
+                        resultado[mesChave].despesas = t.total;
+                    }
+                });
             }
         });
 
-        // Preenche com os dados de despesas
-        despesasPorMes.forEach(item => {
-            if (resultado[item._id]) {
-                resultado[item._id].despesas = item.total;
-            }
-        });
-
-        // Calcula o lucro e formata para um array final
+        // 4. CALCULAR O LUCRO E FORMATAR
         const dadosDoGrafico = Object.values(resultado).map(item => {
             item.lucro = item.faturamento - item.despesas;
             return item;
