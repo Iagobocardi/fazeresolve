@@ -112,7 +112,6 @@ const getResumoFinanceiro = async (req, res) => {
         res.status(500).json({ message: 'Erro ao calcular resumo financeiro.' });
     }
 };
-const Transacao = require('../models/transacao.model.js'); // Importar o modelo Transacao
 
 const getHistoricoFinanceiro = async (req, res) => {
     try {
