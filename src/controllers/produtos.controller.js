@@ -9,13 +9,23 @@ const createProduto = async (req, res) => {
         // Corrigido para aceitar 'quantidade' do frontend e mapear para 'quantidadeEmEstoque'
         const { nome, descricao, unidade, quantidade, custoUnitario, fornecedor, estoqueMinimo } = req.body;
         
+        // Adiciona tratamento robusto para o custoUnitario
+        let custoNumerico = 0;
+        if (custoUnitario) {
+            const custoLimpo = String(custoUnitario).replace(/[^0-9,.-]/g, '').replace(',', '.');
+            custoNumerico = parseFloat(custoLimpo);
+            if (isNaN(custoNumerico)) {
+                custoNumerico = 0;
+            }
+        }
+
         // Cria o produto
         const novoProduto = new Produto({ 
             nome, 
             descricao, 
             unidade, 
             quantidadeEmEstoque: quantidade, // Mapeamento correto
-            custoUnitario, 
+            custoUnitario: custoNumerico, // Usa o valor limpo e parseado
             fornecedor, 
             estoqueMinimo 
         });
