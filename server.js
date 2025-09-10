@@ -3,6 +3,7 @@ require('dotenv').config();
 require('./src/jobs/lembretes.job');
 require('./src/jobs/billing.job.js');
 require('./src/jobs/gracePeriod.job.js');
+require('./src/jobs/whatsappSender.job.js'); // Adiciona o novo job
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
