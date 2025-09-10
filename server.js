@@ -3,7 +3,6 @@ require('dotenv').config();
 require('./src/jobs/lembretes.job');
 require('./src/jobs/billing.job.js');
 require('./src/jobs/gracePeriod.job.js');
-require('./src/jobs/whatsappSender.job.js'); // Adiciona o novo job
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
@@ -62,23 +61,34 @@ const app = express();
 
 const cors = require('cors');
 
-// Configuração de CORS explícita para domínios permitidos
-const allowedOrigins = [
-    'https://app.fazeresolve.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173', // Porta comum para Vite
-    'https://accounts.google.com',
-];
+// Configuração de CORS mais robusta para permitir subdomínios
+const allowedDomains = ['fazeresolve.com', 'onrender.com', 'accounts.google.com'];
 
 const corsOptions = {
     origin: (origin, callback) => {
-        // Permite requisições sem 'origin' (como Postman), de origens na lista,
-        // ou a origem "null" que alguns browsers enviam.
-        if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error(`Acesso não permitido por CORS. Origem: ${origin}`));
+        // Permite requisições sem 'origin' (como apps mobile ou Postman)
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        try {
+            const hostname = new URL(origin).hostname;
+
+            // Permite localhost para desenvolvimento
+            if (hostname === 'localhost') {
+                return callback(null, true);
+            }
+
+            // Verifica se o hostname do origin termina com um dos domínios permitidos ou é um deles
+            if (allowedDomains.some(domain => hostname.endsWith('.' + domain) || hostname === domain)) {
+                return callback(null, true);
+            }
+
+            // Se não corresponder a nenhum critério, rejeita.
+            callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
+
+        } catch (err) {
+            callback(new Error('Invalid Origin header'));
         }
     },
     credentials: true,
@@ -86,6 +96,8 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
 };
 
+// Habilita o pre-flight para todas as rotas, garantindo que as requisições OPTIONS sejam tratadas primeiro.
+app.options('*', cors(corsOptions)); 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
