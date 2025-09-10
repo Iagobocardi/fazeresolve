@@ -4,11 +4,16 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const produtoSchema = new Schema({
+    contaId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
     nome: {
         type: String,
         required: [true, 'O nome do produto é obrigatório.'],
-        trim: true,
-        unique: true
+        trim: true
     },
     descricao: { type: String, trim: true },
     unidade: { type: String, default: 'Unidade' },
@@ -38,6 +43,8 @@ const produtoSchema = new Schema({
 }, {
     timestamps: true
 });
+
+produtoSchema.index({ contaId: 1, nome: 1 }, { unique: true });
 
 const Produto = mongoose.model('Produto', produtoSchema);
 
