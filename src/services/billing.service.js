@@ -38,7 +38,8 @@ const processAutomaticBillings = async () => {
             try {
                 const { numeroDoCliente, mensagemFinal } = await whatsappService.renderTemplateMessage(templateId, orcamento._id);
 
-                await whatsappService.sendWhatsAppMessage(numeroDoCliente, mensagemFinal);
+                // Passa o contaId do orçamento para a função de envio
+                await whatsappService.sendWhatsAppMessage(orcamento.contaId, numeroDoCliente, mensagemFinal);
 
                 // Atualiza o orçamento para não enviar o mesmo lembrete de novo
                 orcamento.ultimoLembreteEnviado = new Date();
