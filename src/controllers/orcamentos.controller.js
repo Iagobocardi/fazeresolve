@@ -250,6 +250,12 @@ const createOrcamento = async (req, res) => {
             if (!cliente) {
                 return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
             }
+            
+            // If new address data is provided, update the client
+            if (clienteData.endereco) {
+                cliente.endereco = clienteData.endereco;
+                await cliente.save();
+            }
         } else {
             const dadosSegurosCliente = {
                 nome: clienteData.nome,
