@@ -253,7 +253,7 @@ const createOrcamento = async (req, res) => {
         } else {
             const dadosSegurosCliente = {
                 nome: clienteData.nome,
-                email: clienteData.email,
+                email: clienteData.email || undefined, // Garante que strings vazias se tornem undefined
                 endereco: clienteData.endereco,
                 contaId: contaId
             };
