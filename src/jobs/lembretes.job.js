@@ -49,8 +49,8 @@ const enviarLembretesDeAgendamento = async () => {
                 
                 const mensagem = `Olá, ${pedido.cliente.nome}! 👋 Passando para lembrar do seu serviço connosco amanhã, dia ${dataFormatada}. Até breve!`;
                 
-                console.log(`[JOB] => Enviando lembrete para ${pedido.cliente.nome} (${pedido.cliente.telefone})`);
-                await whatsAppService.sendWhatsAppMessage(pedido.cliente.telefone, mensagem);
+                console.log(`[JOB] => Enviando lembrete para ${pedido.cliente.nome} (${pedido.cliente.telefone}) para a conta ${pedido.contaId}`);
+                await whatsAppService.sendWhatsAppMessage(pedido.contaId, pedido.cliente.telefone, mensagem);
 
                 // Marca o lembrete como enviado para evitar duplicidade
                 pedido.lembreteEnviado = true;
