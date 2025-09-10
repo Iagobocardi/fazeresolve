@@ -251,7 +251,7 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
     }
 
     const [produto, orcamento] = await Promise.all([
-        Produto.findOne({ _id: produtoId, contaId }),
+        Produto.findOne({ _id: produtoId, contaId: contaId }), // Agora produtos também são por conta
         Orcamento.findOne({ _id: orcamentoId, contaId })
     ]);
 
@@ -277,6 +277,7 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
     });
 
     const movimento = new MovimentoEstoque({
+        contaId: contaId, // Adiciona o ID da conta do usuário
         produto: produtoId,
         tipo: 'Saída',
         quantidade: quantidadeNum,
@@ -326,6 +327,7 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
     materialUsado.remove();
 
     const movimento = new MovimentoEstoque({
+        contaId: contaId, // Adiciona o ID da conta do usuário
         produto: materialUsado.produto,
         tipo: 'Entrada',
         quantidade: materialUsado.quantidade,
