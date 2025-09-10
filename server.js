@@ -94,9 +94,10 @@ const corsOptions = {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
-    preflightContinue: true,
 };
 
+// Habilita o pre-flight para todas as rotas, respondendo com 204 e terminando a cadeia.
+app.options('*', cors(corsOptions)); 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
