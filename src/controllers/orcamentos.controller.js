@@ -132,7 +132,7 @@ const getOrcamentoById = async (req, res) => {
     try {
         const { contaId } = req.user;
         const orcamento = await Orcamento.findOne({ _id: req.params.id, contaId })
-            .populate('cliente', 'nome telefone')
+            .populate('cliente', 'nome telefone endereco')
             .populate('materiaisUsados.produto'); // Popula os detalhes do produto
 
         if (!orcamento) {
