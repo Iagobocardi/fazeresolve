@@ -96,6 +96,8 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
 };
 
+// Habilita o pre-flight para todas as rotas, garantindo que as requisições OPTIONS sejam tratadas primeiro.
+app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

@@ -320,23 +320,59 @@ const Transacao = require('../models/transacao.model.js'); // Importar o modelo 
 
 // Deleta um orçamento por ID
 const deleteOrcamento = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { contaId } = req.user;
         const orcamentoId = req.params.id;
 
-        // 1. Deleta o orçamento
-        const orcamentoDeletado = await Orcamento.findOneAndDelete({ _id: orcamentoId, contaId });
+        // 1. Encontra o orçamento ANTES de deletar para ter acesso aos dados
+        const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).session(session);
 
-        if (!orcamentoDeletado) {
+        if (!orcamento) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // 2. Deleta as transações financeiras associadas
-        await Transacao.deleteMany({ orcamentoAssociado: orcamentoId, contaId });
+        // 2. Devolve os materiais ao estoque se houver
+        if (orcamento.materiaisUsados && orcamento.materiaisUsados.length > 0) {
+            for (const material of orcamento.materiaisUsados) {
+                await Produto.updateOne(
+                    { _id: material.produto, contaId },
+                    { $inc: { quantidadeEmEstoque: material.quantidade } },
+                    { session }
+                );
+                // Cria um movimento de estorno para registrar a devolução
+                const movimentoEstorno = new MovimentoEstoque({
+                    contaId,
+                    produto: material.produto,
+                    tipo: 'Entrada',
+                    quantidade: material.quantidade,
+                    motivo: `Devolução por exclusão do Pedido #${orcamento.shortId}`,
+                    orcamentoAssociado: orcamentoId
+                });
+                await movimentoEstorno.save({ session });
+            }
+        }
 
-        res.status(200).json({ message: 'Orçamento e transações associadas deletados com sucesso.' });
+        // 3. Deleta as transações financeiras e despesas associadas ao orçamento
+        await Transacao.deleteMany({ orcamentoAssociado: orcamentoId, contaId }, { session });
+        await Despesa.deleteMany({ orcamentoAssociado: orcamentoId, contaId }, { session });
+
+        // 4. Finalmente, deleta o próprio orçamento
+        await Orcamento.deleteOne({ _id: orcamentoId, contaId }, { session });
+
+        // Se tudo correu bem, comita a transação
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(200).json({ message: 'Orçamento e todos os dados associados (transações, despesas, estoque) foram deletados com sucesso.' });
     } catch (error) {
-        console.error("Erro ao deletar orçamento e transações:", error);
+        // Se algo der errado, aborta a transação
+        await session.abortTransaction();
+        session.endSession();
+        console.error("Erro ao deletar orçamento e dados associados:", error);
         res.status(500).json({ error: 'Erro ao deletar orçamento.' });
     }
 };
