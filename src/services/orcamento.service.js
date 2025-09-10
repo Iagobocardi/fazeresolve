@@ -404,7 +404,7 @@ const enviarCobrancaComDesconto = async (contaId, orcamentoId, desconto, templat
     }
 
     // 6. Enviar a mensagem via WhatsApp
-    await whatsappService.sendWhatsAppMessage(orcamento.cliente.telefone, mensagem);
+    await whatsappService.sendWhatsAppMessage(contaId, orcamento.cliente.telefone, mensagem);
 
     // 7. Salvar o histórico
     orcamento.historico.push({ evento: `Enviada cobrança com ${descontoNum}% de desconto via WhatsApp usando template.` });
