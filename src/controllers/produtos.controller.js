@@ -20,7 +20,8 @@ const createProduto = async (req, res) => {
         }
 
         // Cria o produto
-        const novoProduto = new Produto({ 
+        const novoProduto = new Produto({
+            contaId: req.user.contaId, // Adiciona o ID da conta do usuário
             nome, 
             descricao, 
             unidade, 
@@ -40,6 +41,7 @@ const createProduto = async (req, res) => {
         // Se uma quantidade inicial for informada, regista o primeiro movimento de estoque
         if (quantidade && quantidade > 0) {
             const movimento = new MovimentoEstoque({
+                contaId: req.user.contaId, // Adiciona o ID da conta do usuário
                 produto: novoProduto._id,
                 tipo: 'Entrada',
                 quantidade: quantidade, // Usa a 'quantidade' recebida
@@ -58,7 +60,7 @@ const createProduto = async (req, res) => {
 // Obter todos os produtos
 const getAllProdutos = async (req, res) => {
     try {
-        const produtos = await Produto.find().sort({ nome: 1 }); // Ordena por nome
+        const produtos = await Produto.find({ contaId: req.user.contaId }).sort({ nome: 1 }); // Filtra por contaId e ordena por nome
         res.status(200).json(produtos);
     } catch (error) {
         res.status(500).json({ message: "Erro ao buscar produtos.", error: error.message });
@@ -71,9 +73,11 @@ const updateProduto = async (req, res) => {
         // Remove campos que não devem ser atualizados diretamente por esta rota
         const { quantidadeEmEstoque, alertaEstoqueBaixo, ...updateData } = req.body;
 
-        const produto = await Produto.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+        const query = { _id: req.params.id, contaId: req.user.contaId };
+        const produto = await Produto.findOneAndUpdate(query, updateData, { new: true, runValidators: true });
+        
         if (!produto) {
-            return res.status(404).json({ message: "Produto não encontrado." });
+            return res.status(404).json({ message: "Produto não encontrado ou você não tem permissão para editá-lo." });
         }
         res.status(200).json({ message: "Produto atualizado com sucesso!", produto });
     } catch (error) {
@@ -84,9 +88,11 @@ const updateProduto = async (req, res) => {
 // Deletar um produto
 const deleteProduto = async (req, res) => {
     try {
-        const produto = await Produto.findByIdAndDelete(req.params.id);
+        const query = { _id: req.params.id, contaId: req.user.contaId };
+        const produto = await Produto.findOneAndDelete(query);
+
         if (!produto) {
-            return res.status(404).json({ message: "Produto não encontrado." });
+            return res.status(404).json({ message: "Produto não encontrado ou você não tem permissão para deletá-lo." });
         }
         // O ideal seria também apagar os movimentos de estoque associados, mas por simplicidade vamos deixar assim por agora.
         res.status(200).json({ message: "Produto deletado com sucesso." });
@@ -104,9 +110,9 @@ const ajustarEstoque = async (req, res) => {
             return res.status(400).json({ message: "Quantidade, motivo e tipo são obrigatórios."});
         }
 
-        const produto = await Produto.findById(req.params.id);
+        const produto = await Produto.findOne({ _id: req.params.id, contaId: req.user.contaId });
         if (!produto) {
-            return res.status(404).json({ message: "Produto não encontrado." });
+            return res.status(404).json({ message: "Produto não encontrado ou você não tem permissão para acessá-lo." });
         }
         
         const quantidadeNumerica = Number(quantidade);
@@ -133,7 +139,13 @@ const ajustarEstoque = async (req, res) => {
         await produto.save();
 
         // Cria o registo do movimento
-        const movimento = new MovimentoEstoque({ produto: produto._id, tipo, quantidade: quantidadeNumerica, motivo });
+        const movimento = new MovimentoEstoque({ 
+            contaId: req.user.contaId, // Adiciona o ID da conta do usuário
+            produto: produto._id, 
+            tipo, 
+            quantidade: quantidadeNumerica, 
+            motivo 
+        });
         await movimento.save();
 
         res.status(200).json({ message: "Estoque atualizado com sucesso!", produto });
