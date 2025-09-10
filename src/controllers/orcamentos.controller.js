@@ -234,7 +234,7 @@ const createOrcamento = async (req, res) => {
     }
 
     try {
-        const { contaId, id: prestadorId } = req.user; // Captura ambos os IDs
+        const { contaId } = req.user; // Captura o ID da conta
         const body = req.body;
 
         const clienteData = body.clienteData || body;
@@ -275,7 +275,6 @@ const createOrcamento = async (req, res) => {
             address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId,
-            prestadorId: prestadorId, // Salva o ID do usuário que criou
             historico: [{ evento: 'Pedido criado via sistema.' }]
         };
         Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
