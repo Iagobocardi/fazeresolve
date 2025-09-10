@@ -289,7 +289,7 @@ const createOrcamento = async (req, res) => {
                                           `*Cliente:* ${cliente.nome}\n` +
                                           `*Descrição:* ${(orcamentoSalvo.descricao || '').slice(0, 80)}...\n\n` +
                                           `Para ver todos os detalhes, acesse o sistema.`;
-            await whatsappService.sendWhatsAppMessage(conta.telefone, notificationToPrestador);
+            await whatsappService.sendWhatsAppMessage(contaId, conta.telefone, notificationToPrestador);
         }
 
         res.status(201).json(orcamentoSalvo);
