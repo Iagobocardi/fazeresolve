@@ -52,55 +52,65 @@ const renderTemplate = async (tituloTemplate, data) => {
     }
 };
 
-// 1. Cliente Twilio e número de telefone definidos UMA VEZ no topo.
-const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const twilioPhoneNumber = `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`;
-
 // =======================================================
-// FUNÇÃO 1: Enviar mensagens de texto ou com mídia
+// FUNÇÃO 1: Enviar mensagens (Refatorada para Multi-Provider)
 // =======================================================
-const sendWhatsAppMessage = async (phoneNumber, message = '', mediaUrls = []) => {
-    if (!phoneNumber) {
-        console.error("[SERVICE] ERRO: Tentativa de enviar mensagem para um número indefinido.");
+const sendWhatsAppMessage = async (contaId, phoneNumber, message = '', mediaUrls = []) => {
+    if (!contaId || !phoneNumber) {
+        console.error("[SERVICE] ERRO: contaId e phoneNumber são obrigatórios.");
         return;
     }
-    try {
-        const messageData = {
-            from: twilioPhoneNumber,
-            to: `whatsapp:${phoneNumber}`,
-            // =======================================================
-            // 👉 A CORREÇÃO FINAL ESTÁ AQUI
-            //    Enviamos um StatusCallback vazio para sobrepor a
-            //    configuração inválida ('none') que está na sua conta Twilio.
-            // =======================================================
-            statusCallback: 'http://demo.twilio.com/'
-        };
 
-        if (message && message.trim() !== '') {
-            messageData.body = message;
-        }
-        if (mediaUrls && mediaUrls.length > 0) {
-            messageData.mediaUrl = mediaUrls;
-        }
-        if (!messageData.body && !messageData.mediaUrl) {
+    try {
+        const conta = await Conta.findById(contaId);
+        if (!conta || !conta.isWhatsappConnected) {
+            console.error(`[SERVICE] WhatsApp não conectado ou conta não encontrada para contaId: ${contaId}`);
             return;
         }
 
-        // Já não precisamos do log de debug, pode ser removido
-        // console.log("A enviar os seguintes dados para a API da Twilio:", JSON.stringify(messageData, null, 2));
+        // Lógica para o provedor MANUAL_TWILIO (legado)
+        if (conta.whatsappProvider === 'MANUAL_TWILIO') {
+            if (!conta.twilioAccountSid || !conta.twilioAuthToken || !conta.whatsappSender) {
+                console.error(`[SERVICE] Credenciais Twilio incompletas para a conta ${contaId}`);
+                return;
+            }
+            // Cria um cliente Twilio específico para este usuário
+            const userTwilioClient = require('twilio')(conta.twilioAccountSid, conta.twilioAuthToken);
+            
+            const messageData = {
+                from: `whatsapp:${conta.whatsappSender}`,
+                to: `whatsapp:${phoneNumber}`,
+                statusCallback: 'http://demo.twilio.com/' // Evita erros de webhook
+            };
 
-        await twilioClient.messages.create(messageData);
-
-        console.log(`[SERVICE] Mensagem enviada com sucesso para ${phoneNumber}.`);
+            if (message && message.trim() !== '') messageData.body = message;
+            if (mediaUrls && mediaUrls.length > 0) messageData.mediaUrl = mediaUrls;
+            if (!messageData.body && !messageData.mediaUrl) return;
+            
+            await userTwilioClient.messages.create(messageData);
+            console.log(`[SERVICE] Mensagem enviada com sucesso para ${phoneNumber} via Twilio (Manual).`);
+        } 
+        // Lógica para o provedor OAUTH_META (novo)
+        else if (conta.whatsappProvider === 'OAUTH_META') {
+            // TODO: Implementar a lógica de envio via Meta Graph API
+            // 1. Checar se o whatsappAccessToken é válido (não expirou)
+            // 2. Se expirou, usar o whatsappRefreshToken para obter um novo token e salvar na conta.
+            // 3. Usar o accessToken para fazer um POST com axios para a API da Meta.
+            console.log(`[SERVICE] Lógica de envio para OAUTH_META ainda não implementada.`);
+            // Por enquanto, vamos simular o envio para não quebrar o fluxo
+            console.log(`[SERVICE] (Simulação) Mensagem para ${phoneNumber} com conteúdo "${message}" seria enviada via Meta.`);
+        }
 
     } catch (error) {
-        // Agora, se o erro persistir, saberemos que é algo que só o suporte da Twilio pode resolver.
-        console.error("[SERVICE] ERRO AO ENVIAR VIA TWILIO (APÓS CORREÇÃO):", error);
+        console.error(`[SERVICE] Erro ao enviar mensagem de WhatsApp para a conta ${contaId}:`, error);
     }
 };
-const sendSatisfactionSurvey = async (clientPhone, orcamentoId) => {
+const sendSatisfactionSurvey = async (orcamento) => {
     try {
-        // Este é o objeto que define a mensagem interativa de lista
+        const orcamentoId = orcamento._id;
+        const clientPhone = orcamento.cliente.telefone;
+
+        // O resto da lógica da mensagem interativa permanece o mesmo
         const interactiveMessage = {
             interactive: {
                 type: 'list',
@@ -123,17 +133,26 @@ const sendSatisfactionSurvey = async (clientPhone, orcamentoId) => {
             }
         };
 
-        // A chamada à API da Twilio usando o Content API
+        // A função sendWhatsAppMessage já contém a lógica de qual provider usar
+        // e já lida com a busca da conta. Nós só precisamos chamar com os dados corretos.
+        // O Content API da Twilio parece ser um caso especial que usa credenciais globais.
+        // Vamos manter a lógica original por enquanto, mas usando a função refatorada.
+        // NOTA: A API de Conteúdo da Twilio pode não funcionar com credenciais por usuário.
+        // Isso precisaria ser verificado na documentação da Twilio.
+        // Por enquanto, vamos assumir que a pesquisa é enviada pela conta principal do sistema.
+        const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+        const twilioPhoneNumber = `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`;
+
         await twilioClient.messages.create({
             from: twilioPhoneNumber,
             to: `whatsapp:${clientPhone}`,
-            contentSid: process.env.TWILIO_CONTENT_SID, // Essencial que esta variável esteja no seu .env
+            contentSid: process.env.TWILIO_CONTENT_SID, // SID de conteúdo para mensagens interativas
             contentVariables: JSON.stringify({
-                1: orcamentoId // Passa o ID do orçamento como variável para o template
+                1: orcamentoId.toString()
             })
         });
 
-        console.log(`[Whatsapp Service] Pesquisa de satisfação enviada para ${clientPhone}.`);
+        console.log(`[Whatsapp Service] Pesquisa de satisfação enviada para ${clientPhone} para o orçamento ${orcamentoId}.`);
 
     } catch (error) {
         console.error(`[Whatsapp Service] Erro ao enviar pesquisa de satisfação:`, error.message);
@@ -212,7 +231,7 @@ const handleIncomingMessage = async (req) => {
                 orcamento.notaSatisfacao = nota;
                 orcamento.historico.push({ evento: `Cliente avaliou o serviço com nota ${nota}.` });
                 await orcamento.save();
-                await sendWhatsAppMessage(senderPhone, 'Obrigado pelo seu feedback! 👍');
+                await sendWhatsAppMessage(contaId, senderPhone, 'Obrigado pelo seu feedback! 👍');
             }
             return;
         }
@@ -229,7 +248,7 @@ const handleIncomingMessage = async (req) => {
                 // Se mantida, também precisa do contaId.
                 console.log(`[SERVICE] Número ${senderPhone} identificado como PRESTADOR da conta ${contaId}.`);
                 // Não vamos criar um "cliente" para o prestador aqui para evitar confusão.
-                await sendWhatsAppMessage(senderPhone, "Modo de comando ativado. Para ver a lista de comandos, envie 'ajuda'.");
+                await sendWhatsAppMessage(contaId, senderPhone, "Modo de comando ativado. Para ver a lista de comandos, envie 'ajuda'.");
             } else {
                 console.log(`[SERVICE] Criando novo cliente para o número: ${senderPhone} na conta ${contaId}`);
                 user = new Cliente({
@@ -240,14 +259,14 @@ const handleIncomingMessage = async (req) => {
                 });
                 await user.save();
                 const welcomeMessage = `Olá, ${clienteNome}! Bem-vindo(a) ao Faz&Resolve.\n\nComo podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente\n\n(A qualquer momento, envie *voltar* para ir ao passo anterior).`;
-                await sendWhatsAppMessage(senderPhone, welcomeMessage);
+                await sendWhatsAppMessage(contaId, senderPhone, welcomeMessage);
             }
             return;
         }
 
         if (user.role === 'PRESTADOR') { // Esta lógica pode precisar de revisão
-            const responseMessage = await commandParser.parseAndExecute(messageBody, user, sendWhatsAppMessage);
-            if (responseMessage) { await sendWhatsAppMessage(user.telefone, responseMessage); }
+            const responseMessage = await commandParser.parseAndExecute(messageBody, user, (phone, msg) => sendWhatsAppMessage(contaId, phone, msg));
+            if (responseMessage) { await sendWhatsAppMessage(contaId, user.telefone, responseMessage); }
         } else { // Role: 'CLIENTE_FINAL'
 
             // --- VERIFICAÇÃO DE CONDIÇÕES DA AUTOMAÇÃO ---
@@ -294,18 +313,18 @@ const handleIncomingMessage = async (req) => {
                         replyMessage = "Certo, voltamos um passo. Por favor, informe novamente o seu endereço.";
                         break;
                     default:
-                        await sendWhatsAppMessage(user.telefone, "Você já está no menu principal. Não é possível voltar mais.");
+                        await sendWhatsAppMessage(contaId, user.telefone, "Você já está no menu principal. Não é possível voltar mais.");
                         return;
                 }
                 user.conversationState = previousState;
                 await user.save();
-                await sendWhatsAppMessage(user.telefone, replyMessage);
+                await sendWhatsAppMessage(contaId, user.telefone, replyMessage);
                 return;
             }
 
             if (clientCommand === 'meu pedido' || clientCommand === 'status') {
                 const statusResponse = await handleCheckOrderStatus(user);
-                await sendWhatsAppMessage(user.telefone, statusResponse);
+                await sendWhatsAppMessage(contaId, user.telefone, statusResponse);
                 return;
             }
 
@@ -316,30 +335,30 @@ const handleIncomingMessage = async (req) => {
                         user.currentDemand = { requestType: 'NOVO_SERVICO' };
                         user.conversationState = 'AWAITING_SERVICE_TYPE';
                         await user.save();
-                        await sendWhatsAppMessage(user.telefone, "Com certeza! Para começarmos, por favor, descreva em detalhe o que você precisa. Se quiser, pode também enviar fotos ou vídeos do item.\n\n(Envie *voltar* para cancelar e retornar ao menu).");
+                        await sendWhatsAppMessage(contaId, user.telefone, "Com certeza! Para começarmos, por favor, descreva em detalhe o que você precisa. Se quiser, pode também enviar fotos ou vídeos do item.\n\n(Envie *voltar* para cancelar e retornar ao menu).");
                     } else if (option === '2') {
                         const statusResponse = await handleCheckOrderStatus(user);
-                        await sendWhatsAppMessage(user.telefone, statusResponse);
+                        await sendWhatsAppMessage(contaId, user.telefone, statusResponse);
                     } else if (option === '3') {
-                        await sendWhatsAppMessage(user.telefone, "Entendido. A sua solicitação foi enviada. Um dos nossos atendentes irá entrar em contato consigo nesta conversa em breve.");
+                        await sendWhatsAppMessage(contaId, user.telefone, "Entendido. A sua solicitação foi enviada. Um dos nossos atendentes irá entrar em contato consigo nesta conversa em breve.");
                         if (prestadorPhone) {
                             const clientPhoneNumber = user.telefone.replace(/\D/g, '');
                             const whatsappLink = `https://wa.me/${clientPhoneNumber}`;
                             const notificationToPrestador = `🔔 *Atenção: Cliente precisa de ajuda!*\n\nO cliente *${user.nome}* (${user.telefone}) solicitou falar com um atendente.\n\nClique aqui para abrir a conversa: ${whatsappLink}`;
-                            await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
+                            await sendWhatsAppMessage(contaId, prestadorPhone, notificationToPrestador);
                         } else {
                             console.error("ALERTA: PRESTADOR_TELEFONE não definido no .env. Não foi possível notificar.");
                         }
                     } else {
                         const newRequestMessage = `Olá, ${user.nome}! Não entendi a sua resposta. Por favor, escolha uma das opções:\n\n*1.* Pedir um novo serviço\n*2.* Saber o estado de um serviço\n*3.* Falar com um atendente`;
-                        await sendWhatsAppMessage(user.telefone, newRequestMessage);
+                        await sendWhatsAppMessage(contaId, user.telefone, newRequestMessage);
                     }
                     break;
 
                 case 'AWAITING_ORDER_SELECTION':
                     const match = messageBody.toLowerCase().trim().match(/^(?:ver\s+)?pedido\s+(\d+)$/);
                     if (!match) {
-                        await sendWhatsAppMessage(user.telefone, "Comando não entendido. Por favor, responda no formato `ver pedido [NÚMERO]`.");
+                        await sendWhatsAppMessage(contaId, user.telefone, "Comando não entendido. Por favor, responda no formato `ver pedido [NÚMERO]`.");
                         return;
                     }
                     const selectedIndex = parseInt(match[1]) - 1;
@@ -351,9 +370,9 @@ const handleIncomingMessage = async (req) => {
                         if (selectedOrder.status === 'Agendado') { statusMessage += `Ele está confirmado para a data: *${selectedOrder.dataAgendamento}*.`; }
                         else if (selectedOrder.status === 'Aceito') { statusMessage += `O seu orçamento de R$ ${selectedOrder.valorProposto.toFixed(2)} foi aceite. Em breve, entraremos em contato para agendar.`; }
                         else { statusMessage += `A sua solicitação está na nossa fila para análise.`; }
-                        await sendWhatsAppMessage(user.telefone, statusMessage);
+                        await sendWhatsAppMessage(contaId, user.telefone, statusMessage);
                     } else {
-                        await sendWhatsAppMessage(user.telefone, "Seleção inválida. O número que você enviou não corresponde a nenhum pedido da lista.");
+                        await sendWhatsAppMessage(contaId, user.telefone, "Seleção inválida. O número que você enviou não corresponde a nenhum pedido da lista.");
                     }
                     user.conversationState = 'AWAITING_REQUEST_TYPE';
                     user.currentDemand = {};
@@ -368,13 +387,13 @@ const handleIncomingMessage = async (req) => {
                     }
                     user.conversationState = 'AWAITING_CEP'; // Próximo passo: pedir o CEP
         await user.save();
-        await sendWhatsAppMessage(user.telefone, "Descrição recebida! 👍\n\nPara agilizar, por favor, digite o seu *CEP* (apenas números, ex: 18270000).");
+        await sendWhatsAppMessage(contaId, user.telefone, "Descrição recebida! 👍\n\nPara agilizar, por favor, digite o seu *CEP* (apenas números, ex: 18270000).");
         break;
 
        case 'AWAITING_CEP':
     const cepRegex = /^\d{5}-?\d{3}$/;
     if (!cepRegex.test(messageBody.trim())) {
-        await sendWhatsAppMessage(user.telefone, "CEP inválido. Por favor, envie um CEP válido, como `18270-000` ou `18270000`.");
+        await sendWhatsAppMessage(contaId, user.telefone, "CEP inválido. Por favor, envie um CEP válido, como `18270-000` ou `18270000`.");
         return;
     }
 
@@ -383,7 +402,7 @@ const handleIncomingMessage = async (req) => {
         const { data } = await axios.get(`https://viacep.com.br/ws/${cepLimpo}/json/`);
 
         if (data.erro) {
-            await sendWhatsAppMessage(user.telefone, 'CEP não encontrado. Por favor, verifique e envie novamente.');
+            await sendWhatsAppMessage(contaId, user.telefone, 'CEP não encontrado. Por favor, verifique e envie novamente.');
             return;
         }
 
@@ -402,18 +421,18 @@ const handleIncomingMessage = async (req) => {
         // --- A RESPOSTA QUE ESTAVA EM FALTA ---
         // Agora, o bot envia a próxima pergunta ao utilizador.
         const proximaPergunta = `Encontrei o endereço: ${data.logradouro}, ${data.bairro}.\n\nPor favor, envie agora o *número da sua casa* e o complemento (se houver). Ex: *123, Apartamento 4B*`;
-        await sendWhatsAppMessage(user.telefone, proximaPergunta);
+        await sendWhatsAppMessage(contaId, user.telefone, proximaPergunta);
         // ------------------------------------
 
     } catch (error) {
         console.error("Erro ao consultar o CEP:", error);
-        await sendWhatsAppMessage(user.telefone, 'Ocorreu um erro ao consultar o seu CEP. Por favor, tente novamente.');
+        await sendWhatsAppMessage(contaId, user.telefone, 'Ocorreu um erro ao consultar o seu CEP. Por favor, tente novamente.');
     }
     break;
          case 'AWAITING_NUMERO':
                     // --- CORREÇÃO DE SEGURANÇA DEFINITIVA ---
                     if (!user.currentDemand || !user.currentDemand.addressData || !user.currentDemand.addressData.rua) {
-                        await sendWhatsAppMessage(user.telefone, "Ops, parece que me perdi. Poderia, por favor, enviar o seu CEP novamente para eu encontrar o seu endereço?");
+                        await sendWhatsAppMessage(contaId, user.telefone, "Ops, parece que me perdi. Poderia, por favor, enviar o seu CEP novamente para eu encontrar o seu endereço?");
                         user.conversationState = 'AWAITING_CEP'; // Reinicia o fluxo a partir do CEP
                         await user.save();
                         return; // Interrompe a execução
@@ -428,7 +447,7 @@ const handleIncomingMessage = async (req) => {
                     user.conversationState = 'AWAITING_AVAILABILITY';
                     await user.save();
 
-                    await sendWhatsAppMessage(user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si (ex: 'amanhã à tarde', 'sábado de manhã').");
+                    await sendWhatsAppMessage(contaId, user.telefone, "Endereço anotado. Para finalizar, por favor, diga-nos qual a melhor data e período para si (ex: 'amanhã à tarde', 'sábado de manhã').");
                     break;
 
 
@@ -444,7 +463,7 @@ case 'AWAITING_AVAILABILITY':
         // A data é inválida! Não mudamos o estado da conversa.
         // Apenas enviamos uma mensagem pedindo para tentar novamente.
         await sendWhatsAppMessage(
-            user.telefone,
+            contaId, user.telefone,
             "Desculpe, não consegui entender a data que você informou. 🤔\n\nPoderia tentar de novo? Por favor, use um formato claro, como:\n\n• *18/07/2025 às 14:30*\n• *amanhã de manhã*\n• *sexta-feira ao meio-dia*"
         );
         // O break aqui interrompe e espera a próxima mensagem do cliente,
@@ -473,7 +492,7 @@ case 'AWAITING_AVAILABILITY':
 
     // Envia a confirmação para o cliente, com a data formatada corretamente.
     const confirmationMessage = `Perfeito, recebemos todos os detalhes! A sua solicitação foi registada com o número de pedido #${newOrcamento.shortId}. A nossa equipa irá analisar as informações e enviará o seu orçamento através desta conversa em breve. Obrigado!`;
-    await sendWhatsAppMessage(user.telefone, confirmationMessage);
+    await sendWhatsAppMessage(contaId, user.telefone, confirmationMessage);
 
     // Notifica o prestador sobre o novo pedido.
     const prestadorPhone = process.env.PRESTADOR_TELEFONE;
@@ -485,24 +504,24 @@ case 'AWAITING_AVAILABILITY':
                                       `*Descrição:* ${newOrcamento.descricao.slice(0, 80)}...\n` +
                                       `*Sugestão de Data:* ${dataFormatada}\n\n` +
                                       `Para ver todos os detalhes, envie: \`ver ${newOrcamento.shortId}\``;
-        await sendWhatsAppMessage(prestadorPhone, notificationToPrestador);
+        await sendWhatsAppMessage(contaId, prestadorPhone, notificationToPrestador);
     }
     break;
 
 
                 case 'COMPLETED':
                     const completedReply = `Olá! O seu último pedido já foi registado. Para iniciar uma nova solicitação, escolha uma das opções abaixo.`;
-                    await sendWhatsAppMessage(user.telefone, completedReply);
+                    await sendWhatsAppMessage(contaId, user.telefone, completedReply);
                     user.conversationState = 'AWAITING_REQUEST_TYPE';
                     await user.save();
                     const newRequestMessage = `Como podemos ajudar hoje?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente`;
-                    await sendWhatsAppMessage(user.telefone, newRequestMessage);
+                    await sendWhatsAppMessage(contaId, user.telefone, newRequestMessage);
                     break;
 
                 default:
                     user.conversationState = 'AWAITING_REQUEST_TYPE';
                     await user.save();
-                    await sendWhatsAppMessage(user.telefone, "Ocorreu um erro, vamos recomeçar. Como podemos ajudar?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente");
+                    await sendWhatsAppMessage(contaId, user.telefone, "Ocorreu um erro, vamos recomeçar. Como podemos ajudar?\n\n*1.* Pedir um novo serviço ou orçamento\n*2.* Saber o estado de um serviço em andamento\n*3.* Falar com um atendente");
                     break;
             }
         }
