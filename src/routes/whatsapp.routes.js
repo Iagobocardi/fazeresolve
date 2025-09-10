@@ -7,6 +7,14 @@ const whatsappController = require('../controllers/whatsapp.controller');
 const checkPlan = require('../middlewares/checkPlan.middleware.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 
+// --- Novas Rotas para Conexão WhatsApp OAuth ---
+// O prestador precisa estar logado para iniciar a conexão.
+router.get('/connect', authMiddleware, whatsappController.connectWhatsapp);
+
+// O callback do provedor OAuth não terá autenticação por token, é uma rota pública.
+router.get('/callback', whatsappController.handleWhatsappCallback);
+// ---------------------------------------------
+
 // Rota do Webhook (automação) - DEVE SER PÚBLICA
 // A lógica para verificar o plano Premium deve estar DENTRO do handleWhatsAppWebhook
 router.post(
@@ -52,6 +60,14 @@ router.delete(
     authMiddleware,
     checkPlan(['Admin', 'Premium']),
     whatsappController.deleteTemplate
+);
+
+// --- Nova Rota para Agendamento ---
+router.post(
+    '/schedule-message',
+    authMiddleware,
+    checkPlan(['Premium']), // Apenas para planos Premium
+    whatsappController.scheduleMessage
 );
 
 module.exports = router;
