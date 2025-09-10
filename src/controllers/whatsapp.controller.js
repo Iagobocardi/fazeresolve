@@ -1,5 +1,66 @@
 // Arquivo: src/controllers/whatsapp.controller.js
 const whatsappService = require('../services/whatsapp.service');
+const { google } = require('googleapis'); // Usado para a estrutura do cliente OAuth2
+const Conta = require('../models/conta.model.js');
+const { encrypt } = require('../services/crypto.service.js'); // Assumindo que o crypto service não precisa de 'decrypt' aqui
+const AgendamentoMensagem = require('../models/agendamentoMensagem.model.js');
+
+// --- Novas Funções para o Fluxo OAuth ---
+
+// O cliente OAuth2 para a API do WhatsApp/Meta.
+const whatsappOauthClient = new google.auth.OAuth2(
+    process.env.WHATSAPP_CLIENT_ID,
+    process.env.WHATSAPP_CLIENT_SECRET,
+    `${process.env.API_URL}/api/whatsapp/callback`
+);
+
+// 1. Inicia o fluxo de conexão
+const connectWhatsapp = (req, res) => {
+    if (!req.user || !req.user.contaId) {
+        return res.status(400).send('Erro: Utilizador não associado a uma conta.');
+    }
+    const scopes = ['whatsapp_business_management', 'whatsapp_business_messaging'];
+    const state = JSON.stringify({ contaId: req.user.contaId });
+    const url = whatsappOauthClient.generateAuthUrl({
+        access_type: 'offline',
+        scope: scopes,
+        prompt: 'consent',
+        state: state
+    });
+    res.redirect(url);
+};
+
+// 2. Lida com o callback do provedor OAuth
+const handleWhatsappCallback = async (req, res) => {
+    try {
+        const { code, state } = req.query;
+        if (!code) {
+            return res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=error_no_code`);
+        }
+
+        const { tokens } = await whatsappOauthClient.getToken(code);
+        
+        const { contaId } = JSON.parse(state);
+        if (!contaId) {
+            return res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=error_no_state`);
+        }
+
+        await Conta.findByIdAndUpdate(contaId, {
+            isWhatsappConnected: true,
+            whatsappProvider: 'OAUTH_META',
+            whatsappAccessToken: tokens.access_token,
+            whatsappRefreshToken: tokens.refresh_token,
+            whatsappTokenExpiresAt: new Date(Date.now() + (tokens.expiry_date * 1000)),
+        });
+        
+        res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=success`);
+
+    } catch (error) {
+        console.error('ERRO CRÍTICO no callback do WhatsApp OAuth:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=error_critical`);
+    }
+};
+
 
 // --- Controller do Webhook (Existente) ---
 const handleWhatsAppWebhook = async (req, res) => {
@@ -117,6 +178,31 @@ const renderPreview = async (req, res) => {
     }
 };
 
+// --- Nova Função para Agendamento ---
+const scheduleMessage = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { clienteId, mensagem, dataEnvio } = req.body;
+
+        if (!clienteId || !mensagem || !dataEnvio) {
+            return res.status(400).json({ message: 'clienteId, mensagem e dataEnvio são obrigatórios.' });
+        }
+
+        const agendamento = await AgendamentoMensagem.create({
+            contaId,
+            clienteId,
+            mensagem,
+            dataEnvio
+        });
+
+        res.status(201).json({ message: 'Mensagem agendada com sucesso!', agendamento });
+    } catch (error) {
+        console.error('Erro ao agendar mensagem:', error);
+        res.status(500).json({ message: 'Erro interno ao agendar mensagem.' });
+    }
+};
+
+
 module.exports = {
     handleWhatsAppWebhook,
     getAvailableVariables,
@@ -125,5 +211,8 @@ module.exports = {
     updateTemplate,
     deleteTemplate,
     renderTemplate,
-    renderPreview
+    renderPreview,
+    connectWhatsapp,
+    handleWhatsappCallback,
+    scheduleMessage
 };
