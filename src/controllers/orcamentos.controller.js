@@ -253,7 +253,7 @@ const createOrcamento = async (req, res) => {
         } else {
             const dadosSegurosCliente = {
                 nome: clienteData.nome,
-                email: clienteData.email || undefined, // Garante que strings vazias se tornem undefined
+                email: clienteData.email,
                 endereco: clienteData.endereco,
                 contaId: contaId
             };
@@ -289,7 +289,7 @@ const createOrcamento = async (req, res) => {
                                           `*Cliente:* ${cliente.nome}\n` +
                                           `*Descrição:* ${(orcamentoSalvo.descricao || '').slice(0, 80)}...\n\n` +
                                           `Para ver todos os detalhes, acesse o sistema.`;
-            await whatsappService.sendWhatsAppMessage(contaId, conta.telefone, notificationToPrestador);
+            await whatsappService.sendWhatsAppMessage(conta.telefone, notificationToPrestador);
         }
 
         res.status(201).json(orcamentoSalvo);
@@ -320,23 +320,59 @@ const Transacao = require('../models/transacao.model.js'); // Importar o modelo 
 
 // Deleta um orçamento por ID
 const deleteOrcamento = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { contaId } = req.user;
         const orcamentoId = req.params.id;
 
-        // 1. Deleta o orçamento
-        const orcamentoDeletado = await Orcamento.findOneAndDelete({ _id: orcamentoId, contaId });
+        // 1. Encontra o orçamento ANTES de deletar para ter acesso aos dados
+        const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).session(session);
 
-        if (!orcamentoDeletado) {
+        if (!orcamento) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // 2. Deleta as transações financeiras associadas
-        await Transacao.deleteMany({ orcamentoAssociado: orcamentoId, contaId });
+        // 2. Devolve os materiais ao estoque se houver
+        if (orcamento.materiaisUsados && orcamento.materiaisUsados.length > 0) {
+            for (const material of orcamento.materiaisUsados) {
+                await Produto.updateOne(
+                    { _id: material.produto, contaId },
+                    { $inc: { quantidadeEmEstoque: material.quantidade } },
+                    { session }
+                );
+                // Cria um movimento de estorno para registrar a devolução
+                const movimentoEstorno = new MovimentoEstoque({
+                    contaId,
+                    produto: material.produto,
+                    tipo: 'Entrada',
+                    quantidade: material.quantidade,
+                    motivo: `Devolução por exclusão do Pedido #${orcamento.shortId}`,
+                    orcamentoAssociado: orcamentoId
+                });
+                await movimentoEstorno.save({ session });
+            }
+        }
 
-        res.status(200).json({ message: 'Orçamento e transações associadas deletados com sucesso.' });
+        // 3. Deleta as transações financeiras e despesas associadas ao orçamento
+        await Transacao.deleteMany({ orcamentoAssociado: orcamentoId, contaId }, { session });
+        await Despesa.deleteMany({ orcamentoAssociado: orcamentoId, contaId }, { session });
+
+        // 4. Finalmente, deleta o próprio orçamento
+        await Orcamento.deleteOne({ _id: orcamentoId, contaId }, { session });
+
+        // Se tudo correu bem, comita a transação
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(200).json({ message: 'Orçamento e todos os dados associados (transações, despesas, estoque) foram deletados com sucesso.' });
     } catch (error) {
-        console.error("Erro ao deletar orçamento e transações:", error);
+        // Se algo der errado, aborta a transação
+        await session.abortTransaction();
+        session.endSession();
+        console.error("Erro ao deletar orçamento e dados associados:", error);
         res.status(500).json({ error: 'Erro ao deletar orçamento.' });
     }
 };
@@ -556,11 +592,10 @@ const adicionarMaterialAoPedido = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO na rota adicionarMaterialAoPedido:", error);
-        // Trata os erros customizados vindos do serviço com o status code apropriado
-        if (error.statusCode) {
-            return res.status(error.statusCode).json({ message: error.message });
+        // Retorna um status 400 (Bad Request) para erros de validação (ex: stock insuficiente)
+        if (error.message.includes('insuficiente') || error.message.includes('obrigatórios')) {
+            return res.status(400).json({ message: error.message });
         }
-        // Fallback para erros inesperados
         res.status(500).json({ message: 'Erro interno ao adicionar material ao pedido.' });
     }
 };
@@ -634,13 +669,11 @@ const uploadFotoServico = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // A URL segura já vem do middleware do Cloudinary
-        if (!req.file || !req.file.cloudinaryUrl) {
-            return res.status(500).json({ message: 'O upload da foto falhou.' });
-        }
+        // Constrói a URL pública do ficheiro
+        const fotoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
 
         orcamento.fotosServico.push({
-            url: req.file.cloudinaryUrl, // Usa a URL do Cloudinary
+            url: fotoUrl,
             descricao: descricao || 'Foto do serviço'
         });
 
