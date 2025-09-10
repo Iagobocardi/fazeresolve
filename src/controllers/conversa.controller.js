@@ -49,7 +49,8 @@ const enviarMensagem = async (req, res) => {
             return res.status(404).json({ message: 'Cliente da conversa não encontrado.' });
         }
         
-        await whatsappService.sendWhatsAppMessage(cliente.telefone, texto);
+        // Agora passamos o contaId para a função de envio
+        await whatsappService.sendWhatsAppMessage(contaId, cliente.telefone, texto);
 
         res.status(201).json({ message: 'Mensagem enviada com sucesso!', conversa: conversaAtualizada });
 
