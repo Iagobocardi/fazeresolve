@@ -253,10 +253,14 @@ const createOrcamento = async (req, res) => {
         } else {
             const dadosSegurosCliente = {
                 nome: clienteData.nome,
-                email: clienteData.email,
                 endereco: clienteData.endereco,
                 contaId: contaId
             };
+
+            // Only set the email if it's a non-empty string
+            if (clienteData.email && clienteData.email.trim() !== '') {
+                dadosSegurosCliente.email = clienteData.email;
+            }
             Object.keys(dadosSegurosCliente).forEach(key => dadosSegurosCliente[key] === undefined && delete dadosSegurosCliente[key]);
 
             cliente = await Cliente.findOneAndUpdate(
