@@ -239,7 +239,20 @@ const handleIncomingMessage = async (req) => {
         // ETAPA 2: Lógica de conversa normal, AGORA COM CONTAID
         let user = await Cliente.findOne({ telefone: senderPhone, contaId: contaId });
 
-        if (!user) {
+        if (user) {
+            // LÓGICA PARA CLIENTES EXISTENTES
+            const isNeutralState = !user.conversationState || user.conversationState === 'AWAITING_REQUEST_TYPE' || user.conversationState === 'COMPLETED';
+            const isNotCommand = !['1', '2', '3', 'voltar', 'meu pedido', 'status'].includes(messageBody.toLowerCase().trim());
+
+            if (isNeutralState && isNotCommand) {
+                const welcomeBackMessage = `Olá ${user.nome}, bem-vindo(a) de volta!\n\nComo podemos ajudar?\n*1.* Ver pedidos em andamento\n*2.* Fazer uma nova solicitação`;
+                await sendWhatsAppMessage(contaId, user.telefone, welcomeBackMessage);
+                user.conversationState = 'AWAITING_WELCOME_BACK_RESPONSE';
+                await user.save();
+                return; // Aguarda a resposta do cliente
+            }
+        } else {
+            // LÓGICA PARA NOVOS CLIENTES
             const clienteNome = ProfileName || `Cliente ${senderPhone.slice(-4)}`;
             const isPrestador = (senderPhone.replace(/\D/g, '') === prestadorPhone.replace(/\D/g, ''));
 
@@ -329,6 +342,26 @@ const handleIncomingMessage = async (req) => {
             }
 
             switch (user.conversationState) {
+                case 'AWAITING_WELCOME_BACK_RESPONSE':
+                    const welcomeOption = messageBody.trim();
+                    if (welcomeOption === '1') { // Ver pedidos
+                        const statusResponse = await handleCheckOrderStatus(user);
+                        await sendWhatsAppMessage(contaId, user.telefone, statusResponse);
+                        // O estado da conversa é gerido dentro de handleCheckOrderStatus se houver múltiplos pedidos
+                        if(user.conversationState === 'AWAITING_WELCOME_BACK_RESPONSE') {
+                            user.conversationState = 'AWAITING_REQUEST_TYPE'; // Reset state
+                            await user.save();
+                        }
+                    } else if (welcomeOption === '2') { // Nova solicitação
+                        user.currentDemand = { requestType: 'NOVO_SERVICO' };
+                        user.conversationState = 'AWAITING_SERVICE_TYPE';
+                        await user.save();
+                        await sendWhatsAppMessage(contaId, user.telefone, "Com certeza! Para começarmos, por favor, descreva em detalhe o que você precisa. Se quiser, pode também enviar fotos ou vídeos do item.\n\n(Envie *voltar* para cancelar e retornar ao menu).");
+                    } else {
+                        await sendWhatsAppMessage(contaId, user.telefone, "Opção inválida. Por favor, responda com *1* ou *2*.");
+                    }
+                    break;
+
                 case 'AWAITING_REQUEST_TYPE':
                     const option = messageBody.trim();
                     if (option === '1') {
