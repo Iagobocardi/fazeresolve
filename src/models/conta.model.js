@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+const { encrypt, decrypt } = require('../services/crypto.service.js');
 
 const contaSchema = new Schema({
     nome: { type: String, required: true, trim: true },
@@ -82,14 +83,25 @@ const contaSchema = new Schema({
         trim: true
     },
 
-    // Integração Twilio WhatsApp
-    twilioAccountSid: { type: String, trim: true },
-    twilioAuthToken: { type: String, trim: true },
+    // Integração WhatsApp (Twilio)
+    isWhatsappConnected: { type: Boolean, default: false },
+    whatsappProvider: { type: String, enum: ['MANUAL_TWILIO', 'OAUTH_META'], default: 'MANUAL_TWILIO' },
+    
+    // Para o fluxo MANUAL_TWILIO (legado)
+    twilioAccountSid: { type: String, trim: true, set: encrypt, get: decrypt },
+    twilioAuthToken: { type: String, trim: true, set: encrypt, get: decrypt },
     whatsappSender: { type: String, trim: true }, // O número de WhatsApp registrado
     whatsappSenderSid: { type: String, trim: true }, // O SID do Sender (XE...)
 
+    // Para o fluxo OAUTH_META (novo)
+    whatsappAccessToken: { type: String, set: encrypt, get: decrypt },
+    whatsappRefreshToken: { type: String, set: encrypt, get: decrypt },
+    whatsappTokenExpiresAt: { type: Date },
+
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true }
 });
 
 const Conta = mongoose.model('Conta', contaSchema);
