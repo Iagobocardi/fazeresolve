@@ -556,10 +556,11 @@ const adicionarMaterialAoPedido = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO na rota adicionarMaterialAoPedido:", error);
-        // Retorna um status 400 (Bad Request) para erros de validação (ex: stock insuficiente)
-        if (error.message.includes('insuficiente') || error.message.includes('obrigatórios')) {
-            return res.status(400).json({ message: error.message });
+        // Trata os erros customizados vindos do serviço com o status code apropriado
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ message: error.message });
         }
+        // Fallback para erros inesperados
         res.status(500).json({ message: 'Erro interno ao adicionar material ao pedido.' });
     }
 };
