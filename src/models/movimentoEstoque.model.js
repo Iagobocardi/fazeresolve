@@ -3,6 +3,12 @@
 const mongoose = require('mongoose');
 
 const movimentoEstoqueSchema = new mongoose.Schema({
+    contaId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Conta',
+        required: true,
+        index: true
+    },
     produto: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Produto', // Faz referência ao nosso modelo de Produto
