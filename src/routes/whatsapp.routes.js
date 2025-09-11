@@ -7,12 +7,12 @@ const whatsappController = require('../controllers/whatsapp.controller');
 const checkPlan = require('../middlewares/checkPlan.middleware.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 
-// --- Novas Rotas para Conexão WhatsApp OAuth ---
+// --- Rotas para Conexão WhatsApp via OAuth (META) ---
 // O prestador precisa estar logado para iniciar a conexão.
-router.get('/connect', authMiddleware, whatsappController.connectWhatsapp);
+router.get('/connect/meta', authMiddleware, whatsappController.connectMeta);
 
-// O callback do provedor OAuth não terá autenticação por token, é uma rota pública.
-router.get('/callback', whatsappController.handleWhatsappCallback);
+// O callback do provedor OAuth (Meta) não terá autenticação por token, é uma rota pública.
+router.get('/callback/meta', whatsappController.handleMetaCallback);
 // ---------------------------------------------
 
 // Rota do Webhook (automação) - DEVE SER PÚBLICA
