@@ -9,7 +9,7 @@ const Conta = require('../models/conta.model.js');
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.API_URL}/configuracoes/google/callback`
+  `${process.env.API_URL || 'https://fazeresolve.onrender.com'}/api/configuracoes/google/callback`
 );
 
 // Função para obter a configuração da conta do usuário
