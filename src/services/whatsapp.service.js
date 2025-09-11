@@ -92,13 +92,46 @@ const sendWhatsAppMessage = async (contaId, phoneNumber, message = '', mediaUrls
         } 
         // Lógica para o provedor OAUTH_META (novo)
         else if (conta.whatsappProvider === 'OAUTH_META') {
-            // TODO: Implementar a lógica de envio via Meta Graph API
-            // 1. Checar se o whatsappAccessToken é válido (não expirou)
-            // 2. Se expirou, usar o whatsappRefreshToken para obter um novo token e salvar na conta.
-            // 3. Usar o accessToken para fazer um POST com axios para a API da Meta.
-            console.log(`[SERVICE] Lógica de envio para OAUTH_META ainda não implementada.`);
-            // Por enquanto, vamos simular o envio para não quebrar o fluxo
-            console.log(`[SERVICE] (Simulação) Mensagem para ${phoneNumber} com conteúdo "${message}" seria enviada via Meta.`);
+            if (new Date() >= new Date(conta.whatsappTokenExpiresAt)) {
+                console.error(`[SERVICE] Token de acesso da Meta para a conta ${contaId} expirou. O usuário precisa se reconectar.`);
+                // Opcional: atualizar o status da conta para 'desconectado'
+                // await Conta.findByIdAndUpdate(contaId, { isWhatsappConnected: false });
+                return;
+            }
+
+            if (!conta.whatsappAccessToken || !conta.whatsappPhoneNumberId) {
+                console.error(`[SERVICE] Credenciais Meta (Token ou Phone Number ID) incompletas para a conta ${contaId}`);
+                return;
+            }
+
+            const apiUrl = `https://graph.facebook.com/v18.0/${conta.whatsappPhoneNumberId}/messages`;
+            const headers = {
+                'Authorization': `Bearer ${conta.whatsappAccessToken}`,
+                'Content-Type': 'application/json'
+            };
+
+            let messageData = {
+                messaging_product: 'whatsapp',
+                to: phoneNumber,
+                type: 'text',
+                text: { body: message }
+            };
+
+            // Lógica para enviar mídia (simplificada para a primeira URL)
+            if (mediaUrls && mediaUrls.length > 0) {
+                // Uma implementação mais robusta detectaria o tipo de arquivo (image, video, document)
+                messageData = {
+                    messaging_product: 'whatsapp',
+                    to: phoneNumber,
+                    type: 'image', // Assumindo imagem por padrão
+                    image: { link: mediaUrls[0] }
+                };
+                 // Se houver texto e mídia, a API da Meta geralmente exige que o texto seja a legenda da mídia.
+                 // Para simplificar, estamos priorizando a mídia sobre o texto se ambos estiverem presentes.
+            }
+            
+            await axios.post(apiUrl, messageData, { headers });
+            console.log(`[SERVICE] Mensagem enviada com sucesso para ${phoneNumber} via Meta API.`);
         }
 
     } catch (error) {
