@@ -97,6 +97,7 @@ const contaSchema = new Schema({
     whatsappAccessToken: { type: String, set: encrypt, get: decrypt },
     whatsappRefreshToken: { type: String, set: encrypt, get: decrypt },
     whatsappTokenExpiresAt: { type: Date },
+    whatsappPhoneNumberId: { type: String, trim: true }, // ID do número de telefone para envio
 
 }, {
     timestamps: true,
