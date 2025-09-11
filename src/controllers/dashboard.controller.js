@@ -178,18 +178,30 @@ exports.getTopRegioes = async (req, res) => {
 exports.getPedidosCoordenadas = async (req, res) => {
   try {
     const baseQuery = getBaseQuery(req);
-    const pedidosComEndereco = await Orcamento.find({
-      ...baseQuery,
-      address: { $exists: true, $ne: null, $ne: "" }
-    }).select('address shortId');
+    // 1. Find orders and populate the client's address
+    const pedidos = await Orcamento.find(baseQuery)
+      .populate({
+        path: 'cliente',
+        select: 'endereco.cep', // Select only the cep from the endereco object
+        match: { 'endereco.cep': { $exists: true, $ne: null, $ne: "" } } // Ensure the client has a CEP
+      })
+      .select('shortId cliente'); // Select shortId from Orcamento and the populated cliente
 
-    const enderecos = pedidosComEndereco.map(p => p.address);
-    if (enderecos.length === 0) {
+    // Filter out orders where the client didn't have a CEP (or didn't exist)
+    const pedidosComCep = pedidos.filter(p => p.cliente && p.cliente.endereco && p.cliente.endereco.cep);
+
+    if (pedidosComCep.length === 0) {
       return res.json([]);
     }
 
-    const geocodedData = await geocoder.batchGeocode(enderecos);
-    const resultados = pedidosComEndereco.map((pedido, index) => {
+    // 2. Extract the CEPs
+    const ceps = pedidosComCep.map(p => p.cliente.endereco.cep);
+
+    // 3. Call the geocoder
+    const geocodedData = await geocoder.batchGeocode(ceps);
+
+    // 4. Format the response
+    const resultados = pedidosComCep.map((pedido, index) => {
       const geo = geocodedData[index];
       if (geo.value && geo.value.length > 0) {
         return {
@@ -200,7 +212,8 @@ exports.getPedidosCoordenadas = async (req, res) => {
         };
       }
       return null;
-    }).filter(Boolean);
+    }).filter(Boolean); // Filter out any null results from failed geocoding
+
     res.json(resultados);
   } catch (error) {
     console.error('Erro ao geocodificar endereços:', error);
