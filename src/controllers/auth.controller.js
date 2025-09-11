@@ -5,21 +5,89 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 
-// A lógica do Google Auth precisará ser refatorada separadamente,
-// pois depende da estrutura antiga. Mantendo por enquanto para não quebrar.
 const { google } = require('googleapis');
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  `http://localhost:3000/api/auth/google/callback`
-);
+
 const iniciarAuthGoogle = (req, res) => {
-    // Esta função precisará ser adaptada para o novo modelo de usuário/conta
-    res.status(501).json({ message: "Google Auth a ser reimplementado."})
+    const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URI
+    );
+
+    const scopes = [
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/calendar'
+    ];
+
+    const url = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: scopes,
+        prompt: 'consent',
+        state: req.user.id // Passa o ID do usuário para o callback
+    });
+
+    res.redirect(url);
 };
-const handleGoogleCallback = async (req, res) => { 
-    // Esta função precisará ser adaptada para o novo modelo de usuário/conta
-    res.status(501).json({ message: "Google Auth a ser reimplementado."})
+
+const handleGoogleCallback = async (req, res) => {
+    try {
+        const { code, state } = req.query;
+        const userId = state; // ID do usuário passado no estado
+
+        if (!code || !userId) {
+            return res.status(400).redirect('/error?message=Código ou ID do usuário ausente.');
+        }
+        
+        const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            process.env.GOOGLE_REDIRECT_URI
+        );
+
+        const { tokens } = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+
+        // Buscar informações do usuário do Google
+        const googleUser = await google.oauth2({ version: 'v2', auth: oauth2Client }).userinfo.get();
+        const googleId = googleUser.data.id;
+        const googleEmail = googleUser.data.email;
+        
+        // Verificar se outra conta já está usando este Google ID
+        const existingGoogleUser = await Usuario.findOne({ googleId: googleId });
+        if (existingGoogleUser && existingGoogleUser._id.toString() !== userId) {
+            // Idealmente, redirecionar para uma página de erro no frontend
+            return res.status(409).send('Esta conta do Google já está associada a outro usuário.');
+        }
+
+        // Encontrar o usuário pelo ID e atualizar com os dados do Google
+        const updatedUser = await Usuario.findByIdAndUpdate(userId, {
+            googleId: googleId,
+            googleTokens: {
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+                expiry_date: tokens.expiry_date,
+            },
+            // Se o email do usuário no nosso sistema estiver vazio ou for o mesmo, atualiza.
+            // Isso previne que um usuário troque seu email de login por um do Google.
+            // A lógica pode ser ajustada conforme a regra de negócio.
+            email: (await Usuario.findById(userId)).email || googleEmail,
+        }, { new: true });
+
+        if (!updatedUser) {
+            // Redirecionar para uma página de erro no frontend
+            return res.status(404).send('Usuário não encontrado para associar a conta Google.');
+        }
+
+        // Redirecionar para uma página de sucesso no frontend.
+        // O frontend pode então fechar a janela popup e atualizar a UI.
+        res.redirect(process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/integrations?google_auth_status=success` : '/');
+
+    } catch (error) {
+        console.error('Erro no callback do Google:', error);
+        // Redirecionar para uma página de erro no frontend
+        res.redirect(process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/integrations?google_auth_status=error` : '/error');
+    }
 };
 
 
