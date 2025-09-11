@@ -62,13 +62,66 @@ const handleMetaCallback = async (req, res) => {
             throw new Error('Não foi possível obter o token de acesso de longa duração.');
         }
 
-        // Passo 3: Salvar o token na conta do usuário
+        // Passo 3: Usar o token para obter o ID da Conta do WhatsApp Business (WABA) e o ID do número de telefone
+        const meResponse = await axios.get('https://graph.facebook.com/v18.0/me', {
+            params: {
+                fields: 'id,name',
+                access_token: longLivedToken
+            }
+        });
+
+        // A partir do "me", buscamos as contas de negócio associadas
+        const accountsResponse = await axios.get(`https://graph.facebook.com/v18.0/${meResponse.data.id}/accounts`, {
+            params: {
+                access_token: longLivedToken
+            }
+        });
+        
+        if (!accountsResponse.data || !accountsResponse.data.data || accountsResponse.data.data.length === 0) {
+            throw new Error('Nenhuma página/conta encontrada para este usuário.');
+        }
+
+        // Precisamos encontrar a WABA. A forma mais direta pode variar, mas uma abordagem comum
+        // é pegar a primeira página e procurar a WABA associada.
+        // NOTA: Uma implementação mais robusta permitiria ao usuário escolher qual página/número usar.
+        const pageId = accountsResponse.data.data[0].id;
+        const pageToken = accountsResponse.data.data[0].access_token; // O token da página pode ser necessário para algumas chamadas
+
+        const wabaInfoResponse = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
+            params: {
+                fields: 'whatsapp_business_account',
+                access_token: pageToken || longLivedToken
+            }
+        });
+        
+        const wabaId = wabaInfoResponse.data.whatsapp_business_account.id;
+        if (!wabaId) {
+            throw new Error('Não foi possível encontrar uma Conta do WhatsApp Business associada a esta página.');
+        }
+
+        // Passo 4: Obter os números de telefone associados a essa WABA
+        const phoneNumbersResponse = await axios.get(`https://graph.facebook.com/v18.0/${wabaId}/phone_numbers`, {
+            params: {
+                access_token: longLivedToken
+            }
+        });
+
+        if (!phoneNumbersResponse.data || !phoneNumbersResponse.data.data || phoneNumbersResponse.data.data.length === 0) {
+            throw new Error('Nenhum número de telefone encontrado para esta conta do WhatsApp.');
+        }
+
+        // Usaremos o primeiro número de telefone encontrado.
+        const phoneNumberId = phoneNumbersResponse.data.data[0].id;
+        const senderNumber = phoneNumbersResponse.data.data[0].display_phone_number;
+
+        // Passo 5: Salvar todas as informações na conta do usuário
         await Conta.findByIdAndUpdate(contaId, {
             isWhatsappConnected: true,
             whatsappProvider: 'OAUTH_META',
-            whatsappAccessToken: longLivedToken, // O token de longa duração é o que guardamos
-            whatsappRefreshToken: null, // A API da Meta não usa refresh tokens da mesma forma, a renovação é feita com o próprio token
+            whatsappAccessToken: longLivedToken,
             whatsappTokenExpiresAt: new Date(Date.now() + expiresIn * 1000),
+            whatsappPhoneNumberId: phoneNumberId, // O ID do número para enviar mensagens
+            whatsappSender: senderNumber, // O número de telefone visível (ex: +1 555-0100)
         });
 
         res.redirect(`${process.env.FRONTEND_URL}/integrations?whatsapp_auth=success`);
