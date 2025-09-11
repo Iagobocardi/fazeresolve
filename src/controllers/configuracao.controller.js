@@ -71,12 +71,13 @@ exports.connectGoogleCalendar = (req, res) => {
         'https://www.googleapis.com/auth/userinfo.email'
     ];
     const state = JSON.stringify({ contaId: req.user.contaId });
-    const url = oauth2Client.generateAuthUrl({
-        access_type: 'offline',
-        scope: scopes,
-        prompt: 'consent',
-        state: state
-    });
+   const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: scopes,
+    prompt: 'consent',
+    state: state,
+    redirect_uri: oauth2Client.redirectUri // Adicione esta linha
+});
     res.redirect(url);
 };
 
