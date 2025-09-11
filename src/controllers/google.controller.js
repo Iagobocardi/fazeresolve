@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
 const axios = require('axios');
-const Cliente = require('../models/cliente.model'); // Importar o modelo Cliente
+const Usuario = require('../models/usuario.model'); // Importar o modelo Usuario
 /**
  * Controller para criar um novo evento no Google Calendar do utilizador.
  */
@@ -10,7 +10,7 @@ const createEvent = async (req, res) => {
     const userId = req.user.id;
 
     // 2. Busca o utilizador na base de dados para obter os seus googleTokens
-    const utilizador = await Cliente.findById(userId);
+    const utilizador = await Usuario.findById(userId);
 
     if (!utilizador || !utilizador.googleTokens || !utilizador.googleTokens.access_token) {
       return res.status(401).json({ message: 'Utilizador não autenticado com o Google ou tokens inválidos. Por favor, associe a sua conta Google nas configurações.' });
