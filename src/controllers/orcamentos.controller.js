@@ -301,7 +301,7 @@ const createOrcamento = async (req, res) => {
             await whatsappService.sendWhatsAppMessage(conta.telefone, notificationToPrestador);
         }
 
-        res.status(201).json({ orcamentoSalvo, debug_cliente: cliente });
+        res.status(201).json(orcamentoSalvo);
     } catch (error) {
         console.error("Erro detalhado ao criar orçamento:", error);
         res.status(500).json({ 
