@@ -1,63 +1,81 @@
 // Arquivo: src/controllers/whatsapp.controller.js
 const whatsappService = require('../services/whatsapp.service');
-const { google } = require('googleapis'); // Usado para a estrutura do cliente OAuth2
+const axios = require('axios'); // Usaremos Axios para chamadas diretas à API da Meta
 const Conta = require('../models/conta.model.js');
-const { encrypt } = require('../services/crypto.service.js'); // Assumindo que o crypto service não precisa de 'decrypt' aqui
 const AgendamentoMensagem = require('../models/agendamentoMensagem.model.js');
 
-// --- Novas Funções para o Fluxo OAuth ---
+// --- Funções para o Fluxo OAuth da Meta ---
 
-// O cliente OAuth2 para a API do WhatsApp/Meta.
-const whatsappOauthClient = new google.auth.OAuth2(
-    process.env.WHATSAPP_CLIENT_ID,
-    process.env.WHATSAPP_CLIENT_SECRET,
-    `${process.env.API_URL}/api/whatsapp/callback`
-);
-
-// 1. Inicia o fluxo de conexão
-const connectWhatsapp = (req, res) => {
+// 1. Inicia o fluxo de conexão com a Meta
+const connectMeta = (req, res) => {
     if (!req.user || !req.user.contaId) {
-        return res.status(400).send('Erro: Utilizador não associado a uma conta.');
+        return res.status(400).send('Erro: Usuário não associado a uma conta.');
     }
-    const scopes = ['whatsapp_business_management', 'whatsapp_business_messaging'];
-    const state = JSON.stringify({ contaId: req.user.contaId });
-    const url = whatsappOauthClient.generateAuthUrl({
-        access_type: 'offline',
-        scope: scopes,
-        prompt: 'consent',
-        state: state
-    });
-    res.redirect(url);
+
+    const state = req.user.contaId; // O state é o nosso ID de conta interno
+    const scope = 'whatsapp_business_management,whatsapp_business_messaging';
+    
+    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.META_APP_ID}&redirect_uri=${process.env.META_REDIRECT_URI}&state=${state}&scope=${scope}&response_type=code`;
+
+    res.redirect(authUrl);
 };
 
-// 2. Lida com o callback do provedor OAuth
-const handleWhatsappCallback = async (req, res) => {
+// 2. Lida com o callback da Meta
+const handleMetaCallback = async (req, res) => {
+    const { code, state } = req.query;
+    const contaId = state;
+
+    if (!code || !contaId) {
+        return res.redirect(`${process.env.FRONTEND_URL}/integrations?whatsapp_auth=error_missing_params`);
+    }
+
     try {
-        const { code, state } = req.query;
-        if (!code) {
-            return res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=error_no_code`);
+        // Passo 1: Trocar o código por um token de acesso de curta duração
+        const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+            params: {
+                client_id: process.env.META_APP_ID,
+                redirect_uri: process.env.META_REDIRECT_URI,
+                client_secret: process.env.META_APP_SECRET,
+                code: code
+            }
+        });
+
+        const shortLivedToken = tokenResponse.data.access_token;
+        if (!shortLivedToken) {
+            throw new Error('Não foi possível obter o token de acesso de curta duração.');
         }
 
-        const { tokens } = await whatsappOauthClient.getToken(code);
-        
-        const { contaId } = JSON.parse(state);
-        if (!contaId) {
-            return res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=error_no_state`);
+        // Passo 2: Trocar o token de curta duração por um de longa duração
+        const longLivedTokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+            params: {
+                grant_type: 'fb_exchange_token',
+                client_id: process.env.META_APP_ID,
+                client_secret: process.env.META_APP_SECRET,
+                fb_exchange_token: shortLivedToken
+            }
+        });
+
+        const longLivedToken = longLivedTokenResponse.data.access_token;
+        const expiresIn = longLivedTokenResponse.data.expires_in; // em segundos
+
+        if (!longLivedToken) {
+            throw new Error('Não foi possível obter o token de acesso de longa duração.');
         }
 
+        // Passo 3: Salvar o token na conta do usuário
         await Conta.findByIdAndUpdate(contaId, {
             isWhatsappConnected: true,
             whatsappProvider: 'OAUTH_META',
-            whatsappAccessToken: tokens.access_token,
-            whatsappRefreshToken: tokens.refresh_token,
-            whatsappTokenExpiresAt: new Date(Date.now() + (tokens.expiry_date * 1000)),
+            whatsappAccessToken: longLivedToken, // O token de longa duração é o que guardamos
+            whatsappRefreshToken: null, // A API da Meta não usa refresh tokens da mesma forma, a renovação é feita com o próprio token
+            whatsappTokenExpiresAt: new Date(Date.now() + expiresIn * 1000),
         });
-        
-        res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=success`);
+
+        res.redirect(`${process.env.FRONTEND_URL}/integrations?whatsapp_auth=success`);
 
     } catch (error) {
-        console.error('ERRO CRÍTICO no callback do WhatsApp OAuth:', error);
-        res.redirect(`${process.env.FRONTEND_URL}/configuracoes?whatsapp_auth=error_critical`);
+        console.error('ERRO CRÍTICO no callback do WhatsApp/Meta OAuth:', error.response ? error.response.data : error.message);
+        res.redirect(`${process.env.FRONTEND_URL}/integrations?whatsapp_auth=error_critical`);
     }
 };
 
@@ -212,7 +230,7 @@ module.exports = {
     deleteTemplate,
     renderTemplate,
     renderPreview,
-    connectWhatsapp,
-    handleWhatsappCallback,
+    connectMeta,
+    handleMetaCallback,
     scheduleMessage
 };
