@@ -16,6 +16,19 @@ const usuarioSchema = new Schema({
         required: true
     },
 
+    // Campos para integração com o Google
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true // Permite múltiplos documentos com 'googleId' nulo, mas garante que os preenchidos sejam únicos.
+    },
+    googleTokens: {
+        access_token: String,
+        refresh_token: String,
+        expiry_date: Number,
+        scope: String
+    },
+
     // Define o papel do usuário dentro da conta.
     role: {
         type: String,
