@@ -7,6 +7,7 @@ const whatsappService = require('../services/whatsapp.service');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
 const Despesa = require('../models/despesa.model');
+const Transacao = require('../models/transacao.model');
 const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
@@ -324,8 +325,6 @@ const updateOrcamento = async (req, res) => {
         res.status(500).json({ error: 'Erro ao atualizar orçamento.' });
     }
 };
-
-const Transacao = require('../models/transacao.model.js'); // Importar o modelo Transacao
 
 // Deleta um orçamento por ID
 const deleteOrcamento = async (req, res) => {
@@ -842,8 +841,6 @@ const gerarOrcamentoPDF = async (req, res) => {
         res.status(500).send('Erro interno do servidor');
     }
 };
-
-const Transacao = require('../models/transacao.model');
 
 const adicionarPagamento = async (req, res) => {
     const session = await mongoose.startSession();
