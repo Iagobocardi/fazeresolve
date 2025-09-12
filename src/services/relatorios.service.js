@@ -48,7 +48,7 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
             $match: {
                 contaId: new mongoose.Types.ObjectId(contaId),
                 status: 'Finalizado',
-                dataFinalizacao: { $gte: dataInicio }
+                updatedAt: { $gte: dataInicio }
             }
         },
         // Estágio 2: Juntar com a coleção de clientes
