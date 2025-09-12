@@ -301,44 +301,55 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
  * @returns {Promise<Document>} O documento do orçamento atualizado.
  */
 const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
-    const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
-    if (!orcamento) {
-        throw new NotFoundError("Pedido não encontrado ou não pertence a esta conta.");
-    }
-
-    const materialUsado = orcamento.materiaisUsados.id(materialUsadoId);
-    if (!materialUsado) {
-        throw new NotFoundError("Material não encontrado no pedido.");
-    }
-
-    const produto = await Produto.findOne({ _id: materialUsado.produto, contaId });
-    if (produto) {
-        produto.quantidadeEmEstoque += materialUsado.quantidade;
-
-        // Lógica para desativar o alerta se o estoque voltar ao normal
-        if (produto.quantidadeEmEstoque > produto.estoqueMinimo) {
-            produto.alertaEstoqueBaixo = false;
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).session(session);
+        if (!orcamento) {
+            throw new NotFoundError("Pedido não encontrado ou não pertence a esta conta.");
         }
-        
-        await produto.save();
+
+        const materialUsado = orcamento.materiaisUsados.id(materialUsadoId);
+        if (!materialUsado) {
+            throw new NotFoundError("Material não encontrado no pedido.");
+        }
+
+        const produto = await Produto.findOne({ _id: materialUsado.produto, contaId }).session(session);
+        if (produto) {
+            produto.quantidadeEmEstoque += materialUsado.quantidade;
+
+            if (produto.quantidadeEmEstoque > produto.estoqueMinimo) {
+                produto.alertaEstoqueBaixo = false;
+            }
+            
+            await produto.save({ session });
+        }
+
+        // Cria o movimento de estorno
+        const movimento = new MovimentoEstoque({
+            contaId: contaId,
+            produto: materialUsado.produto,
+            tipo: 'Entrada',
+            quantidade: materialUsado.quantidade,
+            motivo: `Devolução do Pedido #${orcamento.shortId}`,
+            orcamentoAssociado: orcamentoId
+        });
+        await movimento.save({ session });
+
+        // Remove o subdocumento do array usando pull
+        orcamento.materiaisUsados.pull({ _id: materialUsadoId });
+        await orcamento.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return orcamento;
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        // Propaga o erro para ser tratado pelo controller
+        throw error;
     }
-
-    // Remove o subdocumento do array
-    materialUsado.remove();
-
-    const movimento = new MovimentoEstoque({
-        contaId: contaId, // Adiciona o ID da conta do usuário
-        produto: materialUsado.produto,
-        tipo: 'Entrada',
-        quantidade: materialUsado.quantidade,
-        motivo: `Devolução do Pedido #${orcamento.shortId}`,
-        orcamentoAssociado: orcamentoId
-    });
-
-    await orcamento.save();
-    await movimento.save();
-
-    return orcamento;
 };
 
 // Exportamos a função para que os controllers possam usá-la
