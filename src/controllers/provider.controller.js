@@ -61,7 +61,7 @@ const connectMercadoPago = async (req, res) => {
     try {
         const { contaId } = req.user;
         const clientId = process.env.MERCADO_PAGO_CLIENT_ID; // Seu App ID do Mercado Pago
-        const redirectUri = `${process.env.API_URL}/api/provider/mercadopago-callback`;
+        const redirectUri = `${process.env.API_URL}/provider/mercadopago-callback`;
 
         if (!clientId) {
             throw new Error('MERCADO_PAGO_CLIENT_ID não está definido no ambiente.');
@@ -100,7 +100,7 @@ const handleMercadoPagoCallback = async (req, res) => {
             client_id: process.env.MERCADO_PAGO_CLIENT_ID,
             client_secret: process.env.MERCADO_PAGO_CLIENT_SECRET,
             code: code,
-            redirect_uri: `${process.env.API_URL}/api/provider/mercadopago-callback`,
+            redirect_uri: `${process.env.API_URL}/provider/mercadopago-callback`,
         };
 
         const response = await axios.post(tokenUrl, body, {
