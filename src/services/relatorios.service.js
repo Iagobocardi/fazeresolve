@@ -1,5 +1,5 @@
 // src/services/relatorios.service.js
-
+const mongoose = require('mongoose');
 const Servico = require('../models/servico.model');
 const Transacao = require('../models/transacao.model'); // SUBSTITUÍDO
 const Orcamento = require('../models/orcamento.model');
@@ -21,6 +21,140 @@ exports.getServicosReportData = async () => {
     ]);
 
     return bodyData;
+};
+
+/**
+ * Calcula as métricas de visibilidade de mercado para o dashboard.
+ * @param {string} contaId - O ID da conta do usuário.
+ * @param {string} periodo - O período para o filtro ('7dias', '30dias', 'mes_atual').
+ * @returns {Promise<object>} Um objeto com todas as métricas calculadas.
+ */
+exports.getVisibilidadeMetrics = async (contaId, periodo) => {
+    // 1. Definir a data de início com base no período
+    const dataInicio = new Date();
+    if (periodo === '7dias') {
+        dataInicio.setDate(dataInicio.getDate() - 7);
+    } else if (periodo === '30dias') {
+        dataInicio.setDate(dataInicio.getDate() - 30);
+    } else if (periodo === 'mes_atual') {
+        dataInicio.setDate(1);
+        dataInicio.setHours(0, 0, 0, 0);
+    }
+
+    // Pipeline de agregação principal
+    const results = await Orcamento.aggregate([
+        // Estágio 1: Filtrar documentos relevantes
+        {
+            $match: {
+                contaId: new mongoose.Types.ObjectId(contaId),
+                status: 'Finalizado',
+                dataFinalizacao: { $gte: dataInicio }
+            }
+        },
+        // Estágio 2: Juntar com a coleção de clientes
+        {
+            $lookup: {
+                from: 'clientes',
+                localField: 'cliente',
+                foreignField: '_id',
+                as: 'clienteInfo'
+            }
+        },
+        // Estágio 3: Desconstruir o array para ter um documento por cliente
+        { $unwind: '$clienteInfo' },
+
+        // Estágio 4: Usar $facet para processamento paralelo
+        {
+            $facet: {
+                // Ramo 1: Calcular KPIs gerais
+                "kpis": [
+                    {
+                        $group: {
+                            _id: null,
+                            totalFaturamento: { $sum: '$valorProposto' },
+                            totalPedidos: { $sum: 1 },
+                            clientesUnicos: { $addToSet: '$cliente' },
+                            cidadesUnicas: { $addToSet: '$clienteInfo.endereco.cidade' }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            totalClientes: { $size: '$clientesUnicos' },
+                            cidadesAtendidas: { $size: '$cidadesUnicas' },
+                            ticketMedio: { $cond: [{ $eq: ['$totalPedidos', 0] }, 0, { $divide: ['$totalFaturamento', '$totalPedidos'] }] },
+                        }
+                    }
+                ],
+                // Ramo 2: Calcular o serviço principal por faturamento
+                "principalServico": [
+                    { $match: { categoria: { $ne: null, $ne: "" } } },
+                    { $group: { _id: '$categoria', faturamento: { $sum: '$valorProposto' } } },
+                    { $sort: { faturamento: -1 } },
+                    { $limit: 1 },
+                    { $project: { _id: 0, nome: '$_id' } }
+                ],
+                // Ramo 3: Calcular as top 5 cidades por faturamento
+                "topCidades": [
+                    { $match: { 'clienteInfo.endereco.cidade': { $ne: null, $ne: "" } } },
+                    { $group: { _id: '$clienteInfo.endereco.cidade', faturamento: { $sum: '$valorProposto' } } },
+                    { $sort: { faturamento: -1 } },
+                    { $limit: 5 },
+                    { $project: { _id: 0, nome: '$_id', valor: '$faturamento' } }
+                ],
+                // Ramo 4: Calcular os serviços mais solicitados (por contagem)
+                "topServicos": [
+                    { $match: { categoria: { $ne: null, $ne: "" } } },
+                    { $group: { _id: '$categoria', quantidade: { $sum: 1 } } },
+                    { $sort: { quantidade: -1 } },
+                    { $limit: 5 }
+                ]
+            }
+        },
+        // Estágio 5: Formatar a saída final
+        {
+            $project: {
+                kpis: {
+                    totalClientes: { $ifNull: [{ $arrayElemAt: ['$kpis.totalClientes', 0] }, 0] },
+                    cidadesAtendidas: { $ifNull: [{ $arrayElemAt: ['$kpis.cidadesAtendidas', 0] }, 0] },
+                    ticketMedio: { $ifNull: [{ $arrayElemAt: ['$kpis.ticketMedio', 0] }, 0] },
+                    principalServico: { $ifNull: [{ $arrayElemAt: ['$principalServico.nome', 0] }, 'N/A'] }
+                },
+                topCidades: '$topCidades',
+                topServicos: {
+                    $let: {
+                        vars: {
+                            total: { $sum: '$topServicos.quantidade' }
+                        },
+                        in: {
+                            $map: {
+                                input: '$topServicos',
+                                as: 'servico',
+                                in: {
+                                    nome: '$$servico._id',
+                                    percentual: {
+                                        $cond: [{ $eq: ['$$total', 0] }, 0, { $multiply: [{ $divide: ['$$servico.quantidade', '$$total'] }, 100] }]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]);
+
+    // A agregação retorna um array, mesmo que com um único resultado.
+    // Se não houver dados, retorna um objeto com valores padrão.
+    if (results.length === 0) {
+        return {
+            kpis: { totalClientes: 0, cidadesAtendidas: 0, ticketMedio: 0, principalServico: 'N/A' },
+            topCidades: [],
+            topServicos: []
+        };
+    }
+
+    return results[0];
 };
 
 /**
