@@ -159,23 +159,33 @@ const calcularPrecoSugerido = async (req, res) => {
                 $project: {
                     custoTotalMateriais: {
                         $add: [
-                            { // Soma os custos dos produtos de estoque usados
-                                $sum: {
-                                    $map: {
-                                        input: '$materiaisUsados',
-                                        as: 'item',
-                                        in: { $multiply: [ '$$item.custoNoMomento', '$$item.quantidade' ] }
-                                    }
-                                }
+                            {
+                                $ifNull: [
+                                    {
+                                        $sum: {
+                                            $map: {
+                                                input: '$materiaisUsados',
+                                                as: 'item',
+                                                in: { $multiply: ['$$item.custoNoMomento', '$$item.quantidade'] }
+                                            }
+                                        }
+                                    },
+                                    0
+                                ]
                             },
-                            { // Soma os custos manuais/avulsos
-                                $sum: {
-                                    $map: {
-                                        input: '$custosMateriais',
-                                        as: 'custo',
-                                        in: { $toDouble: '$$custo.valor' }
-                                    }
-                                }
+                            {
+                                $ifNull: [
+                                    {
+                                        $sum: {
+                                            $map: {
+                                                input: '$custosMateriais',
+                                                as: 'custo',
+                                                in: { $toDouble: '$$custo.valor' }
+                                            }
+                                        }
+                                    },
+                                    0
+                                ]
                             }
                         ]
                     }
