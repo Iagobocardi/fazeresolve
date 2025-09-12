@@ -843,50 +843,64 @@ const gerarOrcamentoPDF = async (req, res) => {
     }
 };
 
+const Transacao = require('../models/transacao.model');
+
 const adicionarPagamento = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        const { valor, metodo, observacao } = req.body;
+        const { valor, metodo, observacao, data } = req.body;
         const orcamentoId = req.params.id;
         const { contaId } = req.user;
 
-        // 1. Validação do valor
+        // Validação do valor
         if (!valor || valor <= 0) {
-            return res.status(400).json({ message: 'O valor do pagamento deve ser maior que zero.' });
+            throw new Error('O valor do pagamento deve ser maior que zero.');
         }
 
-        // 2. Validação case-insensitive do método de pagamento
+        // Validação case-insensitive do método de pagamento
         const metodosPermitidos = ['Pix', 'Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 'Transferência'];
-        let metodoCorreto = metodo; // Usa o método enviado ou undefined (para acionar o default do schema)
-
-        if (metodo) { // Apenas valida se um método foi enviado
+        let metodoCorreto = metodo;
+        if (metodo) {
             const metodoEncontrado = metodosPermitidos.find(p => p.toLowerCase() === metodo.toLowerCase());
             if (!metodoEncontrado) {
-                return res.status(400).json({
-                    message: `Método de pagamento inválido: '${metodo}'.`,
-                    allowedMethods: metodosPermitidos
-                });
+                throw new Error(`Método de pagamento inválido: '${metodo}'.`);
             }
-            metodoCorreto = metodoEncontrado; // Usa a versão com o case correto
+            metodoCorreto = metodoEncontrado;
         }
 
-        // 3. Busca o orçamento
-        const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
+        const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).session(session);
         if (!orcamento) {
-            return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
+            throw new Error('Orçamento não encontrado ou não pertence a esta conta.');
         }
 
-        // 4. Adiciona o novo pagamento ao array
-        orcamento.pagamentos.push({ valor, metodo: metodoCorreto, observacao });
+        // Adiciona o pagamento ao orçamento
+        orcamento.pagamentos.push({ valor, metodo: metodoCorreto, observacao, data: data || new Date() });
+        await orcamento.save({ session });
 
-        // 5. Salva as alterações
-        await orcamento.save();
+        // Cria a transação financeira correspondente
+        const novaTransacao = new Transacao({
+            contaId,
+            tipo: 'Receita',
+            descricao: `Recebimento referente ao pedido #${orcamento.shortId}`,
+            valor,
+            categoria: 'Venda de Serviço',
+            data: data || new Date(),
+            orcamentoAssociado: orcamentoId,
+            metodoPagamento: metodoCorreto,
+        });
+        await novaTransacao.save({ session });
+        
+        await session.commitTransaction();
+        session.endSession();
 
-        // 6. Retorna o orçamento atualizado
         res.status(200).json(orcamento);
 
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         console.error("Erro ao adicionar pagamento:", error);
-        res.status(500).json({ message: 'Erro interno ao adicionar pagamento.' });
+        res.status(500).json({ message: error.message || 'Erro interno ao adicionar pagamento.' });
     }
 };
 
