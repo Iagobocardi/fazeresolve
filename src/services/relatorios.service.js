@@ -1,10 +1,19 @@
 // src/services/relatorios.service.js
 const mongoose = require('mongoose');
+const NodeGeocoder = require('node-geocoder');
 const Servico = require('../models/servico.model');
 // const Transacao = require('../models/transacao.model'); // SUBSTITUÍDO - Removido pois parece obsoleto e pode causar erro.
 const Orcamento = require('../models/orcamento.model');
 const Agendamento = require('../models/agendamento.model');
 const Despesa = require('../models/despesa.model');
+
+// Configuração do Geocoder
+const options = {
+  provider: 'google',
+  apiKey: process.env.GOOGLE_MAPS_API_KEY, // Use variável de ambiente
+  formatter: null
+};
+const geocoder = NodeGeocoder(options);
 
 /**
  * Busca e formata os dados para o relatório de serviços.
@@ -41,9 +50,8 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
         dataInicio.setHours(0, 0, 0, 0);
     }
 
-    // Pipeline de agregação principal
-    const results = await Orcamento.aggregate([
-        // Estágio 1: Filtrar documentos relevantes
+    // 2. Buscar orçamentos finalizados com CEP válido
+    const orcamentos = await Orcamento.aggregate([
         {
             $match: {
                 contaId: new mongoose.Types.ObjectId(contaId),
@@ -51,7 +59,6 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
                 updatedAt: { $gte: dataInicio }
             }
         },
-        // Estágio 2: Juntar com a coleção de clientes
         {
             $lookup: {
                 from: 'clientes',
@@ -60,103 +67,19 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
                 as: 'clienteInfo'
             }
         },
-        // Estágio 3: Desconstruir o array para ter um documento por cliente
         { $unwind: '$clienteInfo' },
-
-        // Estágio 3.5: Filtrar clientes sem cidade definida para evitar `null` nos resultados
-        { $match: { 'clienteInfo.endereco.cidade': { $ne: null, $ne: "" } } },
-
-        // Estágio 4: Usar $facet para processamento paralelo
-        {
-            $facet: {
-                // Ramo 1: Calcular KPIs gerais
-                "kpis": [
-                    {
-                        $group: {
-                            _id: null,
-                            totalFaturamento: { $sum: '$valorProposto' },
-                            totalPedidos: { $sum: 1 },
-                            clientesUnicos: { $addToSet: '$cliente' },
-                            cidadesUnicas: { $addToSet: '$clienteInfo.endereco.cidade' }
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 0,
-                            totalClientes: { $size: '$clientesUnicos' },
-                            cidadesAtendidas: { $size: '$cidadesUnicas' },
-                            ticketMedio: { $cond: [{ $eq: ['$totalPedidos', 0] }, 0, { $divide: ['$totalFaturamento', '$totalPedidos'] }] },
-                        }
-                    }
-                ],
-                // Ramo 2: Calcular o serviço principal por faturamento
-                "principalServico": [
-                    { $match: { descricao: { $ne: null, $ne: "" } } },
-                    { $group: { _id: '$descricao', faturamento: { $sum: '$valorProposto' } } },
-                    { $sort: { faturamento: -1 } },
-                    { $limit: 1 },
-                    { $project: { _id: 0, nome: '$_id' } }
-                ],
-                // Ramo 3: Calcular as top 5 cidades por faturamento
-                "topCidades": [
-                    { $match: { 'clienteInfo.endereco.cidade': { $ne: null, $ne: "" } } },
-                    { $group: { _id: '$clienteInfo.endereco.cidade', faturamento: { $sum: '$valorProposto' } } },
-                    { $sort: { faturamento: -1 } },
-                    { $limit: 5 },
-                    { $project: { _id: 0, nome: '$_id', valor: '$faturamento' } }
-                ],
-                // Ramo 4: Calcular os serviços mais solicitados (por contagem)
-                "topServicos": [
-                    { $match: { descricao: { $ne: null, $ne: "" } } },
-                    { $group: { _id: '$descricao', quantidade: { $sum: 1 } } },
-                    { $sort: { quantidade: -1 } },
-                    { $limit: 5 }
-                ]
-            }
-        },
-        // Estágio 5: Formatar a saída final
+        { $match: { 'clienteInfo.endereco.cep': { $ne: null, $ne: "" } } },
         {
             $project: {
-                kpis: {
-                    $let: {
-                        vars: {
-                            kpi_data: { $arrayElemAt: ['$kpis', 0] }
-                        },
-                        in: {
-                            totalClientes: { $ifNull: ['$$kpi_data.totalClientes', 0] },
-                            cidadesAtendidas: { $ifNull: ['$$kpi_data.cidadesAtendidas', 0] },
-                            ticketMedio: { $ifNull: ['$$kpi_data.ticketMedio', 0] },
-                            principalServico: { $ifNull: [{ $arrayElemAt: ['$principalServico.nome', 0] }, 'N/A'] }
-                        }
-                    }
-                },
-                topCidades: '$topCidades',
-                topServicos: {
-                    $let: {
-                        vars: {
-                            total: { $sum: '$topServicos.quantidade' }
-                        },
-                        in: {
-                            $map: {
-                                input: '$topServicos',
-                                as: 'servico',
-                                in: {
-                                    nome: '$$servico._id',
-                                    percentual: {
-                                        $cond: [{ $eq: ['$$total', 0] }, 0, { $multiply: [{ $divide: ['$$servico.quantidade', '$$total'] }, 100] }]
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                cliente: '$clienteInfo._id',
+                valorProposto: 1,
+                descricao: { $ifNull: ['$descricao', 'N/A'] },
+                cep: '$clienteInfo.endereco.cep'
             }
         }
     ]);
 
-    // A agregação retorna um array, mesmo que com um único resultado.
-    // Se não houver dados, retorna um objeto com valores padrão.
-    if (results.length === 0) {
+    if (orcamentos.length === 0) {
         return {
             kpis: { totalClientes: 0, cidadesAtendidas: 0, ticketMedio: 0, principalServico: 'N/A' },
             topCidades: [],
@@ -164,7 +87,94 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
         };
     }
 
-    return results[0];
+    // 3. Mapear CEPs para cidades
+    const cepsUnicos = [...new Set(orcamentos.map(o => o.cep))];
+    let cepParaCidade = {};
+
+    try {
+        const geocodedData = await geocoder.batchGeocode(cepsUnicos);
+        geocodedData.forEach((result, index) => {
+            if (result.value && result.value.length > 0) {
+                const cep = cepsUnicos[index];
+                // A geocodificação pode retornar 'city' ou 'administrativeLevels'
+                const cidade = result.value[0].city || result.value[0].administrativeLevels?.level2long;
+                if (cidade) {
+                    cepParaCidade[cep] = cidade;
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Erro no batch geocode:", error);
+        // Continua a execução mesmo se o geocode falhar, mas os dados de cidade estarão ausentes.
+    }
+
+    // 4. Enriquecer os orçamentos com o nome da cidade
+    const orcamentosComCidade = orcamentos.map(o => ({
+        ...o,
+        cidade: cepParaCidade[o.cep] || null // Adiciona a cidade ao objeto
+    })).filter(o => o.cidade); // Filtra para garantir que só temos orçamentos com cidade encontrada
+
+    if (orcamentosComCidade.length === 0) {
+        return {
+            kpis: { totalClientes: 0, cidadesAtendidas: 0, ticketMedio: 0, principalServico: 'N/A' },
+            topCidades: [],
+            topServicos: []
+        };
+    }
+
+    // 5. Calcular as estatísticas em JavaScript
+    const totalFaturamento = orcamentosComCidade.reduce((sum, o) => sum + o.valorProposto, 0);
+    const totalPedidos = orcamentosComCidade.length;
+    
+    const clientesUnicos = new Set(orcamentosComCidade.map(o => o.cliente.toString()));
+    const cidadesUnicas = new Set(orcamentosComCidade.map(o => o.cidade));
+
+    // Nota: Usamos 'descricao' para calcular os principais serviços, pois o campo 'categoria'
+    // frequentemente não é preenchido, o que levaria a estatísticas incorretas.
+    const servicosPorFaturamento = orcamentosComCidade.reduce((acc, o) => {
+        if (o.descricao !== 'N/A') {
+            acc[o.descricao] = (acc[o.descricao] || 0) + o.valorProposto;
+        }
+        return acc;
+    }, {});
+
+    const principalServico = Object.entries(servicosPorFaturamento).sort(([, a], [, b]) => b - a)[0]?.[0] || 'N/A';
+
+    const kpis = {
+        totalClientes: clientesUnicos.size,
+        cidadesAtendidas: cidadesUnicas.size,
+        ticketMedio: totalPedidos > 0 ? totalFaturamento / totalPedidos : 0,
+        principalServico: principalServico
+    };
+
+    const cidadesPorFaturamento = orcamentosComCidade.reduce((acc, o) => {
+        acc[o.cidade] = (acc[o.cidade] || 0) + o.valorProposto;
+        return acc;
+    }, {});
+
+    const topCidades = Object.entries(cidadesPorFaturamento)
+        .map(([nome, valor]) => ({ nome, valor }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 5);
+
+    const servicosPorContagem = orcamentosComCidade.reduce((acc, o) => {
+        if (o.descricao !== 'N/A') {
+            acc[o.descricao] = (acc[o.descricao] || 0) + 1;
+        }
+        return acc;
+    }, {});
+    
+    const totalServicosContados = Object.values(servicosPorContagem).reduce((sum, count) => sum + count, 0);
+
+    const topServicos = Object.entries(servicosPorContagem)
+        .map(([nome, quantidade]) => ({
+            nome,
+            percentual: totalServicosContados > 0 ? (quantidade / totalServicosContados) * 100 : 0
+        }))
+        .sort((a, b) => b.percentual - a.percentual)
+        .slice(0, 5);
+
+    return { kpis, topCidades, topServicos };
 };
 
 /**
