@@ -3,6 +3,7 @@ const Servico = require('../models/servico.model');
 const Cliente = require('../models/cliente.model.js');
 const NodeGeocoder = require('node-geocoder');
 const financeiroService = require('../services/financeiro.service.js');
+const relatoriosService = require('../services/relatorios.service.js');
 
 // Configuração do Geocoder
 const options = {
@@ -246,5 +247,21 @@ exports.getTopServicosPorCategoria = async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar top serviços por categoria:', error);
         res.status(500).json({ message: 'Erro interno do servidor' });
+    }
+};
+
+exports.getVisibilidadeData = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        // Valida o período, usando '30dias' como padrão
+        const periodo = ['7dias', '30dias', 'mes_atual'].includes(req.query.periodo) ? req.query.periodo : '30dias';
+
+        const dadosVisibilidade = await relatoriosService.getVisibilidadeMetrics(contaId, periodo);
+
+        res.status(200).json(dadosVisibilidade);
+
+    } catch (error) {
+        console.error('Erro ao buscar dados de visibilidade:', error);
+        res.status(500).json({ message: 'Erro interno ao processar dados de visibilidade.' });
     }
 };
