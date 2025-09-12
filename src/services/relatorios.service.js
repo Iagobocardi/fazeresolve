@@ -1,7 +1,7 @@
 // src/services/relatorios.service.js
 const mongoose = require('mongoose');
 const Servico = require('../models/servico.model');
-const Transacao = require('../models/transacao.model'); // SUBSTITUÍDO
+// const Transacao = require('../models/transacao.model'); // SUBSTITUÍDO - Removido pois parece obsoleto e pode causar erro.
 const Orcamento = require('../models/orcamento.model');
 const Agendamento = require('../models/agendamento.model');
 const Despesa = require('../models/despesa.model');
