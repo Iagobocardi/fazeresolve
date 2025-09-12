@@ -3,7 +3,7 @@ const Servico = require('../models/servico.model');
 const Cliente = require('../models/cliente.model.js');
 const NodeGeocoder = require('node-geocoder');
 const financeiroService = require('../services/financeiro.service.js');
-// const relatoriosService = require('../services/relatorios.service.js'); // Comentado para depuração
+const relatoriosService = require('../services/relatorios.service.js');
 
 // Configuração do Geocoder
 const options = {
@@ -252,15 +252,16 @@ exports.getTopServicosPorCategoria = async (req, res) => {
 
 exports.getVisibilidadeData = async (req, res) => {
     try {
-        // Retorna um objeto estático para depuração
-        res.status(200).json({
-            kpis: { totalClientes: 0, cidadesAtendidas: 0, ticketMedio: 0, principalServico: 'N/A' },
-            topCidades: [],
-            topServicos: []
-        });
+        const { contaId } = req.user;
+        // Valida o período, usando '30dias' como padrão
+        const periodo = ['7dias', '30dias', 'mes_atual'].includes(req.query.periodo) ? req.query.periodo : '30dias';
+
+        const dadosVisibilidade = await relatoriosService.getVisibilidadeMetrics(contaId, periodo);
+
+        res.status(200).json(dadosVisibilidade);
 
     } catch (error) {
-        console.error('Erro no controlador de visibilidade simplificado:', error);
+        console.error('Erro ao buscar dados de visibilidade:', error);
         res.status(500).json({ message: 'Erro interno ao processar dados de visibilidade.' });
     }
 };
