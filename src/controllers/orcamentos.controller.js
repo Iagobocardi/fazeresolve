@@ -849,31 +849,39 @@ const adicionarPagamento = async (req, res) => {
         const orcamentoId = req.params.id;
         const { contaId } = req.user;
 
-        // Validação robusta dos dados de entrada
+        // 1. Validação do valor
         if (!valor || valor <= 0) {
             return res.status(400).json({ message: 'O valor do pagamento deve ser maior que zero.' });
         }
-        
+
+        // 2. Validação case-insensitive do método de pagamento
         const metodosPermitidos = ['Pix', 'Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 'Transferência'];
-        if (metodo && !metodosPermitidos.includes(metodo)) {
-            return res.status(400).json({ 
-                message: `Método de pagamento inválido: '${metodo}'.`,
-                allowedMethods: metodosPermitidos 
-            });
+        let metodoCorreto = metodo; // Usa o método enviado ou undefined (para acionar o default do schema)
+
+        if (metodo) { // Apenas valida se um método foi enviado
+            const metodoEncontrado = metodosPermitidos.find(p => p.toLowerCase() === metodo.toLowerCase());
+            if (!metodoEncontrado) {
+                return res.status(400).json({
+                    message: `Método de pagamento inválido: '${metodo}'.`,
+                    allowedMethods: metodosPermitidos
+                });
+            }
+            metodoCorreto = metodoEncontrado; // Usa a versão com o case correto
         }
 
+        // 3. Busca o orçamento
         const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
         if (!orcamento) {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Adiciona o novo pagamento ao array de pagamentos
-        orcamento.pagamentos.push({ valor, metodo, observacao });
+        // 4. Adiciona o novo pagamento ao array
+        orcamento.pagamentos.push({ valor, metodo: metodoCorreto, observacao });
 
-        // Salva as alterações no banco de dados
+        // 5. Salva as alterações
         await orcamento.save();
 
-        // Retorna o orçamento completo e atualizado
+        // 6. Retorna o orçamento atualizado
         res.status(200).json(orcamento);
 
     } catch (error) {
