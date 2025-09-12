@@ -63,6 +63,9 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
         // Estágio 3: Desconstruir o array para ter um documento por cliente
         { $unwind: '$clienteInfo' },
 
+        // Estágio 3.5: Filtrar clientes sem cidade definida para evitar `null` nos resultados
+        { $match: { 'clienteInfo.endereco.cidade': { $ne: null, $ne: "" } } },
+
         // Estágio 4: Usar $facet para processamento paralelo
         {
             $facet: {
@@ -88,8 +91,8 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
                 ],
                 // Ramo 2: Calcular o serviço principal por faturamento
                 "principalServico": [
-                    { $match: { categoria: { $ne: null, $ne: "" } } },
-                    { $group: { _id: '$categoria', faturamento: { $sum: '$valorProposto' } } },
+                    { $match: { descricao: { $ne: null, $ne: "" } } },
+                    { $group: { _id: '$descricao', faturamento: { $sum: '$valorProposto' } } },
                     { $sort: { faturamento: -1 } },
                     { $limit: 1 },
                     { $project: { _id: 0, nome: '$_id' } }
@@ -104,8 +107,8 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
                 ],
                 // Ramo 4: Calcular os serviços mais solicitados (por contagem)
                 "topServicos": [
-                    { $match: { categoria: { $ne: null, $ne: "" } } },
-                    { $group: { _id: '$categoria', quantidade: { $sum: 1 } } },
+                    { $match: { descricao: { $ne: null, $ne: "" } } },
+                    { $group: { _id: '$descricao', quantidade: { $sum: 1 } } },
                     { $sort: { quantidade: -1 } },
                     { $limit: 5 }
                 ]
