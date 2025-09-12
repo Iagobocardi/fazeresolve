@@ -314,27 +314,35 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
             throw new NotFoundError("Material não encontrado no pedido.");
         }
 
-        const produto = await Produto.findOne({ _id: materialUsado.produto, contaId }).session(session);
-        if (produto) {
-            produto.quantidadeEmEstoque += materialUsado.quantidade;
+        // Validação defensiva da quantidade
+        const quantidadeValida = Number(materialUsado.quantidade);
+        if (isNaN(quantidadeValida) || quantidadeValida <= 0) {
+            console.warn(`[DEFENSIVE] Material Usado ${materialUsadoId} no Pedido ${orcamentoId} tinha quantidade inválida: '${materialUsado.quantidade}'. Removendo sem devolver ao estoque.`);
+        } else {
+            const produto = await Produto.findOne({ _id: materialUsado.produto, contaId }).session(session);
+            if (produto) {
+                produto.quantidadeEmEstoque += quantidadeValida;
 
-            if (produto.quantidadeEmEstoque > produto.estoqueMinimo) {
-                produto.alertaEstoqueBaixo = false;
+                if (produto.quantidadeEmEstoque > produto.estoqueMinimo) {
+                    produto.alertaEstoqueBaixo = false;
+                }
+                
+                await produto.save({ session });
+
+                // Cria o movimento de estorno apenas se o produto foi encontrado e a quantidade é válida
+                const movimento = new MovimentoEstoque({
+                    contaId: contaId,
+                    produto: materialUsado.produto,
+                    tipo: 'Entrada',
+                    quantidade: quantidadeValida,
+                    motivo: `Devolução do Pedido #${orcamento.shortId}`,
+                    orcamentoAssociado: orcamentoId
+                });
+                await movimento.save({ session });
+            } else {
+                console.warn(`[DEFENSIVE] Produto ${materialUsado.produto} não encontrado para o Material Usado ${materialUsadoId} no Pedido ${orcamentoId}. Removendo sem devolver ao estoque.`);
             }
-            
-            await produto.save({ session });
         }
-
-        // Cria o movimento de estorno
-        const movimento = new MovimentoEstoque({
-            contaId: contaId,
-            produto: materialUsado.produto,
-            tipo: 'Entrada',
-            quantidade: materialUsado.quantidade,
-            motivo: `Devolução do Pedido #${orcamento.shortId}`,
-            orcamentoAssociado: orcamentoId
-        });
-        await movimento.save({ session });
 
         // Remove o subdocumento do array usando pull
         orcamento.materiaisUsados.pull({ _id: materialUsadoId });
