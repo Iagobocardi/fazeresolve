@@ -1088,7 +1088,8 @@ const removerMaterialDoPedido = async (req, res) => {
 
     } catch (error) {
         console.error("ERRO na rota removerMaterialDoPedido:", error);
-        res.status(500).json({ message: 'Erro interno ao remover material do pedido.' });
+        // Retorna a mensagem de erro específica do serviço para facilitar a depuração
+        res.status(error.statusCode || 500).json({ message: error.message || 'Erro interno ao remover material do pedido.' });
     }
 };
 // Exporta TODAS as funções que as rotas utilizam.
