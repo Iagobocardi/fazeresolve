@@ -115,10 +115,17 @@ exports.getVisibilidadeMetrics = async (contaId, periodo) => {
         {
             $project: {
                 kpis: {
-                    totalClientes: { $ifNull: [{ $arrayElemAt: ['$kpis.totalClientes', 0] }, 0] },
-                    cidadesAtendidas: { $ifNull: [{ $arrayElemAt: ['$kpis.cidadesAtendidas', 0] }, 0] },
-                    ticketMedio: { $ifNull: [{ $arrayElemAt: ['$kpis.ticketMedio', 0] }, 0] },
-                    principalServico: { $ifNull: [{ $arrayElemAt: ['$principalServico.nome', 0] }, 'N/A'] }
+                    $let: {
+                        vars: {
+                            kpi_data: { $arrayElemAt: ['$kpis', 0] }
+                        },
+                        in: {
+                            totalClientes: { $ifNull: ['$$kpi_data.totalClientes', 0] },
+                            cidadesAtendidas: { $ifNull: ['$$kpi_data.cidadesAtendidas', 0] },
+                            ticketMedio: { $ifNull: ['$$kpi_data.ticketMedio', 0] },
+                            principalServico: { $ifNull: [{ $arrayElemAt: ['$principalServico.nome', 0] }, 'N/A'] }
+                        }
+                    }
                 },
                 topCidades: '$topCidades',
                 topServicos: {
