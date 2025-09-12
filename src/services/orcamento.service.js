@@ -1,4 +1,5 @@
 // Em: src/services/orcamento.service.js
+const mongoose = require('mongoose');
 const Orcamento = require('../models/orcamento.model');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
