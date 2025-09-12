@@ -118,18 +118,37 @@ const login = async (req, res) => {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
         
-        // 3. Busca a conta associada para adicionar ao token
+        // 3. Busca a conta associada para verificar o status
         const conta = await Conta.findById(usuario.contaId);
         if (!conta) {
-             return res.status(404).json({ message: 'Conta associada não encontrada.' });
+            return res.status(404).json({ message: 'Conta associada não encontrada.' });
         }
 
-        // 4. Gera um token JWT minimalista, contendo apenas o ID do usuário.
-        // O middleware de autenticação se encarregará de buscar os dados atualizados a cada requisição.
+        // 4. VERIFICAÇÃO DE PAGAMENTO PENDENTE
+        if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
+            console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente. Gerando token provisório.`);
+            // Gera um token provisório para que o usuário possa completar o pagamento
+            const payload = {
+                id: usuario._id,
+                contaId: conta._id,
+                statusAssinatura: conta.statusAssinatura
+            };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
+
+            // Retorna uma resposta especial para o frontend
+            return res.status(202).json({
+                message: 'Pagamento pendente. Por favor, complete sua assinatura.',
+                needs_payment: true,
+                token: token,
+                usuario: { id: usuario._id, email: usuario.email },
+                conta: conta
+            });
+        }
+
+        // 5. Gera um token JWT definitivo para o usuário com assinatura ativa
         const payload = {
             id: usuario._id
         };
-
         const token = jwt.sign(
             payload,
             process.env.JWT_SECRET,
@@ -139,7 +158,7 @@ const login = async (req, res) => {
         res.status(200).json({
             message: 'Login bem-sucedido!',
             token,
-            userType: 'provider', // Adiciona o sinalizador para o frontend
+            userType: 'provider',
             usuario: {
                 id: usuario._id,
                 nome: usuario.nome,
@@ -149,7 +168,7 @@ const login = async (req, res) => {
                 statusAssinatura: conta.statusAssinatura,
                 permissoes: usuario.permissoes
             },
-            conta: conta // Retorna os dados da conta também
+            conta: conta
         });
 
     } catch (error) {
