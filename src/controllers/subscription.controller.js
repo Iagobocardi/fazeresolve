@@ -81,8 +81,16 @@ const handleSubscribe = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erro detalhado no handleSubscribe:', error);
-        res.status(500).json({ message: 'Não foi possível processar sua assinatura.', details: error.message });
+        // Log do erro para depuração interna
+        console.error('Falha ao processar assinatura em handleSubscribe:', error.message);
+
+        // Retorna um erro 402 (Pagamento Requerido) para o cliente
+        // Isso indica que a falha foi do lado do pagamento (ex: cartão recusado)
+        // e não um erro interno do servidor.
+        res.status(402).json({
+            message: 'Falha no pagamento. Verifique os dados do seu cartão ou tente outro.',
+            details: error.message // O frontend pode usar isso para logs ou debug
+        });
     }
 };
 
