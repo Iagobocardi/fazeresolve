@@ -160,32 +160,22 @@ const calcularPrecoSugerido = async (req, res) => {
                     custoTotalMateriais: {
                         $add: [
                             {
-                                $ifNull: [
-                                    {
-                                        $sum: {
-                                            $map: {
-                                                input: '$materiaisUsados',
-                                                as: 'item',
-                                                in: { $multiply: ['$$item.custoNoMomento', '$$item.quantidade'] }
-                                            }
-                                        }
-                                    },
-                                    0
-                                ]
+                                $sum: {
+                                    $map: {
+                                        input: { $ifNull: ['$materiaisUsados', []] },
+                                        as: 'item',
+                                        in: { $multiply: ['$$item.custoNoMomento', '$$item.quantidade'] }
+                                    }
+                                }
                             },
                             {
-                                $ifNull: [
-                                    {
-                                        $sum: {
-                                            $map: {
-                                                input: '$custosMateriais',
-                                                as: 'custo',
-                                                in: { $toDouble: '$$custo.valor' }
-                                            }
-                                        }
-                                    },
-                                    0
-                                ]
+                                $sum: {
+                                    $map: {
+                                        input: { $ifNull: ['$custosMateriais', []] },
+                                        as: 'custo',
+                                        in: { $toDouble: '$$custo.valor' }
+                                    }
+                                }
                             }
                         ]
                     }
@@ -1149,7 +1139,47 @@ const getDistinctCategorias = async (req, res) => {
     }
 };
 
+const debugCosts = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { pedidoId } = req.params;
+        const { stage } = req.query;
+
+        let pipeline = [
+            { $match: { _id: new mongoose.Types.ObjectId(pedidoId), contaId: new mongoose.Types.ObjectId(contaId) } }
+        ];
+
+        // Stage 1: Just the raw document
+        if (stage === '1') {
+            const result = await Orcamento.aggregate(pipeline);
+            return res.json(result);
+        }
+
+        // Stage 2: The projection with the cost calculation
+        const projectStage = {
+            $project: {
+                materiaisUsados: 1,
+                custosMateriais: 1,
+                custoTotalMateriais: {
+                    $add: [
+                        { $sum: { $map: { input: { $ifNull: ['$materiaisUsados', []] }, as: 'item', in: { $multiply: ['$$item.custoNoMomento', '$$item.quantidade'] } } } },
+                        { $sum: { $map: { input: { $ifNull: ['$custosMateriais', []] }, as: 'custo', in: { $toDouble: '$$custo.valor' } } } }
+                    ]
+                }
+            }
+        };
+        pipeline.push(projectStage);
+        const result = await Orcamento.aggregate(pipeline);
+        return res.json(result);
+
+    } catch (error) {
+        console.error("Erro na rota de depuração de custos:", error);
+        res.status(500).json({ message: 'Erro na depuração.', error: error.message, stack: error.stack });
+    }
+};
+
 module.exports = {
+    debugCosts,
     orcamentoValidationRules,
     getAllOrcamentos,
     getOrcamentoById,
