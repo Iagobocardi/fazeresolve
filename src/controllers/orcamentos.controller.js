@@ -849,9 +849,17 @@ const adicionarPagamento = async (req, res) => {
         const orcamentoId = req.params.id;
         const { contaId } = req.user;
 
-        // Validação simples dos dados de entrada
+        // Validação robusta dos dados de entrada
         if (!valor || valor <= 0) {
             return res.status(400).json({ message: 'O valor do pagamento deve ser maior que zero.' });
+        }
+        
+        const metodosPermitidos = ['Pix', 'Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 'Transferência'];
+        if (metodo && !metodosPermitidos.includes(metodo)) {
+            return res.status(400).json({ 
+                message: `Método de pagamento inválido: '${metodo}'.`,
+                allowedMethods: metodosPermitidos 
+            });
         }
 
         const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
