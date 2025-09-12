@@ -13,6 +13,6 @@ router.get('/pagamentos-atrasados', dashboardController.getPagamentosAtrasados);
 router.get('/top-regioes', dashboardController.getTopRegioes);
 router.get('/pedidos-coordenadas', dashboardController.getPedidosCoordenadas);
 router.get('/top-servicos', dashboardController.getTopServicosPorCategoria);
-// router.get('/visibilidade', dashboardController.getVisibilidadeData); // Comentado para depuração
+router.get('/visibilidade', dashboardController.getVisibilidadeData);
 
 module.exports = router;
