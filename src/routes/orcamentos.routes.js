@@ -7,14 +7,16 @@ const authMiddleware = require('../middlewares/auth.middleware');
 const checkPermission = require('../middlewares/checkPermission.middleware');
 const checkPlan = require('../middlewares/checkPlan.middleware');
 
-// Aplica o middleware de autenticação a todas as rotas
+// Rota de depuração temporária (sem autenticação)
+router.get('/:pedidoId/debug-costs', orcamentosController.debugCosts);
+
+// Aplica o middleware de autenticação a todas as rotas abaixo desta linha
 router.use(authMiddleware);
 const { orcamentoValidationRules } = require('../controllers/orcamentos.controller');
 const { validate } = require('../middlewares/validation.middleware');
 const { multerMemoryUpload, uploadToCloudinary } = require('../middlewares/cloudinary.middleware.js');
 
 // Rotas mais específicas primeiro
-router.get('/:pedidoId/debug-costs', orcamentosController.debugCosts); // Rota de depuração temporária
 router.get('/dados/categorias', checkPermission('ver_orcamentos'), orcamentosController.getDistinctCategorias);
 router.get('/recentes', checkPermission('ver_orcamentos'), orcamentosController.getRecentOrcamentos);
 router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao); // Rota pública, sem verificação de permissão
