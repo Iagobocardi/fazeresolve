@@ -652,33 +652,33 @@ const addCustoMaterial = async (req, res) => {
         const { id } = req.params; // ID do orçamento
         const { contaId } = req.user;
 
-        // 1. Adiciona o custo ao array de custos do orçamento
-        const orcamentoAtualizado = await Orcamento.findOneAndUpdate(
-            { _id: id, contaId },
-            { $push: { custosMateriais: { descricao, valor } } },
-            { new: true }
-        );
-
-        if (!orcamentoAtualizado) {
+        // 1. Encontra o orçamento
+        const orcamento = await Orcamento.findOne({ _id: id, contaId });
+        if (!orcamento) {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // =======================================================
-        // ==> LÓGICA NOVA PARA CRIAR A DESPESA AUTOMATICAMENTE <==
-        // =======================================================
+        // 2. Adiciona o novo custo
+        orcamento.custosMateriais.push({ descricao, valor });
+
+        // 3. Recalcula o valor total
+        orcamento.recalcularValorProposto();
+
+        // 4. Salva o orçamento atualizado
+        const orcamentoAtualizado = await orcamento.save();
+
+        // 5. Cria a despesa associada (lógica original)
         const novaDespesa = new Despesa({
-            contaId: contaId, // MUDANÇA
+            contaId: contaId,
             descricao: `Material para pedido #${orcamentoAtualizado.shortId}: ${descricao}`,
             valor: valor,
-            categoria: 'Material', // Categoria automática
+            categoria: 'Material',
             data: new Date(),
-            orcamentoAssociado: id // Ligamos a despesa ao ID do orçamento
+            orcamentoAssociado: id
         });
-
-        // Salva a nova despesa na coleção de despesas
         await novaDespesa.save();
 
-        // Envia a resposta de sucesso com os dados do orçamento atualizado
+        // 6. Envia a resposta de sucesso
         res.status(200).json(orcamentoAtualizado);
 
     } catch (error) {
