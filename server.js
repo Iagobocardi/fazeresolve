@@ -87,9 +87,6 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
 };
 
-// Habilita o pre-flight request para todas as rotas
-app.options('*', cors(corsOptions));
-
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -120,6 +117,7 @@ app.use('/api/financeiro', providerAuthMiddlewares, financeiroRoutes);
 app.use('/api/orcamentos', providerAuthMiddlewares, orcamentoRoutes);
 app.use('/api/relatorios', providerAuthMiddlewares, relatorioRoutes);
 app.use('/api/servicos', providerAuthMiddlewares, servicoRoutes);
+app.use('/api/whatsapp/templates', providerAuthMiddlewares, whatsappTemplateRoutes);
 app.use('/api/whatsapp', providerAuthMiddlewares, whatsappRoutes);
 app.use('/api/stats', providerAuthMiddlewares, statsRoutes);
 app.use('/api/dashboard', providerAuthMiddlewares, dashboardRoutes);
