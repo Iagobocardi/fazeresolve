@@ -277,8 +277,9 @@ const createOrcamento = async (req, res) => {
             }
             
             // If new address data is provided, update the client
-            if (clienteData.endereco) {
-                cliente.endereco = clienteData.endereco;
+            if (clienteData.endereco && typeof clienteData.endereco === 'object') {
+                // Use Object.assign to safely merge the new address data
+                cliente.endereco = Object.assign(cliente.endereco || {}, clienteData.endereco);
                 await cliente.save();
             }
         } else {
