@@ -277,9 +277,6 @@ const adicionarMaterial = async (contaId, orcamentoId, produtoId, quantidade) =>
         custoNoMomento: produto.custoUnitario
     });
 
-    // Recalcula o valor proposto
-    orcamento.recalcularValorProposto();
-
     const movimento = new MovimentoEstoque({
         contaId: contaId, // Adiciona o ID da conta do usuário
         produto: produtoId,
@@ -350,9 +347,6 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
 
         // Remove o subdocumento do array usando pull
         orcamento.materiaisUsados.pull({ _id: materialUsadoId });
-        
-        // Recalcula o valor proposto
-        orcamento.recalcularValorProposto();
 
         await orcamento.save({ session });
 
