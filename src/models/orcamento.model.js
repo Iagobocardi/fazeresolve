@@ -189,7 +189,11 @@ orcamentoSchema.pre('save', function(next) {
     next();
 });
 
-
-// O CÓDIGO INCORRETO QUE ESTAVA FLUTUANDO AQUI FOI REMOVIDO.
+// Adiciona um método para recalcular o valor proposto do orçamento
+orcamentoSchema.methods.recalcularValorProposto = function() {
+    const custoMateriais = this.custosMateriais.reduce((acc, custo) => acc + parseFloat(custo.valor.toString()), 0);
+    const custoProdutos = this.materiaisUsados.reduce((acc, material) => acc + (material.custoNoMomento * material.quantidade), 0);
+    this.valorProposto = custoMateriais + custoProdutos;
+};
 
 module.exports = mongoose.model('Orcamento', orcamentoSchema);
