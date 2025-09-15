@@ -689,6 +689,7 @@ const addCustoMaterial = async (req, res) => {
 };
 const uploadFotoServico = async (req, res) => {
     try {
+        console.log('uploadFotoServico: req.file:', req.file);
         const orcamentoId = req.params.id;
         const { descricao } = req.body;
 
