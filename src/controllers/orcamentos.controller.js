@@ -133,14 +133,38 @@ const getOrcamentoById = async (req, res) => {
     try {
         const { contaId } = req.user;
         const orcamento = await Orcamento.findOne({ _id: req.params.id, contaId })
-            .populate('cliente', 'nome telefone endereco')
+            .populate({
+                path: 'cliente',
+                select: 'nome telefone endereco'
+            })
             .populate('materiaisUsados.produto'); // Popula os detalhes do produto
 
         if (!orcamento) {
             return res.status(404).json({ error: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
+
+        // Adiciona uma verificação para o caso de o cliente ter sido deletado
+        if (!orcamento.cliente) {
+            // Retorna o orçamento com um cliente "fake" para não quebrar o frontend
+            const orcamentoObj = orcamento.toObject();
+            orcamentoObj.cliente = {
+                nome: "Cliente não encontrado",
+                telefone: "",
+                endereco: {
+                    logradouro: "Endereço não informado",
+                    numero: "",
+                    bairro: "",
+                    cidade: "",
+                    estado: "",
+                    cep: ""
+                }
+            };
+            return res.status(200).json(orcamentoObj);
+        }
+
         res.status(200).json(orcamento);
     } catch (error) {
+        console.error("Erro ao buscar orçamento por ID:", error);
         res.status(500).json({ error: 'Erro ao buscar orçamento.' });
     }
 };
