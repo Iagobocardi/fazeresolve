@@ -253,9 +253,6 @@ const calcularPrecoSugerido = async (req, res) => {
 
 // Cria um novo orçamento, com lógica para criar ou encontrar o cliente
 const createOrcamento = async (req, res) => {
-    // DEBUG: Log the entire request body to check the incoming valorProposto
-    console.log("Request Body Received in createOrcamento:", JSON.stringify(req.body, null, 2));
-
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -309,6 +306,7 @@ const createOrcamento = async (req, res) => {
             descricao: orcamentoData.descricao,
             categoria: orcamentoData.categoria,
             valorProposto: orcamentoData.valorProposto,
+            taxas: orcamentoData.taxas,
             status: orcamentoData.status,
             dataAgendamento: orcamentoData.dataAgendamento,
             address: orcamentoData.address,
