@@ -197,7 +197,8 @@ orcamentoSchema.pre('save', function(next) {
 orcamentoSchema.methods.recalcularValorProposto = function() {
     const custoMateriais = this.custosMateriais.reduce((acc, custo) => acc + parseFloat(custo.valor.toString()), 0);
     const custoProdutos = this.materiaisUsados.reduce((acc, material) => acc + (material.custoNoMomento * material.quantidade), 0);
-    this.valorProposto = custoMateriais + custoProdutos;
+    const taxas = this.taxas || 0;
+    this.valorProposto = custoMateriais + custoProdutos + taxas;
 };
 
 module.exports = mongoose.model('Orcamento', orcamentoSchema);
