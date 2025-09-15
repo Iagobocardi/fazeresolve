@@ -151,6 +151,10 @@ const orcamentoSchema = new mongoose.Schema({
         type: Number,
         default: 100 // Padrão de 100% de margem
     },
+    taxas: {
+        type: Number,
+        default: 0
+    },
     // ------------------------------------
       statusPagamento: { type: String, default: 'Pendente' },
 
