@@ -665,10 +665,7 @@ const addCustoMaterial = async (req, res) => {
         // 2. Adiciona o novo custo
         orcamento.custosMateriais.push({ descricao, valor });
 
-        // 3. Recalcula o valor total
-        orcamento.recalcularValorProposto();
-
-        // 4. Salva o orçamento atualizado
+        // 3. Salva o orçamento atualizado
         const orcamentoAtualizado = await orcamento.save();
 
         // 5. Cria a despesa associada (lógica original)
