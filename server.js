@@ -48,6 +48,7 @@ const subscriptionRoutes = require('./src/routes/subscription.routes.js');
 const uploadRoutes = require('./src/routes/upload.routes.js');
 const whatsappRoutes = require('./src/routes/whatsapp.routes.js');
 const whatsappTemplateRoutes = require('./src/routes/whatsappTemplates.routes.js');
+const utilsRoutes = require('./src/routes/utils.routes.js');
 
 // Importação do Middleware
 const errorMiddleware = require('./src/middlewares/error.middleware');
@@ -138,6 +139,7 @@ app.use('/api/focusnfe', providerAuthMiddlewares, focusnfeRoutes);
 app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
 app.use('/api/invoices', providerAuthMiddlewares, invoiceRoutes);
 app.use('/api/membros', providerAuthMiddlewares, membroRoutes);
+app.use('/api/utils', providerAuthMiddlewares, utilsRoutes);
 
 
 // Rota de teste
