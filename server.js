@@ -88,7 +88,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
@@ -132,7 +131,6 @@ app.use('/api/google', providerAuthMiddlewares, googleRoutes);
 app.use('/api/estoque', providerAuthMiddlewares, estoqueRoutes);
 app.use('/api/upload', providerAuthMiddlewares, uploadRoutes);
 app.use('/api/conversas', providerAuthMiddlewares, conversaRoutes);
-app.use('/api/whatsapp/templates', providerAuthMiddlewares, whatsappTemplateRoutes);
 app.use('/api/provider', providerAuthMiddlewares, providerRoutes);
 app.use('/api/focusnfe', providerAuthMiddlewares, focusnfeRoutes);
 app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
