@@ -17,7 +17,33 @@ const handlePaymentNotification = async (paymentId) => {
             // Tenta encontrar um orçamento primeiro
             const orcamento = await Orcamento.findById(externalReference);
             if (orcamento) {
-                // ... (lógica existente para orçamento)
+                // Evita processar pagamentos duplicados
+                const pagamentoJaRegistrado = orcamento.pagamentos.some(p => p.observacao.includes(paymentInfo.id));
+                if (pagamentoJaRegistrado) {
+                    console.log(`[Webhook] Pagamento ${paymentInfo.id} já registrado para o orçamento ${externalReference}.`);
+                    return;
+                }
+
+                if (paymentInfo.status === 'approved') {
+                    orcamento.pagamentos.push({
+                        valor: paymentInfo.transaction_amount,
+                        metodo: 'Mercado Pago',
+                        data: new Date(paymentInfo.date_approved),
+                        observacao: `Pagamento online via MP. ID: ${paymentInfo.id}`
+                    });
+
+                    orcamento.historico.push({ evento: `Pagamento de R$${paymentInfo.transaction_amount.toFixed(2)} aprovado via Mercado Pago.` });
+
+                    const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
+                    if (totalPago >= orcamento.valorProposto) {
+                        orcamento.statusPagamento = 'Pago';
+                    } else {
+                        orcamento.statusPagamento = 'Pago Parcial';
+                    }
+
+                    await orcamento.save();
+                    console.log(`[Webhook] Orçamento ${externalReference} atualizado com sucesso para o pagamento ${paymentInfo.id}.`);
+                }
                 return;
             }
 
