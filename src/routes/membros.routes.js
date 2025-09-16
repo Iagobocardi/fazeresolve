@@ -13,6 +13,7 @@ router.use(authMiddleware);
 // Usamos 'ver_financeiro' como proxy para "gerir membros"
 router.post('/', checkPermission('ver_financeiro'), checkSubscription, checkUserLimit, membroController.criarMembro);
 
-// ... outras rotas (listar membros, apagar, etc.)
+router.get('/', checkPermission('ver_financeiro'), membroController.listarMembros);
+router.delete('/:id', checkPermission('ver_financeiro'), membroController.deletarMembro);
 
 module.exports = router;
