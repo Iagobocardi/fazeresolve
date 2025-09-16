@@ -186,4 +186,23 @@ module.exports = {
     handleMercadoPagoCallback,
     updateCompanyInfo,
     getProviderDashboard,
+    getAccountDetails: async (req, res) => {
+        try {
+            const { contaId } = req.user;
+            const conta = await Conta.findById(contaId).populate('subscription');
+            if (!conta) {
+                return res.status(404).json({ message: 'Conta não encontrada.' });
+            }
+
+            const membros = await Usuario.find({ contaId }).select('-password');
+
+            res.status(200).json({
+                conta,
+                membros,
+            });
+        } catch (error) {
+            console.error("Erro ao buscar detalhes da conta:", error);
+            res.status(500).json({ message: 'Erro interno ao buscar detalhes da conta.' });
+        }
+    }
 };
