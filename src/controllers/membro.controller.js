@@ -53,3 +53,45 @@ exports.criarMembro = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao criar membro da equipe.' });
     }
 };
+
+// Função para listar todos os membros da equipe
+exports.listarMembros = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const membros = await Usuario.find({ contaId }).select('-password');
+        res.status(200).json(membros);
+    } catch (error) {
+        console.error("Erro ao listar membros da equipe:", error);
+        res.status(500).json({ message: 'Erro interno ao listar membros da equipe.' });
+    }
+};
+
+// Função para deletar um membro da equipe
+exports.deletarMembro = async (req, res) => {
+    try {
+        const { id: membroId } = req.params;
+        const { contaId, id: requisitanteId } = req.user;
+
+        const membroParaDeletar = await Usuario.findOne({ _id: membroId, contaId });
+
+        if (!membroParaDeletar) {
+            return res.status(404).json({ message: 'Membro não encontrado nesta conta.' });
+        }
+
+        if (membroParaDeletar._id.toString() === requisitanteId) {
+            return res.status(400).json({ message: 'Você não pode remover a si mesmo.' });
+        }
+
+        if (membroParaDeletar.role === 'Dono') {
+            return res.status(403).json({ message: 'Você não pode remover o dono da conta.' });
+        }
+
+        await Usuario.findByIdAndDelete(membroId);
+
+        res.status(200).json({ message: 'Membro removido com sucesso.' });
+
+    } catch (error) {
+        console.error("Erro ao deletar membro da equipe:", error);
+        res.status(500).json({ message: 'Erro interno ao deletar membro da equipe.' });
+    }
+};
