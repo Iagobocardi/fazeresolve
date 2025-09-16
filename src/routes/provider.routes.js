@@ -26,5 +26,8 @@ router.put('/company-info', providerController.updateCompanyInfo);
 // Rota para buscar os dados do "dashboard" do prestador (dados do usuário/conta)
 router.get('/dashboard', providerController.getProviderDashboard);
 
+// Rota para buscar os detalhes da conta para a página de gestão
+router.get('/account-details', providerController.getAccountDetails);
+
 
 module.exports = router;

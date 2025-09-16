@@ -9,7 +9,7 @@ const Conta = require('../models/conta.model.js');
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.API_URL}/configuracoes/google/callback` // /api embutido removido
+    `${process.env.API_URL}/api/configuracoes/google/callback`
 );
 // Função para obter a configuração da conta do usuário
 exports.getConfiguracao = async (req, res) => {

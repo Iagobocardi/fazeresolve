@@ -702,11 +702,8 @@ const uploadFotoServico = async (req, res) => {
             return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
         }
 
-        // Constrói a URL pública do ficheiro
-        const fotoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-
         orcamento.fotosServico.push({
-            url: fotoUrl,
+            url: req.file.cloudinaryUrl,
             descricao: descricao || 'Foto do serviço'
         });
 
