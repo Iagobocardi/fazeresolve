@@ -31,13 +31,12 @@ const Conta = require('../models/conta.model');
 const handleSubscribe = async (req, res) => {
     try {
         const { cardTokenId, deviceId } = req.body;
-        const usuario = req.user; // O middleware já nos dá o objeto Usuario completo.
+        const usuario = req.user;
 
         if (!cardTokenId) {
             return res.status(400).json({ message: 'O token do cartão é obrigatório.' });
         }
 
-        // 1. Busca a conta associada ao usuário
         const conta = await Conta.findById(usuario.contaId);
         if (!conta) {
             return res.status(404).json({ message: 'Conta associada não encontrada.' });
@@ -48,26 +47,39 @@ const handleSubscribe = async (req, res) => {
         }
 
         console.log(`[Subscribe] Iniciando criação de assinatura para conta ${conta._id} com plano ${conta.planId}`);
-        const subscription = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
-        console.log(`[Subscribe] Assinatura criada com sucesso no Mercado Pago com ID: ${subscription.id}`);
+        const subscriptionResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
 
-        // 2. Atualiza o status da CONTA e armazena o ID da assinatura
+        // Verifica se a resposta da API indica uma falha ou recusa de pagamento
+        if (subscriptionResult.error || (subscriptionResult.status && subscriptionResult.status !== 'authorized')) {
+            console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
+            
+            // Extrai uma mensagem de erro mais específica, se disponível
+            const errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Verifique os dados do cartão ou tente outro.';
+            
+            return res.status(402).json({
+                message: errorMessage,
+                details: subscriptionResult // Retorna o objeto de erro completo para o frontend
+            });
+        }
+
+        console.log(`[Subscribe] Assinatura criada com sucesso no Mercado Pago com ID: ${subscriptionResult.id}`);
+
+        // Atualiza o status da CONTA e armazena o ID da assinatura
         conta.statusAssinatura = 'ATIVO';
-        conta.mercadoPagoSubscriptionId = subscription.id;
+        conta.mercadoPagoSubscriptionId = subscriptionResult.id;
         await conta.save();
         console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
 
-        // 3. Gera um novo token JWT definitivo para o USUÁRIO
-        const payload = { id: usuario._id }; // Payload minimalista
+        // Gera um novo token JWT definitivo para o USUÁRIO
+        const payload = { id: usuario._id };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-        // Re-fetch the user to ensure we have all fields, including permissions
         const finalUser = await Usuario.findById(usuario._id);
 
         res.status(201).json({
             message: 'Assinatura criada com sucesso!',
             token,
-            userType: 'provider', // Adiciona o sinalizador para o frontend
+            userType: 'provider',
             usuario: {
                 id: finalUser._id,
                 nome: finalUser.nome,
@@ -81,15 +93,11 @@ const handleSubscribe = async (req, res) => {
         });
 
     } catch (error) {
-        // Log do erro para depuração interna
-        console.error('Falha ao processar assinatura em handleSubscribe:', error.message);
-
-        // Retorna um erro 402 (Pagamento Requerido) para o cliente
-        // Isso indica que a falha foi do lado do pagamento (ex: cartão recusado)
-        // e não um erro interno do servidor.
-        res.status(402).json({
-            message: 'Falha no pagamento. Verifique os dados do seu cartão ou tente outro.',
-            details: error.message // O frontend pode usar isso para logs ou debug
+        // Este bloco 'catch' agora lida apenas com erros inesperados do servidor (erros 500)
+        console.error('Erro inesperado no servidor durante o processo de assinatura:', error);
+        res.status(500).json({
+            message: 'Ocorreu um erro interno no servidor. Nossa equipe já foi notificada.',
+            details: error.message
         });
     }
 };
