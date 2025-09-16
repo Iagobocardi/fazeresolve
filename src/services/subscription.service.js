@@ -81,9 +81,20 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
 
     } catch (error) {
         console.error("--- ERRO da API do Mercado Pago ---");
-        const errorResponse = error.cause?.body || error.response?.data || error.message;
-        console.error(errorResponse);
-        throw new Error('Erro ao criar assinatura no Mercado Pago.');
+        // Extrai a resposta de erro detalhada da API.
+        const errorResponse = error.cause?.body || error.response?.data;
+
+        // Se a resposta de erro tiver um corpo (body), provavelmente é uma resposta estruturada da API do MP
+        // (ex: cartão recusado). Retornamos o corpo do erro para o controller decidir o que fazer.
+        if (errorResponse && typeof errorResponse === 'object') {
+            console.error("Resposta de erro da API:", JSON.stringify(errorResponse, null, 2));
+            return errorResponse; // Retorna o objeto de erro detalhado.
+        }
+
+        // Se não for um erro estruturado da API, é um problema inesperado (ex: rede, config).
+        // Lançamos um erro genérico para ser tratado como um erro 500 no controller.
+        console.error("Erro não estruturado ou inesperado:", error.message);
+        throw new Error('Ocorreu um erro interno ao se comunicar com o gateway de pagamento.');
     }
 };
 
