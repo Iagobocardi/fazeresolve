@@ -189,7 +189,7 @@ module.exports = {
     getAccountDetails: async (req, res) => {
         try {
             const { contaId } = req.user;
-            const conta = await Conta.findById(contaId).populate('subscription');
+            const conta = await Conta.findById(contaId);
             if (!conta) {
                 return res.status(404).json({ message: 'Conta não encontrada.' });
             }
