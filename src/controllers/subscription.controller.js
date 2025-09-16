@@ -97,4 +97,14 @@ const handleSubscribe = async (req, res) => {
 module.exports = {
     handleCreatePlan,
     handleSubscribe,
+    cancelSubscription: async (req, res) => {
+        try {
+            const { contaId } = req.user;
+            await subscriptionService.cancelSubscription(contaId);
+            res.status(200).json({ message: 'Assinatura cancelada com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao cancelar assinatura:", error);
+            res.status(500).json({ message: 'Erro interno ao cancelar a assinatura.' });
+        }
+    }
 };
