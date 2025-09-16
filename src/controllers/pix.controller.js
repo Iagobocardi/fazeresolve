@@ -2,9 +2,7 @@ const mercadoPagoService = require('../services/mercadoPago.service.js');
 
 exports.createPixCharge = async (req, res) => {
     try {
-        console.log('[createPixCharge] Iniciando criação de cobrança Pix.');
         const { amount, description, email } = req.body;
-        console.log('[createPixCharge] Dados recebidos:', { amount, description, email });
         const { contaId } = req.user;
 
         const paymentData = {
@@ -17,9 +15,7 @@ exports.createPixCharge = async (req, res) => {
             external_reference: contaId,
         };
 
-        console.log('[createPixCharge] Enviando dados para o serviço do Mercado Pago...');
         const result = await mercadoPagoService.createPixPayment(paymentData);
-        console.log('[createPixCharge] Cobrança Pix criada com sucesso.');
 
         res.status(201).json({
             qr_code: result.point_of_interaction.transaction_data.qr_code,
