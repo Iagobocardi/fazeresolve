@@ -137,7 +137,7 @@ app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
 app.use('/api/invoices', providerAuthMiddlewares, invoiceRoutes);
 app.use('/api/membros', providerAuthMiddlewares, membroRoutes);
 const pixRoutes = require('./src/routes/pix.routes.js');
-app.use('/api/pix', providerAuthMiddlewares, pixRoutes);
+app.use('/api/pix', pixRoutes);
 app.use('/api/utils', providerAuthMiddlewares, utilsRoutes);
 
 
