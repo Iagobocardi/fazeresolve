@@ -20,4 +20,12 @@ router.post(
     subscriptionController.handleSubscribe
 );
 
+// Rota para cancelar uma assinatura
+router.post(
+    '/cancel',
+    authMiddleware,
+    roleMiddleware(['Dono']),
+    subscriptionController.cancelSubscription
+);
+
 module.exports = router;
