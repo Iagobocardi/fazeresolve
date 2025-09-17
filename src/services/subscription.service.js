@@ -53,13 +53,31 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         const subscription = new PreApproval(client);
         // -------------------------------------------------------
 
+        // Busca a conta para obter o CNPJ
+        const conta = await Conta.findById(user.contaId);
+        if (!conta) {
+            // Este erro será pego pelo bloco catch e tratado como um erro 500, o que é apropriado.
+            throw new Error(`Conta não encontrada para o usuário ${user._id}`);
+        }
+        const cnpj = conta.companyInfo?.cnpj?.replace(/\D/g, '');
+
         const body = {
             preapproval_plan_id: planId,
             reason: `Assinatura do plano para ${user.nome}`,
-            payer_email: user.email,
             card_token_id: cardTokenId,
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
+            payer: {
+                email: user.email,
+            }
         };
+
+        // Adiciona a identificação apenas se o CNPJ existir
+        if (cnpj) {
+            body.payer.identification = {
+                type: 'CNPJ',
+                number: cnpj
+            };
+        }
 
         // 4. A chamada `create` agora só precisa do `body`.
         // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
@@ -81,18 +99,34 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
 
     } catch (error) {
         console.error("--- ERRO da API do Mercado Pago ---");
-        // Extrai a resposta de erro detalhada da API.
-        const errorResponse = error.cause?.body || error.response?.data;
-
-        // Se a resposta de erro tiver um corpo (body), provavelmente é uma resposta estruturada da API do MP
-        // (ex: cartão recusado). Retornamos o corpo do erro para o controller decidir o que fazer.
-        if (errorResponse && typeof errorResponse === 'object') {
-            console.error("Resposta de erro da API:", JSON.stringify(errorResponse, null, 2));
-            return errorResponse; // Retorna o objeto de erro detalhado.
+        
+        // Log a estrutura completa do erro para depuração, tratando possíveis erros de circularidade
+        try {
+            console.error("Objeto de erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        } catch (e) {
+            console.error("Não foi possível serializar o objeto de erro completo:", error);
         }
 
-        // Se não for um erro estruturado da API, é um problema inesperado (ex: rede, config).
-        // Lançamos um erro genérico para ser tratado como um erro 500 no controller.
+        // Tenta extrair a resposta de erro da API de várias fontes comuns
+        const apiError = error.cause?.body || error.response?.data || error.data;
+
+        // Se encontrarmos um objeto de erro estruturado, o retornamos para o controller
+        if (apiError && typeof apiError === 'object') {
+            console.error("Resposta de erro da API (estruturada):", JSON.stringify(apiError, null, 2));
+            return apiError;
+        }
+
+        // Como fallback, o próprio objeto de erro pode conter as informações
+        if (error.status && error.message) {
+            console.error("Resposta de erro da API (plana):", JSON.stringify({ status: error.status, message: error.message, cause: error.cause }, null, 2));
+            return {
+                status: error.status,
+                message: error.message,
+                cause: error.cause || 'Não especificada'
+            };
+        }
+
+        // Se nenhuma das condições acima for atendida, é um erro inesperado.
         console.error("Erro não estruturado ou inesperado:", error.message);
         throw new Error('Ocorreu um erro interno ao se comunicar com o gateway de pagamento.');
     }
