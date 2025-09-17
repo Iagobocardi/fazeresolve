@@ -2,6 +2,7 @@
 const whatsappService = require('../services/whatsapp.service');
 const axios = require('axios'); // Usaremos Axios para chamadas diretas à API da Meta
 const Conta = require('../models/conta.model.js');
+const Cliente = require('../models/cliente.model.js');
 const AgendamentoMensagem = require('../models/agendamentoMensagem.model.js');
 
 // --- Funções para o Fluxo OAuth da Meta ---
@@ -277,6 +278,38 @@ const scheduleMessage = async (req, res) => {
 };
 
 
+// --- Nova Função para Envio Rápido ---
+const sendQuickMessage = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { clienteId, mensagem } = req.body;
+
+        if (!clienteId || !mensagem) {
+            return res.status(400).json({ message: 'Os campos clienteId e mensagem são obrigatórios.' });
+        }
+
+        const cliente = await Cliente.findOne({ _id: clienteId, contaId: contaId });
+
+        if (!cliente) {
+            return res.status(404).json({ message: 'Cliente não encontrado ou não pertence à sua conta.' });
+        }
+
+        if (!cliente.telefone) {
+            return res.status(400).json({ message: 'O cliente selecionado não possui um número de telefone cadastrado.' });
+        }
+
+        // Usa o serviço de envio de mensagens já existente e robusto
+        await whatsappService.sendWhatsAppMessage(contaId, cliente.telefone, mensagem);
+
+        res.status(200).json({ message: 'Mensagem enviada com sucesso!' });
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem rápida:', error);
+        res.status(500).json({ message: 'Ocorreu um erro interno ao tentar enviar a mensagem.' });
+    }
+};
+
+
 module.exports = {
     handleWhatsAppWebhook,
     getAvailableVariables,
@@ -288,5 +321,6 @@ module.exports = {
     renderPreview,
     connectMeta,
     handleMetaCallback,
-    scheduleMessage
+    scheduleMessage,
+    sendQuickMessage // Exporta a nova função
 };
