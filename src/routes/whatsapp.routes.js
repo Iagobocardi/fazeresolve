@@ -38,27 +38,27 @@ router.get(
     whatsappController.getAllTemplates
 );
 
-// Rota para criar um novo template (Apenas Admin)
+// Rota para criar um novo template
 router.post(
     '/templates',
     authMiddleware,
-    checkPlan(['Admin', 'Premium']), // Permitir que Premium também crie templates, se desejar
+    // checkPlan foi removido para permitir que todos os usuários criem templates.
     whatsappController.createTemplate
 );
 
-// Rota para atualizar um template (Apenas Admin)
+// Rota para atualizar um template
 router.put(
     '/templates/:id',
     authMiddleware,
-    checkPlan(['Admin', 'Premium']),
+    // checkPlan foi removido. A lógica no controller já garante que um usuário só pode editar o seu próprio template.
     whatsappController.updateTemplate
 );
 
-// Rota para deletar um template (Apenas Admin)
+// Rota para deletar um template
 router.delete(
     '/templates/:id',
     authMiddleware,
-    checkPlan(['Admin', 'Premium']),
+    // checkPlan foi removido. A lógica no controller já garante que um usuário só pode deletar o seu próprio template.
     whatsappController.deleteTemplate
 );
 
