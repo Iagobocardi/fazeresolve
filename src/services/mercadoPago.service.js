@@ -75,10 +75,18 @@ const handlePaymentNotification = async (paymentId) => {
 module.exports = {
     handlePaymentNotification,
     createPixPayment: async (paymentData) => {
-        const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
-        const payment = new Payment(client);
+        try {
+            const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+            const payment = new Payment(client);
 
-        const result = await payment.create({ body: paymentData });
-        return result;
+            console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
+
+            const result = await payment.create({ body: paymentData });
+            return result;
+        } catch (error) {
+            console.error("Erro detalhado ao criar pagamento PIX no serviço:", JSON.stringify(error, null, 2));
+            // Propaga o erro para ser tratado pelo controller
+            throw error;
+        }
     }
 };
