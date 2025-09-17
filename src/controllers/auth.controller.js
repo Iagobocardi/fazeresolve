@@ -187,7 +187,7 @@ const register = async (req, res) => {
     try {
         console.log('--- DEBUG: Registration Request Body ---');
         console.log(req.body);
-        const { nomeEmpresa, nome, email, password, planoId } = req.body;
+        const { nomeEmpresa, nome, email, password, planoId, cpf, cnpj } = req.body; // Adicionado cpf e cnpj
 
         // Checa se o usuário já existe
         const existingUser = await Usuario.findOne({ email });
@@ -203,27 +203,37 @@ const register = async (req, res) => {
             return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
         }
 
-        // 1. Cria a nova Conta
+        // 1. Cria a nova Conta, adicionando o CNPJ se ele for fornecido
+        const companyInfo = {
+            nomeFantasia: nomeEmpresa || nome,
+            razaoSocial: nomeEmpresa || nome,
+        };
+        if (cnpj) {
+            companyInfo.cnpj = cnpj;
+        }
+
         const novaConta = new Conta({
-            nome: nomeEmpresa || nome, // Usa o nome da empresa ou o nome do usuário
-            plano: selectedPlan.name, // Define o nome do plano na conta
+            nome: nomeEmpresa || nome,
+            plano: selectedPlan.name,
             planId: planoId,
-            companyInfo: {
-                nomeFantasia: nomeEmpresa || nome,
-                razaoSocial: nomeEmpresa || nome,
-            }
+            companyInfo: companyInfo
         });
         await novaConta.save();
 
-        // 2. Cria o novo Usuário, associado à conta
-        const novoUsuario = new Usuario({
+        // 2. Cria o novo Usuário, adicionando o CPF se ele for fornecido
+        const userData = {
             nome,
             email,
-            password, // O pre-save hook no modelo irá encriptar
-            contaId: novaConta._id, // Associa o usuário à nova conta
-            role: 'Dono', // O primeiro usuário é sempre o Dono
-            permissoes: selectedPlan.permissions // Atribui as permissões com base no plano
-        });
+            password,
+            contaId: novaConta._id,
+            role: 'Dono',
+            permissoes: selectedPlan.permissions
+        };
+        if (cpf) {
+            userData.cpf = cpf;
+        }
+
+        const novoUsuario = new Usuario(userData);
         await novoUsuario.save();
         console.log('[Registro] Usuário criado com ID:', novoUsuario._id); // <-- LOG DE DIAGNÓSTICO
 
