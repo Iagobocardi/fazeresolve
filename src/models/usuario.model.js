@@ -8,6 +8,7 @@ const usuarioSchema = new Schema({
     nome: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true, select: false }, // select: false para não vir por padrão
+    cpf: { type: String, unique: true, sparse: true }, // CPF para pagadores pessoa física
     
     // Adiciona a referência à conta à qual o usuário pertence.
     contaId: {
