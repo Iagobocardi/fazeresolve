@@ -26,16 +26,22 @@ const authMiddleware = async (req, res, next) => {
         // 1. Decodifica o token para obter o ID do usuário
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 2. Busca o usuário no banco de dados para obter os dados mais recentes
-        // Isso garante que as permissões e roles estejam sempre atualizadas.
-        const usuario = await Usuario.findById(decoded.id);
+        // 2. Busca o usuário e popula a conta associada para obter o plano.
+        const usuario = await Usuario.findById(decoded.id).populate('contaId');
 
         if (!usuario) {
             return res.status(401).json({ message: 'Usuário não encontrado.' });
         }
+        
+        if (!usuario.contaId) {
+            return res.status(401).json({ message: 'Conta associada ao usuário não encontrada.' });
+        }
 
-        // 3. Anexa o objeto de usuário completo (e atualizado) à requisição
-        req.user = usuario;
+        // 3. Cria um objeto de usuário plano e anexa as informações necessárias, incluindo o plano.
+        const userObject = usuario.toObject();
+        userObject.plano = usuario.contaId.plano; // Anexa o plano da conta ao objeto do usuário
+
+        req.user = userObject; // Anexa o objeto modificado à requisição
 
         next();
     } catch (error) {
