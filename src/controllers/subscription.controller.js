@@ -53,8 +53,15 @@ const handleSubscribe = async (req, res) => {
         if (subscriptionResult.error || (subscriptionResult.status && subscriptionResult.status !== 'authorized')) {
             console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
             
-            // Extrai uma mensagem de erro mais específica, se disponível
-            const errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Verifique os dados do cartão ou tente outro.';
+            let errorMessage;
+            // Caso especial: Se o gateway de pagamento retornar um erro de servidor (500),
+            // fornecemos uma mensagem mais amigável em vez do "Internal server error" deles.
+            if (subscriptionResult.status === 500) {
+                errorMessage = 'Ocorreu um erro geral no gateway de pagamento. Por favor, tente novamente ou utilize outro método de pagamento.';
+            } else {
+                // Para outros erros, usamos a mensagem da API ou um fallback padrão.
+                errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Verifique os dados do cartão ou tente outro.';
+            }
             
             return res.status(402).json({
                 message: errorMessage,
