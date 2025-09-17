@@ -70,4 +70,12 @@ router.post(
     whatsappController.scheduleMessage
 );
 
+// --- Nova Rota para Envio Rápido de Mensagem ---
+router.post(
+    '/send-message',
+    authMiddleware,
+    checkPlan(['Premium']), // Envio direto também deve ser um recurso Premium
+    whatsappController.sendQuickMessage
+);
+
 module.exports = router;
