@@ -1,200 +1,125 @@
-const { MercadoPagoConfig, PreApproval } = require('mercadopago');
-const mercadoPagoConfig = require('../config/mercadoPago.config.js');
-const Subscription = require('../models/subscription.model.js');
-const Conta = require('../models/conta.model.js');
+const jwt = require('jsonwebtoken');
+const subscriptionService = require('../services/subscription.service.js');
+const Cliente = require('../models/cliente.model.js');
 const Usuario = require('../models/usuario.model.js');
 
-// Preços e taxas dos planos
-const PLAN_PRICING = {
-    Profissional: { base: 129, per_user_fee: 29 },
-    Premium: { base: 199, per_user_fee: 19 }
-};
+/**
+ * Controller para criar um novo plano de assinatura.
+ * Acessível apenas para Admins.
+ */
+const handleCreatePlan = async (req, res) => {
+    try {
+        const { name, price } = req.body;
+        if (!name || !price) {
+            return res.status(400).json({ error: 'Nome e preço do plano são obrigatórios.' });
+        }
 
-// NOTA: A função createPlan foi removida para simplificar,
-// já que o foco é na criação da assinatura. Se precisar dela,
-// ela também deve inicializar o seu próprio cliente internamente.
+        const planData = { name, price };
+        const plan = await subscriptionService.createPlan(planData);
+
+        res.status(201).json(plan);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao criar o plano de assinatura.' });
+    }
+};
 
 /**
- * Cria uma nova assinatura para um usuário.
- * @param {string} planId - O ID do plano do Mercado Pago.
- * @param {object} user - O objeto do usuário (prestador).
- * @param {string} cardTokenId - O ID do token do cartão gerado no frontend.
- * @param {string} [deviceId] - O ID da sessão do dispositivo (opcional).
- * @returns {Promise<object>} O objeto da assinatura criada.
+ * Controller para um prestador se inscrever em um plano.
  */
-const createSubscription = async (planId, user, cardTokenId, deviceId) => {
+const Conta = require('../models/conta.model');
+
+const handleSubscribe = async (req, res) => {
     try {
-        const accessToken = mercadoPagoConfig.accessToken;
+        const { cardTokenId, deviceId } = req.body;
+        const usuario = req.user;
 
-        if (!accessToken) {
-            console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
-            throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
+        if (!cardTokenId) {
+            return res.status(400).json({ message: 'O token do cartão é obrigatório.' });
         }
 
-        // =======================================================
-        // ==>    A CORREÇÃO DEFINITIVA ESTÁ AQUI              <==
-        // =======================================================
-        // 1. Preparamos as opções para o cliente, incluindo os cabeçalhos customizados.
-        const clientOptions = {
-            accessToken,
-            options: {
-                timeout: 5000, // Exemplo de outra opção
-                customHeaders: {}
-            }
-        };
-
-        // 2. Adicionamos o deviceId aos cabeçalhos customizados, se ele existir.
-        if (deviceId) {
-            clientOptions.options.customHeaders['X-meli-session-id'] = deviceId;
-        }
-
-        // 3. Inicializamos o cliente com TODAS as configurações necessárias.
-        const client = new MercadoPagoConfig(clientOptions);
-        const subscription = new PreApproval(client);
-        // -------------------------------------------------------
-
-        // Busca a conta para obter o CNPJ
-        const conta = await Conta.findById(user.contaId);
+        const conta = await Conta.findById(usuario.contaId);
         if (!conta) {
-            // Este erro será pego pelo bloco catch e tratado como um erro 500, o que é apropriado.
-            throw new Error(`Conta não encontrada para o usuário ${user._id}`);
+            return res.status(404).json({ message: 'Conta associada não encontrada.' });
         }
-        const cnpj = conta.companyInfo?.cnpj?.replace(/\D/g, '');
 
-        const body = {
-            preapproval_plan_id: planId,
-            reason: `Assinatura do plano para ${user.nome}`,
-            card_token_id: cardTokenId,
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-            payer: {
-                email: user.email,
+        if (conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
+            return res.status(400).json({ message: 'Esta conta não está aguardando pagamento.' });
+        }
+
+        console.log(`[Subscribe] Iniciando criação de assinatura para conta ${conta._id} com plano ${conta.planId}`);
+        const subscriptionResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
+
+        // Verifica se a resposta da API indica uma falha ou recusa de pagamento
+        if (subscriptionResult.error || (subscriptionResult.status && subscriptionResult.status !== 'authorized')) {
+            console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
+            
+            let errorMessage;
+            // Caso especial: Se o gateway de pagamento retornar um erro de servidor (500),
+            // fornecemos uma mensagem mais amigável em vez do "Internal server error" deles.
+            if (subscriptionResult.status === 500) {
+                errorMessage = 'Ocorreu um erro geral no gateway de pagamento. Por favor, tente novamente ou utilize outro método de pagamento.';
+            } else {
+                // Para outros erros, usamos a mensagem da API ou um fallback padrão.
+                errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Verifique os dados do cartão ou tente outro.';
             }
-        };
-
-        // Adiciona a identificação apenas se o CNPJ existir
-        if (cnpj) {
-            body.payer.identification = {
-                type: 'CNPJ',
-                number: cnpj
-            };
+            
+            return res.status(402).json({
+                message: errorMessage,
+                details: subscriptionResult // Retorna o objeto de erro completo para o frontend
+            });
         }
 
-        // 4. A chamada `create` agora só precisa do `body`.
-        // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
-        const result = await subscription.create({ body });
+        console.log(`[Subscribe] Assinatura criada com sucesso no Mercado Pago com ID: ${subscriptionResult.id}`);
 
-        console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
+        // Atualiza o status da CONTA e armazena o ID da assinatura
+        conta.statusAssinatura = 'ATIVO';
+        conta.mercadoPagoSubscriptionId = subscriptionResult.id;
+        await conta.save();
+        console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
 
-        // Salva a referência no seu banco de dados...
-        const newSubscription = new Subscription({
-            userId: user._id,
-            planId: planId,
-            subscriptionId: result.id,
-            status: result.status,
-            nextPaymentDate: result.next_payment_date,
-        });
-        await newSubscription.save();
+        // Gera um novo token JWT definitivo para o USUÁRIO
+        const payload = { id: usuario._id };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-        return result;
+        const finalUser = await Usuario.findById(usuario._id);
 
-    } catch (error) {
-        console.error("--- ERRO da API do Mercado Pago ---");
-        
-        // Log a estrutura completa do erro para depuração, tratando possíveis erros de circularidade
-        try {
-            console.error("Objeto de erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-        } catch (e) {
-            console.error("Não foi possível serializar o objeto de erro completo:", error);
-        }
-
-        // Tenta extrair a resposta de erro da API de várias fontes comuns
-        const apiError = error.cause?.body || error.response?.data || error.data;
-
-        // Se encontrarmos um objeto de erro estruturado, o retornamos para o controller
-        if (apiError && typeof apiError === 'object') {
-            console.error("Resposta de erro da API (estruturada):", JSON.stringify(apiError, null, 2));
-            return apiError;
-        }
-
-        // Como fallback, o próprio objeto de erro pode conter as informações
-        if (error.status && error.message) {
-            console.error("Resposta de erro da API (plana):", JSON.stringify({ status: error.status, message: error.message, cause: error.cause }, null, 2));
-            return {
-                status: error.status,
-                message: error.message,
-                cause: error.cause || 'Não especificada'
-            };
-        }
-
-        // Se nenhuma das condições acima for atendida, é um erro inesperado.
-        console.error("Erro não estruturado ou inesperado:", error.message);
-        throw new Error('Ocorreu um erro interno ao se comunicar com o gateway de pagamento.');
-    }
-};
-
-const updateSubscriptionPriceForNewUser = async (contaId) => {
-    try {
-        const conta = await Conta.findById(contaId);
-        if (!conta) throw new Error('Conta não encontrada.');
-
-        const planInfo = PLAN_PRICING[conta.plano];
-        if (!planInfo) {
-            console.log(`Plano ${conta.plano} não tem preço dinâmico. Nenhuma atualização de preço necessária.`);
-            return { success: true };
-        }
-
-        const owner = await Usuario.findOne({ contaId, role: 'Dono' });
-        if (!owner) throw new Error('Dono da conta não encontrado.');
-
-        const subscription = await Subscription.findOne({ userId: owner._id });
-        if (!subscription) throw new Error('Assinatura não encontrada para esta conta.');
-
-        // Conta os usuários atuais e adiciona 1 para simular o novo membro
-        const currentUserCount = await Usuario.countDocuments({ contaId });
-        const newUserCount = currentUserCount + 1;
-
-        // Limites de base dos planos
-        const baseLimits = { Profissional: 2, Premium: 5 };
-        const baseLimit = baseLimits[conta.plano] || 0;
-
-        let newTotalAmount = planInfo.base;
-        if (newUserCount > baseLimit) {
-            const extraUsers = newUserCount - baseLimit;
-            newTotalAmount += extraUsers * planInfo.per_user_fee;
-        }
-
-        // Atualiza a assinatura no Mercado Pago
-        const accessToken = mercadoPagoConfig.accessToken;
-        if (!accessToken) throw new Error('Access Token do Mercado Pago não configurado.');
-
-        const client = new MercadoPagoConfig({ accessToken });
-        const preapproval = new PreApproval(client);
-
-        const body = {
-            auto_recurring: {
-                transaction_amount: newTotalAmount,
+        res.status(201).json({
+            message: 'Assinatura criada com sucesso!',
+            token,
+            userType: 'provider',
+            usuario: {
+                id: finalUser._id,
+                nome: finalUser.nome,
+                email: finalUser.email,
+                role: finalUser.role,
+                plano: conta.plano,
+                statusAssinatura: conta.statusAssinatura,
+                permissoes: finalUser.permissoes
             },
-        };
-
-        const result = await preapproval.update({
-            preapprovalId: subscription.subscriptionId,
-            body,
+            conta: conta
         });
 
-        console.log(`Assinatura ${subscription.subscriptionId} atualizada para o novo valor de ${newTotalAmount}.`);
-
-        return { success: true, result };
-
     } catch (error) {
-        console.error("Erro ao atualizar o preço da assinatura:", error.message);
-        // Propaga o erro para o controller poder lidar com ele
-        throw new Error('Falha ao atualizar a cobrança no Mercado Pago.');
+        // Este bloco 'catch' agora lida apenas com erros inesperados do servidor (erros 500)
+        console.error('Erro inesperado no servidor durante o processo de assinatura:', error);
+        res.status(500).json({
+            message: 'Ocorreu um erro interno no servidor. Nossa equipe já foi notificada.',
+            details: error.message
+        });
     }
 };
-
 
 module.exports = {
-    // createPlan, // Adicione de volta se precisar
-    createSubscription,
-    updateSubscriptionPriceForNewUser,
+    handleCreatePlan,
+    handleSubscribe,
+    cancelSubscription: async (req, res) => {
+        try {
+            const { contaId } = req.user;
+            await subscriptionService.cancelSubscription(contaId);
+            res.status(200).json({ message: 'Assinatura cancelada com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao cancelar assinatura:", error);
+            res.status(500).json({ message: 'Erro interno ao cancelar a assinatura.' });
+        }
+    }
 };
