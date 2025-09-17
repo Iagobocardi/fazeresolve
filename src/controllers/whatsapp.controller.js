@@ -216,15 +216,18 @@ const renderTemplate = async (req, res) => {
 
 const getAvailableVariables = (req, res) => {
     const variables = [
-        { key: '{{cliente.nome}}', description: 'Nome do cliente' },
-        { key: '{{orcamento.shortId}}', description: 'ID curto do pedido' },
-        { key: '{{orcamento.descricao}}', description: 'Descrição do serviço' },
-        { key: '{{orcamento.valorProposto}}', description: 'Valor total do orçamento' },
-        { key: '{{orcamento.valorPendente}}', description: 'Valor pendente de pagamento' },
-        { key: '{{orcamento.dataAgendamento}}', description: 'Data do agendamento' },
-        { key: '{{desconto}}', description: 'Percentagem de desconto aplicada' },
-        { key: '{{valorComDesconto}}', description: 'Valor final com desconto' },
-        { key: '{{linkPagamento}}', description: 'Link de pagamento (gerado na hora)' },
+        // Variáveis primárias do novo design
+        { key: '{cliente.nome}', description: 'Nome do Cliente', group: 'Cliente' },
+        { key: '{orcamento.descricao}', description: 'Descrição do Serviço', group: 'Orçamento' },
+        { key: '{orcamento.valorProposto}', description: 'Valor do Orçamento', group: 'Orçamento' },
+        { key: '{orcamento.dataValidade}', description: 'Validade da Proposta', group: 'Orçamento' },
+        { key: '{agendamento.dataHora}', description: 'Data e Hora Agendada', group: 'Agendamento' },
+        { key: '{linkPagamento}', description: 'Link de Pagamento', group: 'Pagamento' },
+        
+        // Variáveis secundárias/legadas
+        { key: '{orcamento.shortId}', description: 'ID Curto do Pedido', group: 'Orçamento' },
+        { key: '{orcamento.valorPendente}', description: 'Valor Pendente', group: 'Pagamento' },
+        { key: '{cliente.telefone}', description: 'Telefone do Cliente', group: 'Cliente' },
     ];
     res.status(200).json(variables);
 };
