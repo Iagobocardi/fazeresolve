@@ -57,10 +57,21 @@ const createProduto = async (req, res) => {
     }
 };
 
-// Obter todos os produtos
+// Obter todos os produtos, com opção de busca
 const getAllProdutos = async (req, res) => {
     try {
-        const produtos = await Produto.find({ contaId: req.user.contaId }).sort({ nome: 1 }); // Filtra por contaId e ordena por nome
+        const { search } = req.query;
+        let query = { contaId: req.user.contaId };
+
+        if (search) {
+            // Busca por nome ou descrição que contenha o termo de busca (case-insensitive)
+            query.$or = [
+                { nome: { $regex: search, $options: 'i' } },
+                { descricao: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const produtos = await Produto.find(query).sort({ nome: 1 });
         res.status(200).json(produtos);
     } catch (error) {
         res.status(500).json({ message: "Erro ao buscar produtos.", error: error.message });
