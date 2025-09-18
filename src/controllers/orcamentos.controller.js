@@ -169,73 +169,6 @@ const getOrcamentoById = async (req, res) => {
     }
 };
 
-const calcularPrecoSugerido = async (req, res) => {
-    try {
-        const { contaId } = req.user;
-        const { pedidoId } = req.params;
-
-        // Validação do ID do pedido
-        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
-            return res.status(400).json({ message: 'O ID do pedido fornecido é inválido.' });
-        }
-
-        const { horasEstimadas, custoHora, margemLucro, custosTerceiros, materiais } = req.body;
-
-        // Busca o orçamento para pegar valores base, como taxas
-        const orcamento = await Orcamento.findOne({ _id: pedidoId, contaId });
-        if (!orcamento) {
-            return res.status(404).json({ message: "Pedido não encontrado." });
-        }
-        const taxasCusto = orcamento.taxas || 0;
-
-        // Calcula o custo dos materiais a partir do array enviado pelo frontend
-        let custoTotalMateriais = 0;
-        if (materiais && Array.isArray(materiais)) {
-            custoTotalMateriais = materiais.reduce((acc, item) => {
-                const price = item.price || item.custoUnitario || 0;
-                const qty = item.qty || item.quantidade || 0;
-                return acc + (price * qty);
-            }, 0);
-        }
-
-        // Calcula os outros custos
-        const custoMaoDeObra = Number(horasEstimadas || 0) * Number(custoHora || 0);
-        const custoTotalTerceiros = Number(custosTerceiros || 0);
-
-        // Soma todos os custos
-        const custoTotal = custoTotalMateriais + taxasCusto + custoMaoDeObra + custoTotalTerceiros;
-
-        // 4. LÓGICA DE CÁLCULO CORRIGIDA (LUCRO SOBRE O CUSTO)
-        const margemDecimal = Number(margemLucro || 0) / 100;
-
-        // A fórmula agora é Custo Total + (Custo Total * Margem)
-        const precoSugerido = custoTotal * (1 + margemDecimal);
-        // --- FIM DA CORREÇÃO ---
-
-        let sugestaoCustoTerceiros = 0;
-        if (custoTotalTerceiros === 0 && (custoTotalMateriais > 0 || custoMaoDeObra > 0)) {
-            sugestaoCustoTerceiros = (custoTotalMateriais + custoMaoDeObra) * 0.20; // Sugere 20%
-        }
-
-        // (Opcional) Guarda os dados do cálculo para referência
-        await Orcamento.findByIdAndUpdate(pedidoId, {
-            horasEstimadas: Number(horasEstimadas || 0),
-            custoHora: Number(custoHora || 0),
-            margemLucro: Number(margemLucro || 0)
-        });
-
-        res.status(200).json({
-            precoSugerido: precoSugerido.toFixed(2),
-            custoTotal: custoTotal.toFixed(2),
-            sugestaoCustoTerceiros: sugestaoCustoTerceiros.toFixed(2)
-        });
-
-    } catch (error) {
-        console.error("Erro ao calcular preço sugerido:", error);
-        res.status(500).json({ message: 'Erro ao processar a sugestão de preço.' });
-    }
-};
-
 // Cria um novo orçamento, com lógica para criar ou encontrar o cliente
 const createOrcamento = async (req, res) => {
     const errors = validationResult(req);
@@ -1211,7 +1144,6 @@ module.exports = {
     marcarComoPago,
     attachInvoice,
     getPedidosPorCliente,
-    calcularPrecoSugerido,
     removeCustoMaterial,
     removerMaterialDoPedido,
     gerarLinkPagamento,
