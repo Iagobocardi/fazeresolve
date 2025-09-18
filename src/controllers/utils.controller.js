@@ -49,6 +49,51 @@ const getAddressByCep = async (req, res) => {
     }
 };
 
+const estimarCustoProduto = async (req, res) => {
+    try {
+        const { descricao } = req.body;
+
+        if (!descricao) {
+            return res.status(400).json({ message: 'A descrição do produto é obrigatória.' });
+        }
+
+        const searchTerm = `preço ${descricao}`;
+        const searchResults = await google_search(searchTerm);
+
+        // Regex para encontrar preços no formato R$ 1.234,56 ou R$1234,56 etc.
+        const priceRegex = /R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g;
+        let prices = [];
+        let match;
+
+        while ((match = priceRegex.exec(searchResults)) !== null) {
+            // Converte o preço encontrado para um número (ex: "1.234,56" -> 1234.56)
+            const priceString = match[1].replace(/\./g, '').replace(',', '.');
+            prices.push(parseFloat(priceString));
+        }
+
+        if (prices.length === 0) {
+            return res.status(404).json({ message: 'Nenhum preço de referência encontrado.' });
+        }
+
+        const sum = prices.reduce((a, b) => a + b, 0);
+        const averagePrice = sum / prices.length;
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+
+        res.status(200).json({
+            averagePrice: parseFloat(averagePrice.toFixed(2)),
+            minPrice,
+            maxPrice,
+            sourceCount: prices.length
+        });
+
+    } catch (error) {
+        console.error("Erro ao estimar custo do produto:", error);
+        res.status(500).json({ message: 'Erro interno do servidor ao estimar custo.', error: error.message });
+    }
+};
+
 module.exports = {
     getAddressByCep,
+    estimarCustoProduto,
 };
