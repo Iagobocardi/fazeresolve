@@ -89,7 +89,7 @@ const estimarCustoProduto = async (req, res) => {
 
     } catch (error) {
         console.error("Erro ao estimar custo do produto:", error);
-        res.status(500).json({ message: 'Erro interno do servidor ao estimar custo.' });
+        res.status(500).json({ message: 'Erro interno do servidor ao estimar custo.', error: error.message });
     }
 };
 
