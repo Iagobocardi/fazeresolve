@@ -49,6 +49,40 @@ const getAddressByCep = async (req, res) => {
     }
 };
 
+const calcularPrecoVenda = (req, res) => {
+    try {
+        const { materiais, horasEstimadas, custoHora, custosTerceiros, margemLucro } = req.body;
+
+        let custoTotalMateriais = 0;
+        if (materiais && Array.isArray(materiais)) {
+            custoTotalMateriais = materiais.reduce((acc, item) => {
+                const price = item.price || 0;
+                const qty = item.qty || 0;
+                return acc + (price * qty);
+            }, 0);
+        }
+
+        const custoMaoDeObra = Number(horasEstimadas || 0) * Number(custoHora || 0);
+        const custoTotalTerceiros = Number(custosTerceiros || 0);
+
+        const custoTotal = custoTotalMateriais + custoMaoDeObra + custoTotalTerceiros;
+
+        const margemDecimal = Number(margemLucro || 0) / 100;
+        const precoSugerido = custoTotal * (1 + margemDecimal);
+
+        res.status(200).json({
+            precoSugerido: precoSugerido.toFixed(2),
+            custoTotal: custoTotal.toFixed(2),
+        });
+
+    } catch (error) {
+        console.error("Erro ao calcular preço de venda:", error);
+        res.status(500).json({ message: 'Erro ao calcular preço de venda.' });
+    }
+};
+
+
 module.exports = {
     getAddressByCep,
+    calcularPrecoVenda,
 };
