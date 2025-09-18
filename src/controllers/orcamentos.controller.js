@@ -173,7 +173,11 @@ const calcularPrecoSugerido = async (req, res) => {
     try {
         const { contaId } = req.user;
         const { pedidoId } = req.params;
-        const { horasEstimadas, custoHora, margemLucro, custosTerceiros } = req.body;
+        
+        // Validação do ID do pedido
+        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return res.status(400).json({ message: 'O ID do pedido fornecido é inválido.' });
+        }
 
         const { horasEstimadas, custoHora, margemLucro, custosTerceiros, materiais } = req.body;
 
