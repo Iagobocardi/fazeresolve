@@ -175,52 +175,30 @@ const calcularPrecoSugerido = async (req, res) => {
         const { pedidoId } = req.params;
         const { horasEstimadas, custoHora, margemLucro, custosTerceiros } = req.body;
 
-        // --- INÍCIO DA CORREÇÃO ---
-        // Busca o orçamento e já calcula o custo dos materiais via agregação, que é mais eficiente.
-        const aggregationResult = await Orcamento.aggregate([
-            { $match: { _id: new mongoose.Types.ObjectId(pedidoId), contaId: new mongoose.Types.ObjectId(contaId) } },
-            {
-                $project: {
-                    taxas: 1, // Inclui o campo taxas no resultado
-                    custoTotalMateriais: {
-                        $add: [
-                            {
-                                $sum: {
-                                    $map: {
-                                        input: { $ifNull: ['$materiaisUsados', []] },
-                                        as: 'item',
-                                        in: { $multiply: ['$$item.custoNoMomento', '$$item.quantidade'] }
-                                    }
-                                }
-                            },
-                            {
-                                $sum: {
-                                    $map: {
-                                        input: { $ifNull: ['$custosMateriais', []] },
-                                        as: 'custo',
-                                        in: { $toDouble: '$$custo.valor' }
-                                    }
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
-        ]);
+        const { horasEstimadas, custoHora, margemLucro, custosTerceiros, materiais } = req.body;
 
-        if (!aggregationResult || aggregationResult.length === 0) {
+        // Busca o orçamento para pegar valores base, como taxas
+        const orcamento = await Orcamento.findOne({ _id: pedidoId, contaId });
+        if (!orcamento) {
             return res.status(404).json({ message: "Pedido não encontrado." });
         }
-
-        const orcamento = aggregationResult[0];
-        const custoTotalMateriais = orcamento.custoTotalMateriais || 0;
         const taxasCusto = orcamento.taxas || 0;
 
-        // 2. Calcula os outros custos
+        // Calcula o custo dos materiais a partir do array enviado pelo frontend
+        let custoTotalMateriais = 0;
+        if (materiais && Array.isArray(materiais)) {
+            custoTotalMateriais = materiais.reduce((acc, item) => {
+                const price = item.price || item.custoUnitario || 0;
+                const qty = item.qty || item.quantidade || 0;
+                return acc + (price * qty);
+            }, 0);
+        }
+
+        // Calcula os outros custos
         const custoMaoDeObra = Number(horasEstimadas || 0) * Number(custoHora || 0);
         const custoTotalTerceiros = Number(custosTerceiros || 0);
 
-        // 3. Soma todos os custos
+        // Soma todos os custos
         const custoTotal = custoTotalMateriais + taxasCusto + custoMaoDeObra + custoTotalTerceiros;
 
         // 4. LÓGICA DE CÁLCULO CORRIGIDA (LUCRO SOBRE O CUSTO)
