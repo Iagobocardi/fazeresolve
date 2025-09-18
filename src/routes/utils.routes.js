@@ -9,4 +9,7 @@ router.use(authMiddleware);
 // Rota para buscar endereço por CEP
 router.get('/cep/:cep', utilsController.getAddressByCep);
 
+// Rota para a calculadora de preço de venda
+router.post('/calcular-preco', utilsController.calcularPrecoVenda);
+
 module.exports = router;

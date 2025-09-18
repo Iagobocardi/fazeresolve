@@ -43,8 +43,7 @@ router.patch('/:id/pagamento', checkPermission('editar_orcamentos'), orcamentosC
 router.patch('/:id/operacional', checkPermission('editar_orcamentos'), orcamentosController.updateDetalhesOperacionais);
 router.post('/:id/custos', checkPermission('editar_orcamentos'), orcamentosController.addCustoMaterial);
 
-// --- ADICIONE A NOVA ROTA AQUI ---
-router.post('/:pedidoId/sugerir-preco', checkPermission('editar_orcamentos'), orcamentosController.calcularPrecoSugerido);
+// Rota para sugerir preço foi movida para utils.routes.js
 
 // Rota para ADICIONAR um novo pagamento a um orçamento
 router.post('/:id/pagamentos', checkPermission('editar_orcamentos'), orcamentosController.adicionarPagamento);
