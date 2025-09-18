@@ -15,7 +15,6 @@ const orcamentoService = require('../services/orcamento.service');
 const Configuracao = require('../models/configuracao.model.js');
 const Cliente = require('../models/cliente.model.js');
 const Conta = require('../models/conta.model.js');
-const { atualizarValorGastoCliente } = require('../services/financeiro.service');
 
 
 // Regras de validação (podem ser expandidas)
@@ -910,9 +909,6 @@ const adicionarPagamento = async (req, res) => {
             metodoPagamento: metodoCorreto,
         });
         await novaTransacao.save({ session });
-
-        // Atualiza o valor total gasto pelo cliente
-        await atualizarValorGastoCliente(orcamento.cliente, valor);
         
         await session.commitTransaction();
         session.endSession();

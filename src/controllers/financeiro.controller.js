@@ -107,7 +107,7 @@ const createManualTransacao = async (req, res) => {
         }
 
         const { contaId } = req.user;
-        const { tipo, descricao, valor, categoria, data, metodoPagamento, fornecedorId } = req.body;
+        const { tipo, descricao, valor, categoria, data, metodoPagamento } = req.body;
 
         if (!tipo || !descricao || !valor) {
             return res.status(400).json({ message: "Tipo, descrição e valor são obrigatórios." });
@@ -116,7 +116,7 @@ const createManualTransacao = async (req, res) => {
             return res.status(400).json({ message: "O tipo da transação deve ser 'Receita' ou 'Despesa'." });
         }
 
-        const transacaoData = {
+        const novaTransacao = new Transacao({
             contaId,
             tipo,
             descricao,
@@ -124,13 +124,7 @@ const createManualTransacao = async (req, res) => {
             categoria,
             data: data ? new Date(data) : new Date(),
             metodoPagamento,
-        };
-
-        if (fornecedorId) {
-            transacaoData.fornecedorId = fornecedorId;
-        }
-
-        const novaTransacao = new Transacao(transacaoData);
+        });
 
         // Se o upload para o Cloudinary foi bem-sucedido, a URL estará em req.file.cloudinaryUrl
         if (req.file && req.file.cloudinaryUrl) {
