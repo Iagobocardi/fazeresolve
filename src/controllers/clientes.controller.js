@@ -85,7 +85,7 @@ const getAllClientes = async (req, res) => {
         
         const saldoDevedorPromise = Orcamento.aggregate([
              { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: new Date() } } },
-             { 
+             {
                  $group: {
                      _id: null,
                      total: { $sum: '$valorProposto' }
@@ -187,7 +187,7 @@ const getClienteComPedidos = async (req, res) => {
         const { contaId } = req.user;
 
         const clientePromise = Cliente.findOne({ _id: clienteId, contaId: contaId });
-        
+
         const pedidosPromise = Orcamento.find({ cliente: clienteId, contaId: contaId })
             .select('shortId descricao status statusPagamento valorProposto tipo data dataVencimento')
             .sort({ data: -1 });
