@@ -134,10 +134,21 @@ const orcamentoSchema = new mongoose.Schema({
     // Campo para registrar os custos com materiais
     custosMateriais: [{
         descricao: { type: String, required: true },
-        valor: { type: 'Decimal128', required: true, get: v => parseFloat(v.toString()) },
+        valor: { type: mongoose.Schema.Types.Decimal128, required: true, get: v => parseFloat(v.toString()) },
         data: { type: Date, default: Date.now },
         tipo: { type: String, enum: ['Fixo', 'Estimado'], default: 'Fixo' }
     }],
+    
+    // Novos campos de custo
+    custoTerceiros: {
+        type: Number,
+        default: 0
+    },
+    outrosCustos: {
+        type: Number,
+        default: 0
+    },
+
     // Campos para o cálculo do preço sugerido
     horasEstimadas: {
         type: Number,
