@@ -259,6 +259,7 @@ const createOrcamento = async (req, res) => {
 // Atualiza um orçamento por ID
 const updateOrcamento = async (req, res) => {
     try {
+        console.log('Dados recebidos para atualização:', req.body);
         const { contaId } = req.user;
         const orcamentoAtualizado = await Orcamento.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true });
         if (!orcamentoAtualizado) {
