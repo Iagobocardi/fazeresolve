@@ -2,14 +2,14 @@
 
 const Fornecedor = require('../models/fornecedor.model.js');
 
-// Função para listar fornecedores com filtros e busca
+// Função para listar fornecedores com filtros, busca e total gasto
 exports.listarFornecedores = async (req, res) => {
     try {
         const { search, categoria } = req.query;
-        let query = { ativo: true };
+        let matchStage = { ativo: true };
 
         if (search) {
-            query.$or = [
+            matchStage.$or = [
                 { nomeFantasia: { $regex: search, $options: 'i' } },
                 { razaoSocial: { $regex: search, $options: 'i' } },
                 { cnpj: { $regex: search, $options: 'i' } }
@@ -17,10 +17,35 @@ exports.listarFornecedores = async (req, res) => {
         }
 
         if (categoria) {
-            query.categoria = categoria;
+            matchStage.categoria = categoria;
         }
 
-        const fornecedores = await Fornecedor.find(query).sort({ nomeFantasia: 1 });
+        const fornecedores = await Fornecedor.aggregate([
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'transacoes', // O nome da coleção no MongoDB
+                    localField: '_id',
+                    foreignField: 'fornecedorId',
+                    as: 'gastos',
+                    pipeline: [
+                        { $match: { tipo: 'Despesa' } }
+                    ]
+                }
+            },
+            {
+                $addFields: {
+                    totalGasto: { $sum: '$gastos.valor' }
+                }
+            },
+            {
+                $project: {
+                    gastos: 0 // Remove o array de gastos da resposta final
+                }
+            },
+            { $sort: { nomeFantasia: 1 } }
+        ]);
+
         res.status(200).json(fornecedores);
     } catch (error) {
         console.error("Erro ao listar fornecedores:", error);
