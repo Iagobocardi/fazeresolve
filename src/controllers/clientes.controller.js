@@ -4,27 +4,108 @@ const crypto = require('crypto');
 const whatsappService = require('../services/whatsapp.service');
 const mongoose = require('mongoose');
 
-// Função para listar todos os clientes de um prestador específico (REATORADA PARA PERFORMANCE)
+// Função para listar todos os clientes com dados agregados e KPIs
 const getAllClientes = async (req, res) => {
     try {
         const { contaId } = req.user;
         const { search } = req.query;
+        const contaObjId = new mongoose.Types.ObjectId(contaId);
 
-        let query = { contaId: contaId };
+        let matchStage = { contaId: contaObjId };
 
         if (search) {
             const regex = new RegExp(search, 'i');
-            query.$or = [
+            matchStage.$or = [
                 { nome: regex },
                 { email: regex },
                 { telefone: regex }
             ];
         }
-        
-        // Busca os clientes diretamente e ordena pelos que gastaram mais.
-        const clientes = await Cliente.find(query).sort({ valorTotalGasto: -1 });
 
-        res.status(200).json(clientes);
+        const clientesPromise = Cliente.aggregate([
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'orcamentos',
+                    localField: '_id',
+                    foreignField: 'cliente',
+                    as: 'pedidos'
+                }
+            },
+            {
+                $addFields: {
+                    statusFinanceiro: {
+                        $cond: {
+                            if: {
+                                $gt: [
+                                    {
+                                        $size: {
+                                            $filter: {
+                                                input: '$pedidos',
+                                                as: 'pedido',
+                                                cond: {
+                                                    $and: [
+                                                        { $eq: ['$$pedido.statusPagamento', 'Pendente'] },
+                                                        { $lt: ['$$pedido.dataVencimento', new Date()] }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }, 0]
+                            },
+                            then: 'Inadimplente',
+                            else: 'Em dia'
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    pedidos: 0, // Não envia a lista inteira de pedidos para o frontend
+                    'endereco.codigo_municipio': 0,
+                    conversationState: 0,
+                    currentDemand: 0,
+                    activeContext: 0
+                }
+            },
+            { $sort: { valorTotalGasto: -1 } }
+        ]);
+
+        const kpisPromise = Cliente.aggregate([
+            { $match: { contaId: contaObjId } },
+            {
+                $group: {
+                    _id: '$contaId',
+                    clientesAtivos: { $sum: 1 },
+                    somaValorTotalGasto: { $sum: '$valorTotalGasto' },
+                    somaTotalPedidos: { $sum: '$totalPedidos' }
+                }
+            }
+        ]);
+        
+        const saldoDevedorPromise = Orcamento.aggregate([
+             { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: new Date() } } },
+             { 
+                 $group: {
+                     _id: null,
+                     total: { $sum: '$valorProposto' }
+                 }
+             }
+        ]);
+
+
+        const [clientes, kpisResult, saldoDevedorResult] = await Promise.all([clientesPromise, kpisPromise, saldoDevedorPromise]);
+
+        const kpisData = kpisResult[0] || {};
+        const saldoDevedor = saldoDevedorResult[0]?.total || 0;
+
+        const kpis = {
+            clientesAtivos: kpisData.clientesAtivos || 0,
+            saldoDevedorTotal: saldoDevedor,
+            valorMedioPorPedido: (kpisData.somaTotalPedidos > 0) ? (kpisData.somaValorTotalGasto / kpisData.somaTotalPedidos) : 0
+        };
+
+        res.status(200).json({ clientes, kpis });
     } catch (error) {
         console.error("Erro ao buscar clientes:", error);
         res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
@@ -102,16 +183,30 @@ const deletarCliente = async (req, res) => {
 };
 const getClienteComPedidos = async (req, res) => {
     try {
-        const cliente = await Cliente.findById(req.params.id);
-        if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
-        }
-        // CORREÇÃO: A busca agora seleciona mais campos para o histórico.
-        const pedidos = await Orcamento.find({ cliente: cliente._id })
-            .select('shortId descricao status valorProposto tipo data') // Seleciona os campos específicos
+        const clienteId = req.params.id;
+        const { contaId } = req.user;
+
+        const clientePromise = Cliente.findOne({ _id: clienteId, contaId: contaId });
+        
+        const pedidosPromise = Orcamento.find({ cliente: clienteId, contaId: contaId })
+            .select('shortId descricao status statusPagamento valorProposto tipo data dataVencimento')
             .sort({ data: -1 });
+
+        const [cliente, pedidos] = await Promise.all([clientePromise, pedidosPromise]);
+
+        if (!cliente) {
+            return res.status(404).json({ error: 'Cliente não encontrado ou não pertence a esta conta.' });
+        }
+
+        // Calcula o saldo devedor para este cliente específico
+        const saldoDevedor = pedidos.reduce((acc, pedido) => {
+            if (pedido.statusPagamento === 'Pendente' && pedido.dataVencimento && new Date(pedido.dataVencimento) < new Date()) {
+                return acc + pedido.valorProposto;
+            }
+            return acc;
+        }, 0);
             
-        res.status(200).json({ cliente, pedidos });
+        res.status(200).json({ cliente, pedidos, saldoDevedor });
     } catch (error) {
         console.error("ERRO em getClienteComPedidos:", error);
         res.status(500).json({ error: 'Erro ao buscar detalhes do cliente.' });
