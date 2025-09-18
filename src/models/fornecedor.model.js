@@ -3,24 +3,34 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
+const contatoSchema = new Schema({
+    nome: { type: String, trim: true },
+    telefone: { type: String, trim: true },
+    email: { type: String, trim: true }
+}, { _id: false });
+
 const fornecedorSchema = new Schema({
-    nome: {
+    nomeFantasia: {
         type: String,
-        required: [true, 'O nome do fornecedor é obrigatório.'],
+        required: [true, 'O nome fantasia do fornecedor é obrigatório.'],
+        trim: true
+    },
+    razaoSocial: {
+        type: String,
+        trim: true
+    },
+    cnpj: {
+        type: String,
         trim: true,
-        unique: true
+        unique: true,
+        sparse: true // Permite múltiplos documentos com cnpj nulo/vazio, mas garante que se houver um valor, ele seja único
     },
-    especialidade: {
+    categoria: {
         type: String,
-        required: [true, 'A especialidade é obrigatória.'],
         trim: true
     },
-    contato: { // Telefone ou Email
-        type: String,
-        required: true,
-        trim: true
-    },
-    endereco: {
+    contato: contatoSchema,
+    observacoes: {
         type: String,
         trim: true
     },
@@ -35,6 +45,9 @@ const fornecedorSchema = new Schema({
 }, {
     timestamps: true
 });
+
+// Índice para busca de texto em nomeFantasia e razaoSocial
+fornecedorSchema.index({ nomeFantasia: 'text', razaoSocial: 'text', cnpj: 'text' });
 
 const Fornecedor = mongoose.model('Fornecedor', fornecedorSchema);
 
