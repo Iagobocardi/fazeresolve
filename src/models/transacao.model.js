@@ -36,6 +36,11 @@ const transacaoSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Orcamento'
     },
+    fornecedorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Fornecedor',
+        index: true
+    },
     metodoPagamento: {
         type: String,
         trim: true
