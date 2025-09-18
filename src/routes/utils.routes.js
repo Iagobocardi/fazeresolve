@@ -9,4 +9,7 @@ router.use(authMiddleware);
 // Rota para buscar endereço por CEP
 router.get('/cep/:cep', utilsController.getAddressByCep);
 
+// Rota para estimar o custo de um produto
+router.post('/estimar-custo', utilsController.estimarCustoProduto);
+
 module.exports = router;
