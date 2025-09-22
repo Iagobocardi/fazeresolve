@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const orcamentosController = require('../controllers/orcamentos.controller');
+const utilsController = require('../controllers/utils.controller'); // Importa o controller de utils
 const authMiddleware = require('../middlewares/auth.middleware');
 const checkPermission = require('../middlewares/checkPermission.middleware');
 const checkPlan = require('../middlewares/checkPlan.middleware');
@@ -44,6 +45,9 @@ router.patch('/:id/operacional', checkPermission('editar_orcamentos'), orcamento
 router.post('/:id/custos', checkPermission('editar_orcamentos'), orcamentosController.addCustoMaterial);
 
 // Rota para sugerir preço foi movida para utils.routes.js
+// Restaurando a rota antiga para manter a compatibilidade com o frontend existente.
+router.post('/:id/sugerir-preco', checkPermission('editar_orcamentos'), utilsController.calcularPrecoVenda);
+
 
 // Rota para ADICIONAR um novo pagamento a um orçamento
 router.post('/:id/pagamentos', checkPermission('editar_orcamentos'), orcamentosController.adicionarPagamento);
