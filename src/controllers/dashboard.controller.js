@@ -169,7 +169,7 @@ exports.getTopRegioes = async (req, res) => {
         }
       }
     ]);
-    res.json(topRegioes);
+    res.status(200).json(topRegioes || []);
   } catch (error) {
     console.error('Erro ao buscar top regiões:', error);
     res.status(500).json({ message: 'Erro interno do servidor' });
