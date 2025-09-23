@@ -51,7 +51,7 @@ const getAddressByCep = async (req, res) => {
 
 const calcularPrecoVenda = (req, res) => {
     try {
-        const { materiais, horasEstimadas, custoHora, custosTerceiros, margemLucro, custoTotalMateriais: custoTotalMateriaisCalculado } = req.body;
+        const { materiais, horasEstimadas, custoHora, custoTerceiros, margemLucro, custoMateriais } = req.body;
 
         let custoTotalMateriais = 0;
         if (materiais && Array.isArray(materiais) && materiais.length > 0) {
@@ -60,12 +60,12 @@ const calcularPrecoVenda = (req, res) => {
                 const qty = item.qty || 0;
                 return acc + (price * qty);
             }, 0);
-        } else if (custoTotalMateriaisCalculado) {
-            custoTotalMateriais = Number(custoTotalMateriaisCalculado || 0);
+        } else if (custoMateriais) {
+            custoTotalMateriais = Number(custoMateriais || 0);
         }
 
         const custoMaoDeObra = Number(horasEstimadas || 0) * Number(custoHora || 0);
-        const custoTotalTerceiros = Number(custosTerceiros || 0);
+        const custoTotalTerceiros = Number(custoTerceiros || 0);
 
         const custoTotal = custoTotalMateriais + custoMaoDeObra + custoTotalTerceiros;
 
