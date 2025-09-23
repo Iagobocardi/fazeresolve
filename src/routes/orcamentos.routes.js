@@ -23,10 +23,10 @@ router.get('/recentes', checkPermission('ver_orcamentos'), orcamentosController.
 router.get('/avaliar/:id/:nota', orcamentosController.registrarAvaliacao); // Rota pública, sem verificação de permissão
 router.get('/agendados', checkPermission('ver_agenda'), orcamentosController.getAgendamentosParaCalendario); // Requer permissão de agenda
 router.post(
-    '/:id/upload-foto', 
-    checkPermission('editar_orcamentos'), 
-    multerMemoryUpload.single('foto'), 
-    uploadToCloudinary('orcamentos'), 
+    '/:id/upload-foto',
+    checkPermission('editar_orcamentos'),
+    multerMemoryUpload.single('foto'),
+    uploadToCloudinary('orcamentos'),
     orcamentosController.uploadFotoServico
 );
 router.delete('/:orcamentoId/fotos/:fotoId', checkPermission('editar_orcamentos'), orcamentosController.removerFotoServico);
@@ -47,8 +47,7 @@ router.post('/:id/custos', checkPermission('editar_orcamentos'), orcamentosContr
 
 // Rota para sugerir preço foi movida para utils.routes.js
 // Restaurando a rota antiga para manter a compatibilidade com o frontend existente.
-// O :id é opcional para permitir o cálculo em orçamentos ainda não salvos.
-router.post('/:id?/sugerir-preco', checkPermission('editar_orcamentos'), utilsController.calcularPrecoVenda);
+router.post('/:id/sugerir-preco', checkPermission('editar_orcamentos'), utilsController.calcularPrecoVenda);
 
 
 // Rota para ADICIONAR um novo pagamento a um orçamento
