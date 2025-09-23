@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 const NodeGeocoder = require('node-geocoder');
 const Servico = require('../models/servico.model');
-// const Transacao = require('../models/transacao.model'); // SUBSTITUÍDO - Removido pois parece obsoleto e pode causar erro.
+const Transacao = require('../models/transacao.model');
 const Orcamento = require('../models/orcamento.model');
 const Agendamento = require('../models/agendamento.model');
 const Despesa = require('../models/despesa.model');
@@ -30,6 +30,58 @@ exports.getServicosReportData = async () => {
     ]);
 
     return bodyData;
+};
+
+/**
+ * Busca e calcula os dados para o gráfico de desempenho financeiro mensal.
+ */
+exports.getMonthlyFinancialPerformance = async (contaId) => {
+    const dozeMesesAtras = new Date();
+    dozeMesesAtras.setMonth(dozeMesesAtras.getMonth() - 12);
+
+    const resultados = await Transacao.aggregate([
+        {
+            $match: {
+                contaId: new mongoose.Types.ObjectId(contaId),
+                data: { $gte: dozeMesesAtras }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    year: { $year: "$data" },
+                    month: { $month: "$data" }
+                },
+                receita: {
+                    $sum: {
+                        $cond: [{ $eq: ["$tipo", "Receita"] }, "$valor", 0]
+                    }
+                },
+                despesa: {
+                    $sum: {
+                        $cond: [{ $eq: ["$tipo", "Despesa"] }, "$valor", 0]
+                    }
+                }
+            }
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1 } },
+        {
+            $project: {
+                _id: 0,
+                mes: {
+                    $concat: [
+                        { $toString: "$_id.year" },
+                        "-",
+                        { $toString: { $cond: { if: { $lt: ["$_id.month", 10] }, then: { $concat: ["0", { $toString: "$_id.month" }] }, else: { $toString: "$_id.month" } } } }
+                    ]
+                },
+                receita: "$receita",
+                despesa: "$despesa"
+            }
+        }
+    ]);
+
+    return resultados;
 };
 
 /**
