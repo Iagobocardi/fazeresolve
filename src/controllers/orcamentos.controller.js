@@ -31,20 +31,12 @@ const getAllOrcamentos = async (req, res) => {
         const { contaId } = req.user;
         const { search, statusPagamento, dataInicio, dataFim } = req.query;
 
-        // --- DEBUGGING INÍCIO ---
-        const debugLog = (filename, data) => {
-            fs.writeFileSync(`./${filename}`, JSON.stringify(data, null, 2));
-        };
-
         // Estágio inicial do pipeline de agregação
         const pipeline = [
             {
                 $match: { contaId: new mongoose.Types.ObjectId(contaId) }
             }
         ];
-
-        const step1_result = await Orcamento.aggregate(pipeline);
-        debugLog('debug_step1_match.json', { count: step1_result.length, data: step1_result.map(d => ({ _id: d._id, cliente: d.cliente })) });
 
         pipeline.push({
             $lookup: {
@@ -60,9 +52,6 @@ const getAllOrcamentos = async (req, res) => {
                 preserveNullAndEmptyArrays: true 
             }
         });
-
-        const step2_result = await Orcamento.aggregate(pipeline);
-        debugLog('debug_step2_lookup.json', { count: step2_result.length, data: step2_result.map(d => ({ _id: d._id, clienteInfo: d.clienteInfo ? { _id: d.clienteInfo._id, nome: d.clienteInfo.nome } : null })) });
 
         // 1. Adicionar campos calculados para facilitar a filtragem
         pipeline.push({
@@ -117,14 +106,10 @@ const getAllOrcamentos = async (req, res) => {
             cliente: orc.clienteInfo
         }));
 
-        debugLog('debug_final_response.json', { count: orcamentosComCliente.length, data: orcamentosComCliente });
-        // --- DEBUGGING FIM ---
-
         res.json(orcamentosComCliente);
         
     } catch (error) {
         console.error("Erro ao buscar orçamentos com filtros:", error);
-        fs.writeFileSync('./debug_error.json', JSON.stringify({ error: error.message, stack: error.stack }, null, 2));
         res.status(500).json({ message: error.message });
     }
 };
