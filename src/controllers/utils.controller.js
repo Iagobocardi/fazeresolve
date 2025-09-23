@@ -51,15 +51,17 @@ const getAddressByCep = async (req, res) => {
 
 const calcularPrecoVenda = (req, res) => {
     try {
-        const { materiais, horasEstimadas, custoHora, custosTerceiros, margemLucro } = req.body;
+        const { materiais, horasEstimadas, custoHora, custosTerceiros, margemLucro, custoTotalMateriais: custoTotalMateriaisCalculado } = req.body;
 
         let custoTotalMateriais = 0;
-        if (materiais && Array.isArray(materiais)) {
+        if (materiais && Array.isArray(materiais) && materiais.length > 0) {
             custoTotalMateriais = materiais.reduce((acc, item) => {
                 const price = item.price || 0;
                 const qty = item.qty || 0;
                 return acc + (price * qty);
             }, 0);
+        } else if (custoTotalMateriaisCalculado) {
+            custoTotalMateriais = Number(custoTotalMateriaisCalculado || 0);
         }
 
         const custoMaoDeObra = Number(horasEstimadas || 0) * Number(custoHora || 0);
@@ -69,10 +71,12 @@ const calcularPrecoVenda = (req, res) => {
 
         const margemDecimal = Number(margemLucro || 0) / 100;
         const precoSugerido = custoTotal * (1 + margemDecimal);
+        const lucroEstimado = precoSugerido - custoTotal;
 
         res.status(200).json({
             precoSugerido: precoSugerido.toFixed(2),
             custoTotal: custoTotal.toFixed(2),
+            lucroEstimado: lucroEstimado.toFixed(2),
         });
 
     } catch (error) {
