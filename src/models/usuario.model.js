@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const usuarioSchema = new Schema({
     nome: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
+    telefone: { type: String, unique: true, sparse: true },
     password: { type: String, required: true, select: false }, // select: false para não vir por padrão
     cpf: { type: String, unique: true, sparse: true }, // CPF para pagadores pessoa física
     
