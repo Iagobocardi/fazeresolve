@@ -1,5 +1,6 @@
 // Em: src/services/orcamento.service.js
 const mongoose = require('mongoose');
+const cloudinary = require('cloudinary').v2;
 const Orcamento = require('../models/orcamento.model');
 const Produto = require('../models/produto.model');
 const MovimentoEstoque = require('../models/movimentoEstoque.model'); 
@@ -362,6 +363,38 @@ const removerMaterial = async (contaId, orcamentoId, materialUsadoId) => {
     }
 };
 
+const removerFoto = async (contaId, orcamentoId, fotoId) => {
+    const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId: contaId });
+
+    if (!orcamento) {
+        throw new NotFoundError("Orçamento não encontrado ou não pertence a esta conta.");
+    }
+
+    const foto = orcamento.fotosServico.id(fotoId);
+    if (!foto) {
+        throw new NotFoundError("Foto não encontrada no orçamento.");
+    }
+
+    // Lógica para extrair o public_id da URL do Cloudinary
+    // Ex: "http://res.cloudinary.com/demo/image/upload/v1571289059/sample.jpg" -> "sample"
+    // Uma abordagem mais robusta pode ser necessária dependendo da estrutura exata da sua URL.
+    const urlParts = foto.url.split('/');
+    const publicIdWithExtension = urlParts.slice(urlParts.indexOf('upload') + 2).join('/');
+    const public_id = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
+
+    if (public_id) {
+        await cloudinary.uploader.destroy(public_id);
+    }
+
+    // Remove a foto do array no Mongoose
+    orcamento.fotosServico.pull({ _id: fotoId });
+    
+    // Salva o documento do orçamento atualizado
+    await orcamento.save();
+
+    return orcamento;
+};
+
 // Exportamos a função para que os controllers possam usá-la
 const enviarCobrancaComDesconto = async (contaId, orcamentoId, desconto, templateId) => {
     // 1. Validação de entrada
@@ -443,6 +476,7 @@ module.exports = {
     getClienteInfo, 
     adicionarMaterial,
     removerMaterial,
+    removerFoto,
     gerarLinkPagamentoMercadoPago,
     enviarCobrancaComDesconto,
 };
