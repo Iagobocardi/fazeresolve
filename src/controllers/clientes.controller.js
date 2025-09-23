@@ -127,25 +127,10 @@ const buscarClientePorId = async (req, res) => {
 
 // Função para criar um novo cliente (será usada pelo painel no futuro)
 const criarCliente = async (req, res) => {
-    // NOSSOS DETECTIVES:
-    console.log('--- CONTROLLER: A função criarCliente foi chamada. ---');
-    console.log('--- DADOS RECEBIDOS DO POSTMAN (req.body): ---');
-    console.log(req.body);
-    console.log(`--- SENHA RECEBIDA DIRETAMENTE: ${req.body.password} ---`);
-
     try {
         const novoCliente = new Cliente(req.body);
-
-        console.log('--- OBJETO CLIENTE PREPARADO (ANTES DE .save()) ---');
-        console.log('A senha neste objeto é:', novoCliente.password);
-
         const clienteSalvo = await novoCliente.save();
-
-        console.log('--- CLIENTE SALVO NO BANCO DE DADOS (DEPOIS DE .save()) ---');
-        console.log(clienteSalvo);
-
         res.status(201).json(clienteSalvo);
-
     } catch (error) {
         console.error('ERRO DETALHADO AO CRIAR CLIENTE:', error);
         res.status(500).json({
