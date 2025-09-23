@@ -47,7 +47,8 @@ router.post('/:id/custos', checkPermission('editar_orcamentos'), orcamentosContr
 
 // Rota para sugerir preço foi movida para utils.routes.js
 // Restaurando a rota antiga para manter a compatibilidade com o frontend existente.
-router.post('/:id/sugerir-preco', checkPermission('editar_orcamentos'), utilsController.calcularPrecoVenda);
+// O :id é opcional para permitir o cálculo em orçamentos ainda não salvos.
+router.post('/:id?/sugerir-preco', checkPermission('editar_orcamentos'), utilsController.calcularPrecoVenda);
 
 
 // Rota para ADICIONAR um novo pagamento a um orçamento
