@@ -40,6 +40,7 @@ const portalClienteRoutes = require('./src/routes/portalCliente.routes.js');
 const produtosRoutes = require('./src/routes/produtos.routes.js');
 const produtosFornecedorRoutes = require('./src/routes/produtosFornecedor.routes.js');
 const providerRoutes = require('./src/routes/provider.routes.js');
+const providerPublicRoutes = require('./src/routes/provider.public.routes.js'); // Rota pública
 const publicRoutes = require('./src/routes/public.routes.js');
 const relatorioRoutes = require('./src/routes/relatorios.routes.js');
 const servicoRoutes = require('./src/routes/servicos.routes.js');
@@ -52,30 +53,22 @@ const utilsRoutes = require('./src/routes/utils.routes.js');
 
 // Importação do Middleware
 const errorMiddleware = require('./src/middlewares/error.middleware');
-const authMiddleware = require('./src/middlewares/auth.middleware.js'); // O único middleware de autenticação de prestador necessário
+const authMiddleware = require('./src/middlewares/auth.middleware.js');
 const checkSubscription = require('./src/middlewares/checkSubscription.middleware.js');
 
 const app = express();
 
-// PASSO 4: Conectar à Base de Dados (movido para startServer)
-
 // PASSO 5: Middlewares Essenciais
-
 const cors = require('cors');
-
-// Configuração de CORS explícita para domínios permitidos
 const allowedOrigins = [
     'https://app.fazeresolve.com',
     'http://localhost:3000',
     'http://localhost:3001',
-    'http://localhost:5173', // Porta comum para Vite
+    'http://localhost:5173',
     'https://accounts.google.com',
 ];
-
 const corsOptions = {
     origin: (origin, callback) => {
-        // Permite requisições sem 'origin' (como Postman), de origens na lista,
-        // ou a origem "null" que alguns browsers enviam.
         if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -108,9 +101,10 @@ app.use('/api/portal-cliente', portalClienteRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/provider', providerPublicRoutes); // <-- ROTA PÚBLICA DO PRESTADOR
 
 // --- Rotas Protegidas do Prestador ---
-const providerAuthMiddlewares = [authMiddleware, checkSubscription]; // <-- A CORREÇÃO
+const providerAuthMiddlewares = [authMiddleware, checkSubscription];
 app.use('/api/agendamentos', providerAuthMiddlewares, agendamentoRoutes);
 app.use('/api/clientes', providerAuthMiddlewares, clienteRoutes);
 app.use('/api/financeiro', providerAuthMiddlewares, financeiroRoutes);
@@ -124,14 +118,14 @@ app.use('/api/dashboard', providerAuthMiddlewares, dashboardRoutes);
 app.use('/api/despesas', providerAuthMiddlewares, despesasRoutes);
 app.use('/api/produtos', providerAuthMiddlewares, produtosRoutes);
 app.use('/api/fornecedores', providerAuthMiddlewares, fornecedorRoutes);
-app.use('/api/configuracoes', configuracaoRoutes); // <-- CORREÇÃO APLICADA AQUI
+app.use('/api/configuracoes', configuracaoRoutes);
 app.use('/api/produtos-fornecedor', providerAuthMiddlewares, produtosFornecedorRoutes);
 app.use('/api/checklist', providerAuthMiddlewares, checklistRoutes);
 app.use('/api/google', providerAuthMiddlewares, googleRoutes);
 app.use('/api/estoque', providerAuthMiddlewares, estoqueRoutes);
 app.use('/api/upload', providerAuthMiddlewares, uploadRoutes);
 app.use('/api/conversas', providerAuthMiddlewares, conversaRoutes);
-app.use('/api/provider', providerAuthMiddlewares, providerRoutes);
+app.use('/api/provider', providerAuthMiddlewares, providerRoutes); // <-- ROTAS PRIVADAS DO PRESTADOR
 app.use('/api/focusnfe', providerAuthMiddlewares, focusnfeRoutes);
 app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
 app.use('/api/invoices', providerAuthMiddlewares, invoiceRoutes);
@@ -139,7 +133,6 @@ app.use('/api/membros', providerAuthMiddlewares, membroRoutes);
 const pixRoutes = require('./src/routes/pix.routes.js');
 app.use('/api/pix', pixRoutes);
 app.use('/api/utils', providerAuthMiddlewares, utilsRoutes);
-
 
 // Rota de teste
 app.get('/', (req, res) => {
