@@ -25,5 +25,8 @@ router.get('/estoque/historico/:produtoId', checkPermission('ver_financeiro'), r
 // --- Nova Rota para Relatório de Ticket Médio ---
 router.get('/ticket-medio', checkPermission('ver_financeiro'), relatoriosController.getTicketMedioMensal);
 
+// --- Nova Rota para Gráfico de Desempenho Financeiro ---
+router.get('/desempenho-financeiro-mensal', checkPermission('ver_financeiro'), relatoriosController.getDesempenhoFinanceiroMensal);
+
 
 module.exports = router;
