@@ -29,6 +29,7 @@ router.post(
     uploadToCloudinary('orcamentos'), 
     orcamentosController.uploadFotoServico
 );
+router.delete('/:orcamentoId/fotos/:fotoId', checkPermission('editar_orcamentos'), orcamentosController.removerFotoServico);
 router.get('/:id/fatura-pdf', checkPermission('ver_orcamentos'), orcamentosController.gerarFaturaPDF);
 router.get('/:id/orcamento-pdf', checkPermission('ver_orcamentos'), orcamentosController.gerarOrcamentoPDF);
 router.get('/por-cliente/:clienteId', checkPermission('ver_clientes'), orcamentosController.getPedidosPorCliente); // Requer permissão de clientes
