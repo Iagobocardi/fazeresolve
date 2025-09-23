@@ -228,7 +228,7 @@ const createOrcamento = async (req, res) => {
                 const produto = await Produto.findById(material.produto).session(session);
                 if (!produto) throw new Error(`Produto com ID ${material.produto} não encontrado.`);
                 if (produto.quantidadeEmEstoque < material.quantidade) throw new Error(`Estoque insuficiente para ${produto.nome}.`);
-                
+
                 produto.quantidadeEmEstoque -= material.quantidade;
                 await produto.save({ session });
 
