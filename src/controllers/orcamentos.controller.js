@@ -259,7 +259,6 @@ const createOrcamento = async (req, res) => {
 // Atualiza um orçamento por ID
 const updateOrcamento = async (req, res) => {
     try {
-        console.log('Dados recebidos para atualização:', req.body);
         const { contaId } = req.user;
         const orcamentoAtualizado = await Orcamento.findOneAndUpdate({ _id: req.params.id, contaId }, req.body, { new: true });
         if (!orcamentoAtualizado) {
@@ -632,6 +631,21 @@ const uploadFotoServico = async (req, res) => {
         res.status(500).json({ message: 'Erro ao fazer upload da foto.' });
     }
 };
+
+const removerFotoServico = async (req, res) => {
+    try {
+        const { orcamentoId, fotoId } = req.params;
+        const { contaId } = req.user;
+
+        const orcamentoAtualizado = await orcamentoService.removerFoto(contaId, orcamentoId, fotoId);
+
+        res.status(200).json({ message: "Foto removida com sucesso!", orcamento: orcamentoAtualizado });
+    } catch (error) {
+        console.error("ERRO na rota removerFotoServico:", error);
+        res.status(error.statusCode || 500).json({ message: error.message || 'Erro interno ao remover a foto.' });
+    }
+};
+
 const preencherTemplate = (templatePath, dados) => {
     let html = fs.readFileSync(templatePath, 'utf8');
 
@@ -1137,6 +1151,7 @@ module.exports = {
     updateDetalhesOperacionais,
     addCustoMaterial,
     uploadFotoServico,
+    removerFotoServico,
     gerarFaturaPDF,
     gerarOrcamentoPDF,
     adicionarPagamento,
