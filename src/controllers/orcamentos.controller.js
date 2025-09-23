@@ -161,6 +161,9 @@ const createOrcamento = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
 
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
         const { contaId } = req.user; // Captura o ID da conta
         const body = req.body;
@@ -174,16 +177,14 @@ const createOrcamento = async (req, res) => {
 
         let cliente;
         if (clienteData._id) {
-            cliente = await Cliente.findOne({ _id: clienteData._id, contaId });
+            cliente = await Cliente.findOne({ _id: clienteData._id, contaId }).session(session);
             if (!cliente) {
                 return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
             }
             
-            // If new address data is provided, update the client
             if (clienteData.endereco && typeof clienteData.endereco === 'object') {
-                // Use Object.assign to safely merge the new address data
                 cliente.endereco = Object.assign(cliente.endereco || {}, clienteData.endereco);
-                await cliente.save();
+                await cliente.save({ session });
             }
         } else {
             const dadosSegurosCliente = {
@@ -191,17 +192,14 @@ const createOrcamento = async (req, res) => {
                 endereco: clienteData.endereco,
                 contaId: contaId
             };
-
-            // Only set the email if it's a non-empty string
             if (clienteData.email && clienteData.email.trim() !== '') {
                 dadosSegurosCliente.email = clienteData.email;
             }
             Object.keys(dadosSegurosCliente).forEach(key => dadosSegurosCliente[key] === undefined && delete dadosSegurosCliente[key]);
-
             cliente = await Cliente.findOneAndUpdate(
                 { telefone: clienteData.telefone, contaId },
                 { $set: dadosSegurosCliente },
-                { upsert: true, new: true, runValidators: true }
+                { upsert: true, new: true, runValidators: true, session }
             );
         }
 
@@ -215,12 +213,54 @@ const createOrcamento = async (req, res) => {
             address: orcamentoData.address,
             cliente: cliente._id,
             contaId: contaId,
-            historico: [{ evento: 'Pedido criado via sistema.' }]
+            historico: [{ evento: 'Pedido criado via sistema.' }],
+            materiaisUsados: orcamentoData.materiaisUsados || [],
+            custosMateriais: orcamentoData.custosMateriais || []
         };
         Object.keys(dadosSegurosOrcamento).forEach(key => dadosSegurosOrcamento[key] === undefined && delete dadosSegurosOrcamento[key]);
 
         const novoOrcamento = new Orcamento(dadosSegurosOrcamento);
-        const orcamentoSalvo = await novoOrcamento.save();
+        const orcamentoSalvo = await novoOrcamento.save({ session });
+
+        // Processar materiaisUsados
+        if (orcamentoData.materiaisUsados && orcamentoData.materiaisUsados.length > 0) {
+            for (const material of orcamentoData.materiaisUsados) {
+                const produto = await Produto.findById(material.produto).session(session);
+                if (!produto) throw new Error(`Produto com ID ${material.produto} não encontrado.`);
+                if (produto.quantidadeEmEstoque < material.quantidade) throw new Error(`Estoque insuficiente para ${produto.nome}.`);
+                
+                produto.quantidadeEmEstoque -= material.quantidade;
+                await produto.save({ session });
+
+                const movimento = new MovimentoEstoque({
+                    contaId,
+                    produto: material.produto,
+                    tipo: 'Saída',
+                    quantidade: material.quantidade,
+                    motivo: `Uso no Pedido #${orcamentoSalvo.shortId}`,
+                    orcamentoAssociado: orcamentoSalvo._id
+                });
+                await movimento.save({ session });
+            }
+        }
+
+        // Processar custosMateriais
+        if (orcamentoData.custosMateriais && orcamentoData.custosMateriais.length > 0) {
+            for (const custo of orcamentoData.custosMateriais) {
+                const novaDespesa = new Despesa({
+                    contaId,
+                    descricao: `Material para pedido #${orcamentoSalvo.shortId}: ${custo.descricao}`,
+                    valor: custo.valor,
+                    categoria: 'Material',
+                    data: new Date(),
+                    orcamentoAssociado: orcamentoSalvo._id
+                });
+                await novaDespesa.save({ session });
+            }
+        }
+
+        await session.commitTransaction();
+        session.endSession();
 
         const conta = await Conta.findById(contaId);
         if (conta && conta.telefone) {
@@ -233,6 +273,8 @@ const createOrcamento = async (req, res) => {
 
         res.status(201).json(orcamentoSalvo);
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         console.error("Erro detalhado ao criar orçamento:", error);
         res.status(500).json({ 
             error: 'Ocorreu um erro ao salvar o orçamento.',
