@@ -240,6 +240,17 @@ const getTicketMedioMensal = async (req, res) => {
     }
 };
 
+const getDesempenhoFinanceiroMensal = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const data = await relatoriosService.getMonthlyFinancialPerformance(contaId);
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Erro ao buscar desempenho financeiro mensal:", error);
+        res.status(500).json({ message: "Erro ao buscar dados de desempenho financeiro." });
+    }
+};
+
 module.exports = {
     gerarRelatorioServicosPDF,
     gerarRelatorioFinanceiroPDF,
@@ -251,4 +262,5 @@ module.exports = {
     getNiveisEstoque,
     getHistoricoProduto,
     getTicketMedioMensal,
+    getDesempenhoFinanceiroMensal,
 };
