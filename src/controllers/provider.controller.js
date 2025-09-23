@@ -111,7 +111,6 @@ const handleMercadoPagoCallback = async (req, res) => {
         });
 
         const tokenData = response.data;
-        console.log('[DEBUG] Tokens recebidos do Mercado Pago:', tokenData);
 
         // Salva as credenciais e atualiza o status da conta
         await Conta.findByIdAndUpdate(contaId, {
