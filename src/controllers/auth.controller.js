@@ -94,14 +94,16 @@ const handleGoogleCallback = async (req, res) => {
 // MUDANÇA: Função de Login agora para Usuario
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { identifier, password } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
+        if (!identifier || !password) {
+            return res.status(400).json({ message: 'Identificador (email ou telefone) e senha são obrigatórios.' });
         }
 
-        // 1. Encontra o usuário pelo email
-        const usuario = await Usuario.findOne({ email }).select('+password');
+        // 1. Encontra o usuário pelo email ou telefone
+        const usuario = await Usuario.findOne({
+            $or: [{ email: identifier }, { telefone: identifier }]
+        }).select('+password');
 
         if (!usuario) {
             return res.status(401).json({ message: 'Credenciais inválidas.' });
@@ -181,10 +183,10 @@ const register = async (req, res) => {
     }
 
     try {
-        const { nomeEmpresa, nome, email, password, planoId, cpf, cnpj } = req.body; // Adicionado cpf e cnpj
+        const { nomeEmpresa, nome, email, telefone, password, planoId, cpf, cnpj } = req.body; // Adicionado cpf e cnpj
 
         // Checa se o usuário já existe
-        const existingUser = await Usuario.findOne({ email });
+        const existingUser = await Usuario.findOne({ $or: [{ email: email }, { telefone: telefone }] });
         if (existingUser) {
             return res.status(409).json({ message: 'Um usuário com este email já existe.' });
         }
@@ -218,6 +220,7 @@ const register = async (req, res) => {
         const userData = {
             nome,
             email,
+            telefone,
             password,
             contaId: novaConta._id,
             role: 'Dono',

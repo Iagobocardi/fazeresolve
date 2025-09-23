@@ -14,7 +14,12 @@ const getAllClientes = async (req, res) => {
         let matchStage = { contaId: contaObjId };
 
         if (search) {
-            const regex = new RegExp(search, 'i');
+            // Função para escapar caracteres especiais para a regex
+            const escapeRegex = (text) => {
+                return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+            };
+            const escapedSearch = escapeRegex(search);
+            const regex = new RegExp(escapedSearch, 'i');
             matchStage.$or = [
                 { nome: regex },
                 { email: regex },
