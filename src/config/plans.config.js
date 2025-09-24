@@ -1,6 +1,6 @@
 const PLANS = [
     {
-        id: '6b091fbd112d424db659ff4518124f92',
+        id: '30cf84763da1405d812d8c99a6935683',
         name: 'Essencial',
         permissions: [
             'ver_dashboard', 
@@ -12,7 +12,7 @@ const PLANS = [
         ]
     },
     {
-        id: '9e9933a8c7cb4e4f9e31559f958db1de',
+        id: 'ae12c6210aac4f72a09a4766fb693117',
         name: 'Profissional',
         permissions: [
             'ver_dashboard', 
@@ -26,7 +26,7 @@ const PLANS = [
         ]
     },
     {
-        id: '1db788e04d7540a9a7055b7b61bddfe4',
+        id: '7c8408f9ead94a2abfc4a0b92b0225f2',
         name: 'Premium',
         permissions: [
             'ver_dashboard', 
