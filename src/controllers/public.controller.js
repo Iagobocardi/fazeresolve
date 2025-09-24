@@ -146,6 +146,24 @@ const getPublicConfig = async (req, res) => {
 
 // --- CORREÇÃO APLICADA AQUI ---
 // O module.exports agora exporta apenas as funções que existem neste ficheiro.
+const PLANS = require('../config/plans.config.js');
+
+const getPublicPlans = (req, res) => {
+    try {
+        // Mapeia os planos para expor a nova estrutura com detalhes mensais e anuais
+        const publicPlans = PLANS.map(plan => ({
+            name: plan.name,
+            monthly: plan.monthly,
+            annual: plan.annual
+            // Não expomos as permissões, pois são dados internos do backend
+        }));
+        res.status(200).json(publicPlans);
+    } catch (error) {
+        console.error('Erro ao buscar a lista de planos públicos:', error);
+        res.status(500).json({ message: 'Erro ao buscar a lista de planos.' });
+    }
+};
+
 module.exports = {
     getPedidoByPublicId,
     aprovarOrcamentoPublico,
@@ -153,4 +171,5 @@ module.exports = {
     sugerirAgendamentoPublico,
     googleLogin,
     getPublicConfig,
+    getPublicPlans,
 };
