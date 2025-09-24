@@ -193,7 +193,15 @@ const register = async (req, res) => {
         
         // --- Lógica para associar plano e permissões ---
         const PLANS = require('../config/plans.config.js');
-        const selectedPlan = PLANS.find(p => p.id === planoId);
+        let selectedPlan = null;
+
+        // Procura o ID tanto nos planos mensais quanto nos anuais
+        for (const plan of PLANS) {
+            if (plan.monthly.id === planoId || plan.annual.id === planoId) {
+                selectedPlan = plan;
+                break;
+            }
+        }
 
         if (!selectedPlan) {
             return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
