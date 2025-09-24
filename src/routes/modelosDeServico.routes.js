@@ -7,20 +7,23 @@ const {
     updateModelo,
     deleteModelo
 } = require('../controllers/modelosDeServico.controller');
+const checkPermission = require('../middlewares/checkPermission.middleware');
+
+const hasPermission = checkPermission('gerenciar_modelos_servico');
 
 // GET /api/modelos
-router.get('/', getModelos);
+router.get('/', hasPermission, getModelos);
 
 // GET /api/modelos/:id
-router.get('/:id', getModeloById);
+router.get('/:id', hasPermission, getModeloById);
 
 // POST /api/modelos
-router.post('/', createModelo);
+router.post('/', hasPermission, createModelo);
 
 // PUT /api/modelos/:id
-router.put('/:id', updateModelo);
+router.put('/:id', hasPermission, updateModelo);
 
 // DELETE /api/modelos/:id
-router.delete('/:id', deleteModelo);
+router.delete('/:id', hasPermission, deleteModelo);
 
 module.exports = router;
