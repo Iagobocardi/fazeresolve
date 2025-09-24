@@ -73,21 +73,16 @@ exports.getProximosAgendamentos = async (req, res) => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
-    const agendamentosPotenciais = await Orcamento.find({
+    const proximosAgendamentos = await Orcamento.find({
       ...baseQuery,
       status: 'Agendado',
-      dataAgendamento: { $exists: true, $ne: null }
+      dataAgendamento: { $gte: hoje } // Filtro movido para a query do banco de dados
     })
     .sort({ dataAgendamento: 1 })
+    .limit(5) // Limite aplicado pelo banco de dados
     .populate('cliente', 'nome');
 
-    const proximosAgendamentosValidos = agendamentosPotenciais.filter(orcamento => {
-      const data = orcamento.dataAgendamento;
-      return data instanceof Date && !isNaN(data) && data >= hoje;
-    });
-
-    const limitedResults = proximosAgendamentosValidos.slice(0, 5);
-    res.json(limitedResults);
+    res.json(proximosAgendamentos);
 
   } catch (error) {
     console.error('Erro ao buscar próximos agendamentos:', error);
@@ -98,11 +93,15 @@ exports.getProximosAgendamentos = async (req, res) => {
 exports.getPedidosPendentes = async (req, res) => {
   try {
     const baseQuery = getBaseQuery(req);
+    const tresDiasAtras = new Date();
+    tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
+
     const pedidosPendentes = await Orcamento.find({
       ...baseQuery,
       status: 'Pendente',
+      data: { $lte: tresDiasAtras } // Apenas pedidos com mais de 3 dias
     })
-    .sort({ data: 1 })
+    .sort({ data: 1 }) // Mais antigos primeiro
     .limit(5)
     .populate('cliente', 'nome');
     res.json(pedidosPendentes);
@@ -134,8 +133,8 @@ exports.getTopRegioes = async (req, res) => {
   try {
     const baseQuery = getBaseQuery(req);
     const topRegioes = await Orcamento.aggregate([
-      // Estágio 1: Filtrar os orçamentos da conta correta
-      { $match: baseQuery },
+      // Estágio 1: Filtrar os orçamentos da conta correta e com status Finalizado
+      { $match: { ...baseQuery, status: 'Finalizado' } },
       // Estágio 2: Juntar com a coleção de clientes para obter detalhes do endereço
       {
         $lookup: {
@@ -263,5 +262,45 @@ exports.getVisibilidadeData = async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar dados de visibilidade:', error);
         res.status(500).json({ message: 'Erro interno ao processar dados de visibilidade.' });
+    }
+};
+
+exports.getFaturamentoPorCategoria = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+
+        const faturamento = await Orcamento.aggregate([
+            {
+                $match: {
+                    contaId: new mongoose.Types.ObjectId(contaId),
+                    status: 'Finalizado',
+                    categoria: { $exists: true, $ne: null, $ne: "" }
+                }
+            },
+            {
+                $group: {
+                    _id: '$categoria',
+                    total: { $sum: '$valorProposto' },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    categoria: '$_id',
+                    faturamento: '$total',
+                    pedidos: '$count'
+                }
+            },
+            {
+                $sort: { faturamento: -1 }
+            }
+        ]);
+
+        res.status(200).json(faturamento);
+
+    } catch (error) {
+        console.error('Erro ao buscar faturamento por categoria:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar dados.' });
     }
 };

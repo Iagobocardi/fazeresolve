@@ -130,6 +130,15 @@ app.use('/api/focusnfe', providerAuthMiddlewares, focusnfeRoutes);
 app.use('/api/permissoes', providerAuthMiddlewares, permissoesRoutes);
 app.use('/api/invoices', providerAuthMiddlewares, invoiceRoutes);
 app.use('/api/membros', providerAuthMiddlewares, membroRoutes);
+
+// Importação e uso das novas rotas de catálogo
+const catalogoRoutes = require('./src/routes/catalogo.routes.js');
+app.use('/api/catalogo', providerAuthMiddlewares, catalogoRoutes);
+
+// Importação e uso das novas rotas de modelos de serviço
+const modelosDeServicoRoutes = require('./src/routes/modelosDeServico.routes.js');
+app.use('/api/modelos', providerAuthMiddlewares, modelosDeServicoRoutes);
+
 const pixRoutes = require('./src/routes/pix.routes.js');
 app.use('/api/pix', pixRoutes);
 app.use('/api/utils', providerAuthMiddlewares, utilsRoutes);

@@ -12,6 +12,7 @@ const pdfService = require('../services/pdf.service');
 const fs = require('fs');
 const path = require('path');   
 const orcamentoService = require('../services/orcamento.service');
+const precificacaoService = require('../services/precificacao.service');
 const Configuracao = require('../models/configuracao.model.js');
 const Cliente = require('../models/cliente.model.js');
 const Conta = require('../models/conta.model.js');
@@ -528,17 +529,31 @@ const registrarAvaliacao = async (req, res) => {
 const getAgendamentosParaCalendario = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const orcamentosAgendados = await Orcamento.find({
-            contaId: contaId,
+        const { start, end } = req.query; // Parâmetros da query para o range de datas
+
+        const matchQuery = {
+            contaId: new mongoose.Types.ObjectId(contaId),
             status: 'Agendado',
             dataAgendamento: { $exists: true, $ne: null }
-        })
-        .populate('cliente', 'nome telefone')
-        .select('dataAgendamento descricao cliente');
+        };
 
-        // ✅ FILTRO DE SEGURANÇA ADICIONADO AQUI
-        // Antes de tentar formatar os dados, nós garantimos que não há nenhum pedido
-        // com cliente ou data faltando, prevenindo o erro.
+        // Se o frontend enviar um range de datas, usa-o para filtrar
+        if (start && end) {
+            matchQuery.dataAgendamento = {
+                $gte: new Date(start),
+                $lte: new Date(end)
+            };
+        } else {
+            // Fallback: se não houver range, pega de hoje em diante para não poluir
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            matchQuery.dataAgendamento = { $gte: hoje };
+        }
+
+        const orcamentosAgendados = await Orcamento.find(matchQuery)
+            .populate('cliente', 'nome telefone')
+            .select('dataAgendamento descricao cliente');
+
         const eventos = orcamentosAgendados
             .filter(orcamento => orcamento && orcamento.cliente && orcamento.dataAgendamento)
             .map(orcamento => {
@@ -1158,7 +1173,33 @@ const debugCosts = async (req, res) => {
     }
 };
 
+// =======================================================
+// 👉 NOVA FUNÇÃO PARA CALCULAR PREÇO USANDO MODELO
+// =======================================================
+const calcularOrcamentoPorModelo = async (req, res, next) => {
+    try {
+        const { modeloId, parametros } = req.body;
+        const userId = req.user._id;
+
+        if (!modeloId || !parametros) {
+            return res.status(400).json({ success: false, message: 'O ID do modelo e os parâmetros são obrigatórios.' });
+        }
+
+        const resultado = await precificacaoService.calcularPrecoPorModelo(modeloId, userId, parametros);
+
+        res.status(200).json({
+            success: true,
+            data: resultado
+        });
+
+    } catch (error) {
+        console.error("Erro ao calcular orçamento por modelo:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
+    calcularOrcamentoPorModelo,
     debugCosts,
     orcamentoValidationRules,
     getAllOrcamentos,

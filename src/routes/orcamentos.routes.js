@@ -50,6 +50,9 @@ router.post('/:id/custos', checkPermission('editar_orcamentos'), orcamentosContr
 router.post('/:id/sugerir-preco', checkPermission('editar_orcamentos'), utilsController.calcularPrecoVenda);
 
 
+// Rota para calcular o preço com base em um modelo de serviço
+router.post('/calcular-por-modelo', checkPermission('editar_orcamentos'), orcamentosController.calcularOrcamentoPorModelo);
+
 // Rota para ADICIONAR um novo pagamento a um orçamento
 router.post('/:id/pagamentos', checkPermission('editar_orcamentos'), orcamentosController.adicionarPagamento);
 // Rota para REMOVER um pagamento de um orçamento
