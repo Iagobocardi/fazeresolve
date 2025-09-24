@@ -14,17 +14,7 @@ const getAllClientes = async (req, res) => {
         let matchStage = { contaId: contaObjId };
 
         if (search) {
-            // Função para escapar caracteres especiais para a regex
-            const escapeRegex = (text) => {
-                return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-            };
-            const escapedSearch = escapeRegex(search);
-            const regex = new RegExp(escapedSearch, 'i');
-            matchStage.$or = [
-                { nome: regex },
-                { email: regex },
-                { telefone: regex }
-            ];
+            matchStage.$text = { $search: search };
         }
 
         const clientesPromise = Cliente.aggregate([
@@ -39,6 +29,8 @@ const getAllClientes = async (req, res) => {
             },
             {
                 $addFields: {
+                    valorTotalGasto: { $sum: '$pedidos.valorProposto' },
+                    totalPedidos: { $size: '$pedidos' },
                     statusFinanceiro: {
                         $cond: {
                             if: {
