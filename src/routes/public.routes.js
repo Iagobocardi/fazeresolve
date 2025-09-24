@@ -24,5 +24,8 @@ router.post('/google-login', publicController.googleLogin);
 // Rota para buscar configurações públicas (ex: links de indicação)
 router.get('/configuracoes', publicController.getPublicConfig);
 
+// Rota para buscar a lista de planos de assinatura
+router.get('/plans', publicController.getPublicPlans);
+
 
 module.exports = router;
