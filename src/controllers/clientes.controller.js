@@ -31,6 +31,8 @@ const getAllClientes = async (req, res) => {
                 $addFields: {
                     valorTotalGasto: { $sum: '$pedidos.valorProposto' },
                     totalPedidos: { $size: '$pedidos' },
+                    totalPago: { $sum: { $map: { input: "$pedidos", as: "p", in: { $sum: "$$p.pagamentos.valor" } } } },
+                    saldoDevedor: { $subtract: [ { $sum: '$pedidos.valorProposto' }, { $sum: { $map: { input: "$pedidos", as: "p", in: { $sum: "$$p.pagamentos.valor" } } } } ] },
                     statusFinanceiro: {
                         $cond: {
                             if: {
