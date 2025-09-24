@@ -29,14 +29,16 @@ const PLANS = [
             price: '1290'
         },
         permissions: [
-            'ver_dashboard', 
-            'ver_agenda', 
-            'editar_agenda', 
-            'ver_clientes', 
-            'editar_clientes', 
-            'ver_orcamentos', 
-            'editar_orcamentos', 
-            'ver_financeiro'
+            'ver_dashboard',
+            'ver_agenda',
+            'editar_agenda',
+            'ver_clientes',
+            'editar_clientes',
+            'ver_orcamentos',
+            'editar_orcamentos',
+            'ver_financeiro',
+            'usar_catalogo_inteligente',
+            'gerenciar_modelos_servico'
         ]
     },
     {
@@ -50,14 +52,16 @@ const PLANS = [
             price: '1990'
         },
         permissions: [
-            'ver_dashboard', 
-            'ver_agenda', 
-            'editar_agenda', 
-            'ver_clientes', 
-            'editar_clientes', 
-            'ver_orcamentos', 
-            'editar_orcamentos', 
-            'ver_financeiro'
+            'ver_dashboard',
+            'ver_agenda',
+            'editar_agenda',
+            'ver_clientes',
+            'editar_clientes',
+            'ver_orcamentos',
+            'editar_orcamentos',
+            'ver_financeiro',
+            'usar_catalogo_inteligente',
+            'gerenciar_modelos_servico'
         ]
     }
 ];
