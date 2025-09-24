@@ -79,6 +79,9 @@ const clienteSchema = new Schema({
 // Um mesmo número de telefone pode ser cliente de múltiplos prestadores.
 clienteSchema.index({ telefone: 1, contaId: 1 }, { unique: true });
 
+// Adiciona um índice de texto para buscas eficientes
+clienteSchema.index({ nome: 'text', email: 'text', telefone: 'text' });
+
 // O hook de 'pre-save' para hashear a senha foi removido, pois a autenticação
 // será gerenciada pelo modelo 'Usuario'.
 
