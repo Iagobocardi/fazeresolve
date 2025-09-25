@@ -14,7 +14,7 @@ exports.getItensMercado = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'A área de atuação é obrigatória.' });
     }
 
-    const itens = await CatalogoMercado.find({ areasDeAtuacao: area });
+    const itens = await CatalogoMercado.find({ areasDeAtuacao: { $in: [area] } });
 
     res.status(200).json({
       success: true,
