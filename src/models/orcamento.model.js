@@ -56,7 +56,6 @@ const orcamentoSchema = new mongoose.Schema({
     },
     shortId: { type: String, unique: true },
     dataAgendamento: { type: Date },
-    periodo: { type: String },
     googleEventId: { type: String },
     address: { type: String },
 
