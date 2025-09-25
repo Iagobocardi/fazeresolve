@@ -138,7 +138,7 @@ const parseCustomDate = (dateString) => {
  * @param {string|Date} dataAgendamento - A data para a qual o serviço será agendado.
  * @returns {Promise<Document>} O documento do orçamento atualizado.
  */
-const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
+const agendarServico = async (contaId, orcamentoId, dataAgendamento, periodo) => {
     const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId }).populate('cliente', 'nome telefone');
 
     if (!orcamento) {
@@ -153,7 +153,8 @@ const agendarServico = async (contaId, orcamentoId, dataAgendamento) => {
 
     orcamento.status = 'Agendado';
     orcamento.dataAgendamento = parsedDate;
-    orcamento.historico.push({ evento: `Serviço agendado para ${parsedDate.toLocaleString('pt-BR')}.` });
+    orcamento.periodo = periodo; // Salva o período
+    orcamento.historico.push({ evento: `Serviço agendado para ${parsedDate.toLocaleString('pt-BR')} (${periodo || 'período não informado'}).` });
     
     const orcamentoSalvo = await orcamento.save();
     
