@@ -16,6 +16,8 @@ exports.getItensMercado = async (req, res, next) => {
 
     const itens = await CatalogoMercado.find({ areasDeAtuacao: { $in: [area] } });
 
+    console.log(`[DEBUG] Itens encontrados para a área "${area}":`, itens.length);
+
     res.status(200).json({
       success: true,
       count: itens.length,
