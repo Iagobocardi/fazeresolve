@@ -415,7 +415,7 @@ const submitOrcamento = async (req, res) => {
 };
 const scheduleOrcamento = async (req, res) => {
     try {
-        const { dataAgendamento, periodo } = req.body; // Adicionado 'periodo'
+        const { dataAgendamento } = req.body;
         const orcamentoId = req.params.id;
         const { contaId } = req.user;
 
@@ -425,7 +425,7 @@ const scheduleOrcamento = async (req, res) => {
         
         // O controller agora apenas chama o serviço, passando os dados necessários.
         // Toda a lógica complexa está no orcamento.service.js
-        const orcamentoAtualizado = await orcamentoService.agendarServico(contaId, orcamentoId, dataAgendamento, periodo); // Passa o período para o serviço
+        const orcamentoAtualizado = await orcamentoService.agendarServico(contaId, orcamentoId, dataAgendamento);
 
         // A única responsabilidade do controller é enviar a resposta HTTP.
         res.status(200).json(orcamentoAtualizado);
