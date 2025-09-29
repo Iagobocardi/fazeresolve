@@ -361,6 +361,40 @@ const updateSubscriptionCard = async (contaId, cardTokenId) => {
     return result;
 };
 
+const mercadoPagoService = require('./mercadoPago.service.js');
+const PLANS = require('../config/plans.config');
+
+const createPixSubscriptionPayment = async (usuario, conta) => {
+    const planoInfo = PLANS.find(p => p.name === conta.plano);
+    if (!planoInfo) {
+        throw new Error('Plano não encontrado nas configurações.');
+    }
+    
+    // Assumindo que o pagamento será mensal para o PIX inicial.
+    const transactionAmount = parseFloat(planoInfo.monthly.price);
+
+    const paymentData = {
+        transaction_amount: transactionAmount,
+        description: `Pagamento da assinatura do plano ${conta.plano}`,
+        payment_method_id: 'pix',
+        payer: {
+            email: usuario.email,
+            first_name: usuario.nome.split(' ')[0],
+            last_name: usuario.nome.split(' ').slice(1).join(' ') || '.',
+        },
+        external_reference: conta._id.toString(), // Garante que o webhook possa encontrar a conta
+    };
+
+    const pixResult = await mercadoPagoService.createPixPayment(paymentData);
+
+    // Retorna os dados que o front-end precisa para exibir o QR Code e o "Copia e Cola"
+    return {
+        paymentId: pixResult.id,
+        qrCode: pixResult.point_of_interaction.transaction_data.qr_code,
+        qrCodeBase64: pixResult.point_of_interaction.transaction_data.qr_code_base64,
+    };
+};
+
 module.exports = {
     createSubscription,
     updateSubscriptionPriceForNewUser,
@@ -368,4 +402,5 @@ module.exports = {
     upgradeSubscription,
     getSubscriptionDetails,
     updateSubscriptionCard,
+    createPixSubscriptionPayment,
 };
