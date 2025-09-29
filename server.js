@@ -4,6 +4,7 @@ require('./src/jobs/lembretes.job');
 require('./src/jobs/billing.job.js');
 require('./src/jobs/gracePeriod.job.js');
 require('./src/jobs/whatsappSender.job.js'); // Adiciona o novo job
+require('./src/jobs/dunning.job.js'); // Adiciona o novo job de dunning (v1.1)
 
 console.log('====================================');
 console.log('INICIANDO O SERVIDOR FAZ & RESOLVE');
