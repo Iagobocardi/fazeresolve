@@ -16,24 +16,37 @@ const handlePaymentNotification = async (paymentId) => {
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
 
-            // 1. Lógica de Ativação de Assinatura
-            // Um pagamento de assinatura é identificado pelo campo `preapproval_id`.
-            if (paymentInfo.preapproval_id && paymentInfo.status === 'approved') {
+            // --- LÓGICA DE PAGAMENTO DE ASSINATURA ---
+            if (paymentInfo.preapproval_id) {
                 const conta = await Conta.findById(externalReference);
-
-                // Ativa a conta somente se ela estiver aguardando pagamento.
-                // Isso evita reativar uma conta cancelada ou processar webhooks duplicados.
-                if (conta && conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
-                    conta.statusAssinatura = 'ATIVO';
-                    await conta.save();
-                    console.log(`[Webhook] Assinatura da conta ${conta._id} ativada com sucesso pelo pagamento ${paymentId}.`);
-                } else {
-                    console.log(`[Webhook] Pagamento de assinatura ${paymentId} recebido para conta ${externalReference}, mas a conta não estava aguardando pagamento. Nenhuma ação foi tomada.`);
+                if (!conta) {
+                    console.log(`[Webhook] Conta ${externalReference} não encontrada para o pagamento de assinatura ${paymentId}.`);
+                    return;
                 }
-                return; // Encerra o processamento, pois já tratamos o webhook.
+
+                // CASO 1: Pagamento APROVADO
+                if (paymentInfo.status === 'approved') {
+                    conta.statusAssinatura = 'ATIVO';
+                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver.
+                    await conta.save();
+                    console.log(`[Webhook] Pagamento da assinatura ${paymentId} aprovado. Conta ${conta._id} está ATIVA.`);
+                
+                // CASO 2: Pagamento RECUSADO
+                } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(paymentInfo.status)) {
+                    // Só entra em período de carência se a assinatura já estava ativa.
+                    if (conta.statusAssinatura === 'ATIVO') {
+                        const gracePeriodDays = 7;
+                        conta.statusAssinatura = 'EM_ATRASO';
+                        conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodDays * 24 * 60 * 60 * 1000);
+                        await conta.save();
+                        console.log(`[Webhook] Pagamento da assinatura ${paymentId} falhou. Conta ${conta._id} em período de carência por ${gracePeriodDays} dias.`);
+                        // Futuramente, aqui se pode disparar um e-mail ou WhatsApp de aviso.
+                    }
+                }
+                return; // Encerra o processamento para pagamentos de assinatura.
             }
 
-            // 2. Lógica de Pagamento de Orçamento
+            // --- LÓGICA DE PAGAMENTO DE ORÇAMENTO (Existente) ---
             const orcamento = await Orcamento.findById(externalReference);
             if (orcamento) {
                 // Evita processar pagamentos duplicados
