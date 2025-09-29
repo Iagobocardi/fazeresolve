@@ -478,7 +478,7 @@ const seedCatalogoMercado = async () => {
 const startServer = async () => {
     try {
         await connectDB();
-        
+
         app.listen(PORT, () => {
             console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
         });
