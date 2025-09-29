@@ -45,10 +45,10 @@ const handleWebhook = async (req, res) => {
             // Cenário 1: Pagamento APROVADO
             if (paymentDetails.status === 'approved') {
                 console.log(`[Webhook v1.1] Pagamento aprovado para assinatura ${assinatura._id}.`);
-                
+
                 assinatura.status = 'ativa';
                 assinatura.carenciaExpiraEm = null; // Limpa o período de carência
-                
+
                 // Busca os detalhes da assinatura para atualizar a próxima data de cobrança
                 const preApprovalClient = new PreApproval(client);
                 const subDetails = await preApprovalClient.get({ id: gatewaySubscriptionId });
@@ -57,7 +57,7 @@ const handleWebhook = async (req, res) => {
 
                 usuario.status = 'ativo';
                 await usuario.save();
-                
+
                 console.log(`[Webhook v1.1] Assinatura ${assinatura._id} e Usuário ${usuario._id} atualizados para 'ativo'.`);
                 // TODO: Disparar e-mail de confirmação de pagamento.
             }
@@ -80,7 +80,7 @@ const handleWebhook = async (req, res) => {
 
                 // TODO: Disparar E-mail 1: "Ops, não conseguimos processar seu pagamento".
             }
-        } 
+        }
         // Lidar com cancelamentos diretos (ex: no painel do MP)
         else if (notification?.type === 'preapproval') {
              const preApprovalClient = new PreApproval(client);
