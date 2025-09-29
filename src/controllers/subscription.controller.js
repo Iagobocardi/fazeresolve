@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const subscriptionService = require('../services/subscription.service.js');
 const Cliente = require('../models/cliente.model.js');
 const Usuario = require('../models/usuario.model.js');
+const Conta = require('../models/conta.model');
+const Assinatura = require('../models/subscription.model.js');
 
 /**
  * Controller para criar um novo plano de assinatura.
@@ -22,12 +24,6 @@ const handleCreatePlan = async (req, res) => {
         res.status(500).json({ error: 'Erro ao criar o plano de assinatura.' });
     }
 };
-
-/**
- * Controller para um prestador se inscrever em um plano.
- */
-const Conta = require('../models/conta.model');
-const Assinatura = require('../models/subscription.model.js');
 
 const handleSubscribe = async (req, res) => {
     try {
