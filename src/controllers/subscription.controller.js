@@ -69,34 +69,18 @@ const handleSubscribe = async (req, res) => {
             });
         }
 
-        console.log(`[Subscribe] Assinatura criada com sucesso no Mercado Pago com ID: ${subscriptionResult.id}`);
+        console.log(`[Subscribe] Assinatura submetida ao Mercado Pago com ID: ${subscriptionResult.id}`);
 
-        // Atualiza o status da CONTA e armazena o ID da assinatura
-        conta.statusAssinatura = 'ATIVO';
+        // Armazena o ID da assinatura do Mercado Pago na conta para referência futura.
+        // O status da conta permanece 'AGUARDANDO_PAGAMENTO' até a confirmação via webhook.
         conta.mercadoPagoSubscriptionId = subscriptionResult.id;
         await conta.save();
-        console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
+        console.log(`[Subscribe] ID da assinatura ${conta.mercadoPagoSubscriptionId} salvo na conta ${conta._id}. Aguardando confirmação do pagamento.`);
 
-        // Gera um novo token JWT definitivo para o USUÁRIO
-        const payload = { id: usuario._id };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-        const finalUser = await Usuario.findById(usuario._id);
-
-        res.status(201).json({
-            message: 'Assinatura criada com sucesso!',
-            token,
-            userType: 'provider',
-            usuario: {
-                id: finalUser._id,
-                nome: finalUser.nome,
-                email: finalUser.email,
-                role: finalUser.role,
-                plano: conta.plano,
-                statusAssinatura: conta.statusAssinatura,
-                permissoes: finalUser.permissoes
-            },
-            conta: conta
+        // Não gera um novo token nem retorna dados de usuário.
+        // O front-end deve informar ao usuário que o pagamento está sendo processado.
+        res.status(200).json({
+            message: 'Seu pagamento está sendo processado. Você receberá a confirmação em breve e seu acesso será liberado.'
         });
 
     } catch (error) {
