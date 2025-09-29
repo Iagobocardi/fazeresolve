@@ -40,7 +40,7 @@ const handleSubscribe = async (req, res) => {
         }
 
         console.log(`[Subscribe v1.1] Iniciando fluxo de assinatura para usuário ${usuario._id} no plano ${conta.planId}`);
-        
+
         // 1. Cria a assinatura no gateway de pagamento (Mercado Pago)
         const gatewayResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
 
@@ -199,8 +199,8 @@ const handleRegularizePayment = async (req, res) => {
 
         // Permite a regularização apenas se o pagamento estiver pendente ou a conta pausada
         if (!['pagamento_pendente', 'pausada'].includes(assinatura.status)) {
-            return res.status(400).json({ 
-                message: `Sua assinatura com status '${assinatura.status}' não pode ser regularizada desta forma.` 
+            return res.status(400).json({
+                message: `Sua assinatura com status '${assinatura.status}' não pode ser regularizada desta forma.`
             });
         }
 
@@ -212,8 +212,8 @@ const handleRegularizePayment = async (req, res) => {
         await subscriptionService.updateSubscriptionCard(assinatura.gatewaySubscriptionId, cardTokenId);
 
         // A reativação da conta é assíncrona, via webhook, após o pagamento ser 'approved'.
-        res.status(200).json({ 
-            message: 'Seu método de pagamento foi atualizado. Uma nova cobrança será feita. Você será notificado assim que o pagamento for confirmado e seu acesso reativado.' 
+        res.status(200).json({
+            message: 'Seu método de pagamento foi atualizado. Uma nova cobrança será feita. Você será notificado assim que o pagamento for confirmado e seu acesso reativado.'
         });
 
     } catch (error) {
