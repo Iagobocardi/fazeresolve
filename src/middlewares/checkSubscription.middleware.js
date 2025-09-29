@@ -23,7 +23,7 @@ const checkSubscription = async (req, res, next) => {
 
         const allowedStatus = ['ATIVO', 'EM_ATRASO'];
 
-        // Verifica se o status da assinatura permite o acesso (ativa ou em período de carência)
+        // Verifica se o status da assinatura permite o acesso (ativa ou em período de carência).
         if (allowedStatus.includes(conta.statusAssinatura)) {
             return next(); // O usuário pode prosseguir.
         }

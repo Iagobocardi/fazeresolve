@@ -53,31 +53,15 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         const subscription = new PreApproval(client);
         // -------------------------------------------------------
 
-        // Busca a conta para obter o CNPJ
-        const conta = await Conta.findById(user.contaId);
-        if (!conta) {
-            // Este erro será pego pelo bloco catch e tratado como um erro 500, o que é apropriado.
-            throw new Error(`Conta não encontrada para o usuário ${user._id}`);
-        }
-        const cnpj = conta.companyInfo?.cnpj?.replace(/\D/g, '');
-
+        // O corpo da requisição para criar uma assinatura com plano é simples.
+        // Fonte: https://www.mercadopago.com.br/developers/pt/reference/subscriptions/_preapproval/post
         const body = {
             preapproval_plan_id: planId,
-            reason: `Assinatura do plano para ${user.nome}`,
             card_token_id: cardTokenId,
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-            payer: {
-                email: user.email,
-            }
+            payer_email: user.email,
+            external_reference: user.contaId, // Vincula a assinatura à nossa conta interna
+            status: 'authorized' // O status deve ser 'authorized' para a primeira cobrança ser tentada.
         };
-
-        // Adiciona a identificação apenas se o CNPJ existir
-        if (cnpj) {
-            body.payer.identification = {
-                type: 'CNPJ',
-                number: cnpj
-            };
-        }
 
         // 4. A chamada `create` agora só precisa do `body`.
         // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
@@ -192,9 +176,196 @@ const updateSubscriptionPriceForNewUser = async (contaId) => {
     }
 };
 
+const cancelSubscription = async (contaId) => {
+    try {
+        const conta = await Conta.findById(contaId);
+        if (!conta || !conta.mercadoPagoSubscriptionId) {
+            throw new Error('Assinatura não encontrada ou já cancelada.');
+        }
+
+        const accessToken = mercadoPagoConfig.accessToken;
+        if (!accessToken) throw new Error('Access Token do Mercado Pago não configurado.');
+
+        const client = new MercadoPagoConfig({ accessToken });
+        const preapproval = new PreApproval(client);
+
+        const result = await preapproval.update({
+            preapprovalId: conta.mercadoPagoSubscriptionId,
+            body: { status: 'cancelled' },
+        });
+
+        if (result.status === 'cancelled') {
+            conta.statusAssinatura = 'CANCELADO';
+            conta.mercadoPagoSubscriptionId = null;
+            conta.planId = null;
+            await conta.save();
+            console.log(`Assinatura ${conta.mercadoPagoSubscriptionId} cancelada com sucesso.`);
+        } else {
+            throw new Error('Não foi possível cancelar a assinatura no Mercado Pago.');
+        }
+
+        return { success: true, result };
+
+    } catch (error) {
+        console.error("Erro ao cancelar a assinatura no serviço:", error.message);
+        throw new Error('Falha ao cancelar a assinatura.');
+    }
+};
+
+const upgradeSubscription = async (contaId, newPlanName) => {
+    try {
+        const PLANS = require('../config/plans.config.js');
+
+        // 1. Validar a conta e o plano
+        const conta = await Conta.findById(contaId);
+        if (!conta) {
+            throw new Error('Conta não encontrada.');
+        }
+        if (conta.statusAssinatura !== 'ATIVO') {
+            throw new Error('A conta não possui uma assinatura ativa para ser atualizada.');
+        }
+        if (!conta.mercadoPagoSubscriptionId) {
+            throw new Error('ID da assinatura do Mercado Pago não encontrado na conta.');
+        }
+
+        const currentPlan = PLANS.find(p => p.name === conta.plano);
+        const newPlan = PLANS.find(p => p.name === newPlanName);
+
+        if (!currentPlan) {
+            throw new Error(`Plano atual "${conta.plano}" não foi encontrado nas configurações.`);
+        }
+        if (!newPlan) {
+            throw new Error(`Novo plano "${newPlanName}" é inválido.`);
+        }
+        if (conta.plano === newPlanName) {
+            throw new Error('Você já está neste plano.');
+        }
+
+        const currentPlanPrice = parseFloat(currentPlan.monthly.price);
+        const newPlanPrice = parseFloat(newPlan.monthly.price);
+
+        if (newPlanPrice <= currentPlanPrice) {
+            throw new Error('O upgrade só é permitido para um plano de valor superior.');
+        }
+
+        // 2. Determinar o ID do novo plano (mensal/anual)
+        const isAnnual = currentPlan.annual.id === conta.planId;
+        const newPlanId = isAnnual ? newPlan.annual.id : newPlan.monthly.id;
+
+        if (!newPlanId) {
+            throw new Error(`ID do plano para ${newPlanName} (${isAnnual ? 'Anual' : 'Mensal'}) não encontrado.`);
+        }
+
+        // 3. Atualizar a assinatura no Mercado Pago
+        const accessToken = mercadoPagoConfig.accessToken;
+        if (!accessToken) {
+            throw new Error('Access Token do Mercado Pago não configurado.');
+        }
+
+        const client = new MercadoPagoConfig({ accessToken });
+        const preapproval = new PreApproval(client);
+
+        const body = {
+            preapproval_plan_id: newPlanId,
+        };
+
+        const updateResult = await preapproval.update({
+            preapprovalId: conta.mercadoPagoSubscriptionId,
+            body,
+        });
+
+        console.log(`[Upgrade] Assinatura ${conta.mercadoPagoSubscriptionId} atualizada no MP. Status: ${updateResult.status}`);
+
+        // 4. Atualizar o banco de dados local
+        conta.plano = newPlanName;
+        conta.planId = newPlanId;
+        await conta.save();
+
+        const newPermissions = newPlan.permissions;
+        await Usuario.updateMany(
+            { contaId: contaId },
+            { $set: { permissoes: newPermissions } }
+        );
+        console.log(`[Upgrade] Conta ${contaId} e seus usuários atualizados para o plano ${newPlanName}.`);
+
+        // 5. Retornar o resultado
+        return {
+            newPlan: newPlanName,
+            permissions: newPermissions,
+            mercadoPagoStatus: updateResult.status
+        };
+
+    } catch (error) {
+        console.error("Erro ao fazer upgrade da assinatura:", error.message);
+        // Propaga o erro para o controller poder lidar com ele
+        throw new Error(error.message || 'Falha ao atualizar a assinatura no Mercado Pago.');
+    }
+};
+
+
+const getSubscriptionDetails = async (contaId) => {
+    const conta = await Conta.findById(contaId);
+
+    if (!conta) {
+        throw new Error('Conta não encontrada.');
+    }
+
+    if (!conta.mercadoPagoSubscriptionId) {
+        return {
+            statusLocal: conta.statusAssinatura,
+            plano: conta.plano,
+            message: 'Nenhuma assinatura ativa encontrada no gateway de pagamento.'
+        };
+    }
+
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+    const preapproval = new PreApproval(client);
+
+    const mpSubscription = await preapproval.get({ id: conta.mercadoPagoSubscriptionId });
+
+    // TODO: Buscar os detalhes do cartão (bandeira, últimos 4 dígitos) pode exigir uma chamada adicional à API de cartões.
+    // Por enquanto, retornamos o que temos de forma segura.
+    return {
+        statusLocal: conta.statusAssinatura,
+        statusGateway: mpSubscription.status,
+        plano: conta.plano,
+        proximaCobranca: mpSubscription.next_payment_date,
+        metodoPagamento: mpSubscription.payment_method_id,
+        // Adicionar detalhes do cartão se a API retornar
+    };
+};
+
+const updateSubscriptionCard = async (contaId, cardTokenId) => {
+    const conta = await Conta.findById(contaId);
+
+    if (!conta || !conta.mercadoPagoSubscriptionId) {
+        throw new Error('Nenhuma assinatura ativa encontrada para esta conta.');
+    }
+
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+    const preapproval = new PreApproval(client);
+
+    const body = {
+        card_token_id: cardTokenId,
+    };
+
+    const result = await preapproval.update({
+        preapprovalId: conta.mercadoPagoSubscriptionId,
+        body,
+    });
+
+    // Após a atualização, a assinatura pode voltar ao status 'authorized'
+    // e o webhook de pagamento tratará a reativação da conta, se necessário.
+    console.log(`[Service] Cartão da assinatura ${conta.mercadoPagoSubscriptionId} atualizado. Novo status: ${result.status}`);
+
+    return result;
+};
 
 module.exports = {
-    // createPlan, // Adicione de volta se precisar
     createSubscription,
     updateSubscriptionPriceForNewUser,
+    cancelSubscription,
+    upgradeSubscription,
+    getSubscriptionDetails,
+    updateSubscriptionCard,
 };

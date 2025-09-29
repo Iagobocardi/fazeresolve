@@ -49,58 +49,58 @@ const handleSubscribe = async (req, res) => {
         console.log(`[Subscribe] Iniciando criação de assinatura para conta ${conta._id} com plano ${conta.planId}`);
         const subscriptionResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
 
-        // Verifica se a resposta da API indica uma falha ou recusa de pagamento
-        if (subscriptionResult.error || (subscriptionResult.status && subscriptionResult.status !== 'authorized')) {
-            console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
-            
-            let errorMessage;
-            // Caso especial: Se o gateway de pagamento retornar um erro de servidor (500),
-            // fornecemos uma mensagem mais amigável em vez do "Internal server error" deles.
-            if (subscriptionResult.status === 500) {
-                errorMessage = 'Ocorreu um erro geral no gateway de pagamento. Por favor, tente novamente ou utilize outro método de pagamento.';
-            } else {
-                // Para outros erros, usamos a mensagem da API ou um fallback padrão.
-                errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Verifique os dados do cartão ou tente outro.';
-            }
-            
-            return res.status(402).json({
-                message: errorMessage,
-                details: subscriptionResult // Retorna o objeto de erro completo para o frontend
+        // --- FLUXO HÍBRIDO: SÍNCRONO PARA SUCESSO, ASSÍNCRONO PARA PENDÊNCIAS ---
+
+        // CASO 1: SUCESSO IMEDIATO
+        if (subscriptionResult.status === 'authorized') {
+            console.log(`[Subscribe] Assinatura autorizada com sucesso no MP. ID: ${subscriptionResult.id}`);
+
+            conta.statusAssinatura = 'ATIVO';
+            conta.mercadoPagoSubscriptionId = subscriptionResult.id;
+            await conta.save();
+            console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
+
+            const payload = { id: usuario._id, contaId: conta._id, role: usuario.role };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+            const finalUser = await Usuario.findById(usuario._id).select('-senha');
+
+            return res.status(201).json({
+                message: 'Assinatura criada com sucesso!',
+                token,
+                userType: 'provider',
+                usuario: {
+                    id: finalUser._id,
+                    nome: finalUser.nome,
+                    email: finalUser.email,
+                    role: finalUser.role,
+                    plano: conta.plano,
+                    statusAssinatura: conta.statusAssinatura,
+                    permissoes: finalUser.permissoes
+                },
+                conta: conta
             });
         }
 
-        console.log(`[Subscribe] Assinatura criada com sucesso no Mercado Pago com ID: ${subscriptionResult.id}`);
+        // CASO 2: FALHA IMEDIATA
+        if (subscriptionResult.error || !['authorized', 'pending'].includes(subscriptionResult.status)) {
+            console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
+            const errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Por favor, verifique os dados do cartão ou tente outro.';
+            return res.status(402).json({
+                message: errorMessage,
+                details: subscriptionResult
+            });
+        }
 
-        // Atualiza o status da CONTA e armazena o ID da assinatura
-        conta.statusAssinatura = 'ATIVO';
+        // CASO 3: PENDENTE (fallback para webhook)
+        console.log(`[Subscribe] Assinatura com status pendente (${subscriptionResult.status}). Aguardando webhook. ID: ${subscriptionResult.id}`);
         conta.mercadoPagoSubscriptionId = subscriptionResult.id;
         await conta.save();
-        console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
 
-        // Gera um novo token JWT definitivo para o USUÁRIO
-        const payload = { id: usuario._id };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-        const finalUser = await Usuario.findById(usuario._id);
-
-        res.status(201).json({
-            message: 'Assinatura criada com sucesso!',
-            token,
-            userType: 'provider',
-            usuario: {
-                id: finalUser._id,
-                nome: finalUser.nome,
-                email: finalUser.email,
-                role: finalUser.role,
-                plano: conta.plano,
-                statusAssinatura: conta.statusAssinatura,
-                permissoes: finalUser.permissoes
-            },
-            conta: conta
+        return res.status(200).json({
+            message: 'Seu pagamento está pendente de aprovação. Avisaremos assim que for confirmado e seu acesso será liberado.'
         });
 
     } catch (error) {
-        // Este bloco 'catch' agora lida apenas com erros inesperados do servidor (erros 500)
         console.error('Erro inesperado no servidor durante o processo de assinatura:', error);
         res.status(500).json({
             message: 'Ocorreu um erro interno no servidor. Nossa equipe já foi notificada.',
@@ -109,17 +109,73 @@ const handleSubscribe = async (req, res) => {
     }
 };
 
+const handleUpgradePlan = async (req, res) => {
+    try {
+        const { newPlanName } = req.body; // 'Profissional' ou 'Premium'
+        const { contaId } = req.user;
+
+        if (!newPlanName) {
+            return res.status(400).json({ message: 'O nome do novo plano é obrigatório.' });
+        }
+
+        const result = await subscriptionService.upgradeSubscription(contaId, newPlanName);
+
+        res.status(200).json({
+            message: 'Plano atualizado com sucesso!',
+            ...result
+        });
+
+    } catch (error) {
+        console.error("Erro ao fazer upgrade do plano:", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao atualizar o plano.' });
+    }
+};
+
+const handleCancelSubscription = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        await subscriptionService.cancelSubscription(contaId);
+        res.status(200).json({ message: 'Assinatura cancelada com sucesso.' });
+    } catch (error) {
+        console.error("Erro ao cancelar assinatura:", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao cancelar a assinatura.' });
+    }
+};
+
+const handleGetSubscriptionDetails = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const details = await subscriptionService.getSubscriptionDetails(contaId);
+        res.status(200).json(details);
+    } catch (error) {
+        console.error("Erro ao buscar detalhes da assinatura:", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao buscar detalhes da assinatura.' });
+    }
+};
+
+const handleUpdateSubscriptionCard = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { card_token_id } = req.body;
+
+        if (!card_token_id) {
+            return res.status(400).json({ message: 'O token do novo cartão é obrigatório.' });
+        }
+
+        await subscriptionService.updateSubscriptionCard(contaId, card_token_id);
+
+        res.status(200).json({ message: 'Cartão de pagamento atualizado com sucesso!' });
+    } catch (error) {
+        console.error("Erro ao atualizar o cartão da assinatura:", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao atualizar o cartão.' });
+    }
+};
+
 module.exports = {
     handleCreatePlan,
     handleSubscribe,
-    cancelSubscription: async (req, res) => {
-        try {
-            const { contaId } = req.user;
-            await subscriptionService.cancelSubscription(contaId);
-            res.status(200).json({ message: 'Assinatura cancelada com sucesso.' });
-        } catch (error) {
-            console.error("Erro ao cancelar assinatura:", error);
-            res.status(500).json({ message: 'Erro interno ao cancelar a assinatura.' });
-        }
-    }
+    cancelSubscription: handleCancelSubscription,
+    handleUpgradePlan,
+    handleGetSubscriptionDetails,
+    handleUpdateSubscriptionCard,
 };

@@ -478,10 +478,14 @@ const seedCatalogoMercado = async () => {
 const startServer = async () => {
     try {
         await connectDB();
-        await seedCatalogoMercado(); // Popula o catálogo após conectar ao DB
+
         app.listen(PORT, () => {
             console.log(`Servidor Faz&Resolve a correr na porta ${PORT}`);
         });
+
+        // Popula o catálogo após o servidor iniciar, para não bloquear a porta.
+        await seedCatalogoMercado();
+
     } catch (error) {
         console.error("Falha ao iniciar o servidor:", error);
         process.exit(1);

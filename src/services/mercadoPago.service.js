@@ -1,11 +1,13 @@
 const { MercadoPagoConfig, Payment } = require('mercadopago');
+const mercadoPagoConfig = require('../config/mercadoPago.config.js'); // Importa a configuração central
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
 
 const Conta = require('../models/conta.model');
 
 const handlePaymentNotification = async (paymentId) => {
-    const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+    // Utiliza a configuração centralizada para garantir que o token de acesso seja carregado corretamente.
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
     const payment = new Payment(client);
 
     try {
@@ -14,7 +16,37 @@ const handlePaymentNotification = async (paymentId) => {
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
 
-            // Tenta encontrar um orçamento primeiro
+            // --- LÓGICA DE PAGAMENTO DE ASSINATURA ---
+            if (paymentInfo.preapproval_id) {
+                const conta = await Conta.findById(externalReference);
+                if (!conta) {
+                    console.log(`[Webhook] Conta ${externalReference} não encontrada para o pagamento de assinatura ${paymentId}.`);
+                    return;
+                }
+
+                // CASO 1: Pagamento APROVADO
+                if (paymentInfo.status === 'approved') {
+                    conta.statusAssinatura = 'ATIVO';
+                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver.
+                    await conta.save();
+                    console.log(`[Webhook] Pagamento da assinatura ${paymentId} aprovado. Conta ${conta._id} está ATIVA.`);
+
+                // CASO 2: Pagamento RECUSADO
+                } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(paymentInfo.status)) {
+                    // Só entra em período de carência se a assinatura já estava ativa.
+                    if (conta.statusAssinatura === 'ATIVO') {
+                        const gracePeriodHours = 72;
+                        conta.statusAssinatura = 'EM_ATRASO';
+                        conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodHours * 60 * 60 * 1000);
+                        await conta.save();
+                        console.log(`[Webhook] Pagamento da assinatura ${paymentId} falhou. Conta ${conta._id} em período de carência por ${gracePeriodHours} horas.`);
+                        // Futuramente, aqui se pode disparar um e-mail ou WhatsApp de aviso.
+                    }
+                }
+                return; // Encerra o processamento para pagamentos de assinatura.
+            }
+
+            // --- LÓGICA DE PAGAMENTO DE ORÇAMENTO (Existente) ---
             const orcamento = await Orcamento.findById(externalReference);
             if (orcamento) {
                 // Evita processar pagamentos duplicados
@@ -76,7 +108,7 @@ module.exports = {
     handlePaymentNotification,
     createPixPayment: async (paymentData) => {
         try {
-            const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+            const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
             const payment = new Payment(client);
 
             console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
