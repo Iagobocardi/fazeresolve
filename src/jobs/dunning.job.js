@@ -70,7 +70,6 @@ const dunningJob = cron.schedule('0 0 * * *', async () => {
                 }
             }
         } else {
-            // CORREÇÃO: Uso de aspas duplas para evitar o erro de sintaxe.
             console.log("[Cron Job - Dunning] Nenhuma assinatura em 'pendente_confirmacao' antiga encontrada.");
         }
     } catch (error) {
