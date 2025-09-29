@@ -10,6 +10,13 @@ const usuarioSchema = new Schema({
     telefone: { type: String, unique: true, sparse: true },
     password: { type: String, required: true, select: false }, // select: false para não vir por padrão
     cpf: { type: String, unique: true, sparse: true }, // CPF para pagadores pessoa física
+
+    plano: { type: String, enum: ['essencial', 'profissional', 'premium'] },
+    status: {
+      type: String,
+      enum: ['ativo', 'inativo', 'ativo_em_carencia', 'bloqueado_pagamento'], // Novo status
+      default: 'inativo'
+    },
     
     // Adiciona a referência à conta à qual o usuário pertence.
     contaId: {
