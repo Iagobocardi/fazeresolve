@@ -192,9 +192,136 @@ const updateSubscriptionPriceForNewUser = async (contaId) => {
     }
 };
 
+const cancelSubscription = async (contaId) => {
+    try {
+        const conta = await Conta.findById(contaId);
+        if (!conta || !conta.mercadoPagoSubscriptionId) {
+            throw new Error('Assinatura não encontrada ou já cancelada.');
+        }
+
+        const accessToken = mercadoPagoConfig.accessToken;
+        if (!accessToken) throw new Error('Access Token do Mercado Pago não configurado.');
+
+        const client = new MercadoPagoConfig({ accessToken });
+        const preapproval = new PreApproval(client);
+
+        const result = await preapproval.update({
+            preapprovalId: conta.mercadoPagoSubscriptionId,
+            body: { status: 'cancelled' },
+        });
+
+        if (result.status === 'cancelled') {
+            conta.statusAssinatura = 'CANCELADO';
+            conta.mercadoPagoSubscriptionId = null;
+            conta.planId = null;
+            await conta.save();
+            console.log(`Assinatura ${conta.mercadoPagoSubscriptionId} cancelada com sucesso.`);
+        } else {
+            throw new Error('Não foi possível cancelar a assinatura no Mercado Pago.');
+        }
+
+        return { success: true, result };
+
+    } catch (error) {
+        console.error("Erro ao cancelar a assinatura no serviço:", error.message);
+        throw new Error('Falha ao cancelar a assinatura.');
+    }
+};
+
+const upgradeSubscription = async (contaId, newPlanName) => {
+    try {
+        const PLANS = require('../config/plans.config.js');
+
+        // 1. Validar a conta e o plano
+        const conta = await Conta.findById(contaId);
+        if (!conta) {
+            throw new Error('Conta não encontrada.');
+        }
+        if (conta.statusAssinatura !== 'ATIVO') {
+            throw new Error('A conta não possui uma assinatura ativa para ser atualizada.');
+        }
+        if (!conta.mercadoPagoSubscriptionId) {
+            throw new Error('ID da assinatura do Mercado Pago não encontrado na conta.');
+        }
+
+        const currentPlan = PLANS.find(p => p.name === conta.plano);
+        const newPlan = PLANS.find(p => p.name === newPlanName);
+
+        if (!currentPlan) {
+            throw new Error(`Plano atual "${conta.plano}" não foi encontrado nas configurações.`);
+        }
+        if (!newPlan) {
+            throw new Error(`Novo plano "${newPlanName}" é inválido.`);
+        }
+        if (conta.plano === newPlanName) {
+            throw new Error('Você já está neste plano.');
+        }
+
+        const currentPlanPrice = parseFloat(currentPlan.monthly.price);
+        const newPlanPrice = parseFloat(newPlan.monthly.price);
+
+        if (newPlanPrice <= currentPlanPrice) {
+            throw new Error('O upgrade só é permitido para um plano de valor superior.');
+        }
+
+        // 2. Determinar o ID do novo plano (mensal/anual)
+        const isAnnual = currentPlan.annual.id === conta.planId;
+        const newPlanId = isAnnual ? newPlan.annual.id : newPlan.monthly.id;
+
+        if (!newPlanId) {
+            throw new Error(`ID do plano para ${newPlanName} (${isAnnual ? 'Anual' : 'Mensal'}) não encontrado.`);
+        }
+
+        // 3. Atualizar a assinatura no Mercado Pago
+        const accessToken = mercadoPagoConfig.accessToken;
+        if (!accessToken) {
+            throw new Error('Access Token do Mercado Pago não configurado.');
+        }
+
+        const client = new MercadoPagoConfig({ accessToken });
+        const preapproval = new PreApproval(client);
+
+        const body = {
+            preapproval_plan_id: newPlanId,
+        };
+
+        const updateResult = await preapproval.update({
+            preapprovalId: conta.mercadoPagoSubscriptionId,
+            body,
+        });
+
+        console.log(`[Upgrade] Assinatura ${conta.mercadoPagoSubscriptionId} atualizada no MP. Status: ${updateResult.status}`);
+
+        // 4. Atualizar o banco de dados local
+        conta.plano = newPlanName;
+        conta.planId = newPlanId;
+        await conta.save();
+
+        const newPermissions = newPlan.permissions;
+        await Usuario.updateMany(
+            { contaId: contaId },
+            { $set: { permissoes: newPermissions } }
+        );
+        console.log(`[Upgrade] Conta ${contaId} e seus usuários atualizados para o plano ${newPlanName}.`);
+
+        // 5. Retornar o resultado
+        return {
+            newPlan: newPlanName,
+            permissions: newPermissions,
+            mercadoPagoStatus: updateResult.status
+        };
+
+    } catch (error) {
+        console.error("Erro ao fazer upgrade da assinatura:", error.message);
+        // Propaga o erro para o controller poder lidar com ele
+        throw new Error(error.message || 'Falha ao atualizar a assinatura no Mercado Pago.');
+    }
+};
+
 
 module.exports = {
-    // createPlan, // Adicione de volta se precisar
     createSubscription,
     updateSubscriptionPriceForNewUser,
+    cancelSubscription,
+    upgradeSubscription,
 };
