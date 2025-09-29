@@ -28,4 +28,12 @@ router.post(
     subscriptionController.cancelSubscription
 );
 
+// Rota para upgrade de plano
+router.post(
+    '/upgrade',
+    authMiddleware,
+    roleMiddleware(['Dono']),
+    subscriptionController.handleUpgradePlan
+);
+
 module.exports = router;
