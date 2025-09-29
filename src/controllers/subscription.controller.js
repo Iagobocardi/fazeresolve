@@ -27,6 +27,7 @@ const handleCreatePlan = async (req, res) => {
  * Controller para um prestador se inscrever em um plano.
  */
 const Conta = require('../models/conta.model');
+const Assinatura = require('../models/subscription.model.js');
 
 const handleSubscribe = async (req, res) => {
     try {
@@ -42,66 +43,60 @@ const handleSubscribe = async (req, res) => {
             return res.status(404).json({ message: 'Conta associada não encontrada.' });
         }
 
-        if (conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
-            return res.status(400).json({ message: 'Esta conta não está aguardando pagamento.' });
-        }
-
-        console.log(`[Subscribe] Iniciando criação de assinatura para conta ${conta._id} com plano ${conta.planId}`);
-        const subscriptionResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
-
-        // --- FLUXO HÍBRIDO: SÍNCRONO PARA SUCESSO, ASSÍNCRONO PARA PENDÊNCIAS ---
-
-        // CASO 1: SUCESSO IMEDIATO
-        if (subscriptionResult.status === 'authorized') {
-            console.log(`[Subscribe] Assinatura autorizada com sucesso no MP. ID: ${subscriptionResult.id}`);
-
-            conta.statusAssinatura = 'ATIVO';
-            conta.mercadoPagoSubscriptionId = subscriptionResult.id;
-            await conta.save();
-            console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
-
-            const payload = { id: usuario._id, contaId: conta._id, role: usuario.role };
-            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-            const finalUser = await Usuario.findById(usuario._id).select('-senha');
-
-            return res.status(201).json({
-                message: 'Assinatura criada com sucesso!',
-                token,
-                userType: 'provider',
-                usuario: {
-                    id: finalUser._id,
-                    nome: finalUser.nome,
-                    email: finalUser.email,
-                    role: finalUser.role,
-                    plano: conta.plano,
-                    statusAssinatura: conta.statusAssinatura,
-                    permissoes: finalUser.permissoes
-                },
-                conta: conta
-            });
-        }
+        console.log(`[Subscribe v1.1] Iniciando fluxo de assinatura para usuário ${usuario._id} no plano ${conta.planId}`);
         
-        // CASO 2: FALHA IMEDIATA
-        if (subscriptionResult.error || !['authorized', 'pending'].includes(subscriptionResult.status)) {
-            console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
-            const errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Por favor, verifique os dados do cartão ou tente outro.';
+        // 1. Cria a assinatura no gateway de pagamento (Mercado Pago)
+        const gatewayResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
+
+        if (gatewayResult.error) {
+            console.warn(`[Subscribe v1.1] Gateway recusou a criação da assinatura para o usuário ${usuario._id}. Motivo: ${gatewayResult.message}`);
             return res.status(402).json({
-                message: errorMessage,
-                details: subscriptionResult
+                message: gatewayResult.message || 'Não foi possível processar sua assinatura. Verifique os dados do cartão.',
+                details: gatewayResult.details
             });
         }
 
-        // CASO 3: PENDENTE (fallback para webhook)
-        console.log(`[Subscribe] Assinatura com status pendente (${subscriptionResult.status}). Aguardando webhook. ID: ${subscriptionResult.id}`);
-        conta.mercadoPagoSubscriptionId = subscriptionResult.id;
-        await conta.save();
+        console.log(`[Subscribe v1.1] Assinatura criada no gateway. ID: ${gatewayResult.id}, Payer ID: ${gatewayResult.payer_id}`);
+
+        // 2. Imediatamente cria/atualiza a assinatura no DB local com status 'pendente_confirmacao'
+        const assinaturaData = {
+            planoId: conta.planId,
+            gateway: 'mercadopago',
+            gatewaySubscriptionId: gatewayResult.id,
+            gatewayCustomerId: gatewayResult.payer_id, // Assumindo que o serviço retorna o payer_id
+            status: 'pendente_confirmacao',
+            dataProximaCobranca: gatewayResult.next_payment_date,
+            carenciaExpiraEm: null
+        };
+
+        const assinatura = await Assinatura.findOneAndUpdate(
+            { userId: usuario._id },
+            assinaturaData,
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+        console.log(`[Subscribe v1.1] Assinatura ${assinatura._id} salva no DB como 'pendente_confirmacao'.`);
+
+        // 3. Imediatamente atualiza o status do usuário para 'ativo' para liberar o acesso
+        const userToUpdate = await Usuario.findById(usuario._id);
+        userToUpdate.status = 'ativo';
+        userToUpdate.plano = conta.planId;
+        await userToUpdate.save();
+        console.log(`[Subscribe v1.1] Usuário ${userToUpdate._id} atualizado para status 'ativo'.`);
+
+        // 4. Retorna sucesso com um token JWT para login automático
+        const payload = { id: userToUpdate._id, contaId: conta._id, role: userToUpdate.role };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
         
-        return res.status(200).json({
-            message: 'Seu pagamento está pendente de aprovação. Avisaremos assim que for confirmado e seu acesso será liberado.'
+        const finalUser = await Usuario.findById(userToUpdate._id).select('-password');
+
+        return res.status(201).json({
+            message: 'Acesso liberado! Estamos processando seu pagamento e avisaremos sobre qualquer novidade.',
+            token,
+            usuario: finalUser
         });
 
     } catch (error) {
-        console.error('Erro inesperado no servidor durante o processo de assinatura:', error);
+        console.error('Erro inesperado no servidor durante o processo de assinatura (v1.1):', error);
         res.status(500).json({
             message: 'Ocorreu um erro interno no servidor. Nossa equipe já foi notificada.',
             details: error.message
@@ -142,32 +137,92 @@ const handleCancelSubscription = async (req, res) => {
     }
 };
 
+/**
+ * Controller para obter os detalhes da conta e assinatura do usuário logado.
+ * Endpoint: GET /api/assinaturas/minha-conta (v1.1)
+ */
 const handleGetSubscriptionDetails = async (req, res) => {
     try {
-        const { contaId } = req.user;
-        const details = await subscriptionService.getSubscriptionDetails(contaId);
-        res.status(200).json(details);
+        const userId = req.user.id; // O ID do usuário vem do token JWT
+
+        const usuario = await Usuario.findById(userId).select('-password');
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        const assinatura = await Assinatura.findOne({ userId: userId });
+        if (!assinatura) {
+            return res.status(404).json({ message: 'Nenhuma assinatura encontrada para este usuário.' });
+        }
+
+        // Combina as informações mais relevantes para o frontend
+        const detalhesDaConta = {
+            usuario: {
+                id: usuario._id,
+                nome: usuario.nome,
+                email: usuario.email,
+                status: usuario.status, // e.g., 'ativo', 'ativo_em_carencia', 'bloqueado_pagamento'
+                plano: usuario.plano
+            },
+            assinatura: {
+                id: assinatura._id,
+                status: assinatura.status, // e.g., 'ativa', 'pagamento_pendente', 'pausada'
+                planoId: assinatura.planoId,
+                dataInicio: assinatura.dataInicio,
+                dataProximaCobranca: assinatura.dataProximaCobranca,
+                carenciaExpiraEm: assinatura.carenciaExpiraEm // Crucial para o aviso no frontend
+            }
+        };
+
+        res.status(200).json(detalhesDaConta);
+
     } catch (error) {
-        console.error("Erro ao buscar detalhes da assinatura:", error);
-        res.status(500).json({ message: error.message || 'Erro interno ao buscar detalhes da assinatura.' });
+        console.error("Erro ao buscar detalhes da conta/assinatura (v1.1):", error);
+        res.status(500).json({ message: 'Erro interno ao buscar detalhes da sua conta.' });
     }
 };
 
-const handleUpdateSubscriptionCard = async (req, res) => {
+/**
+ * Controller para regularizar um pagamento pendente ou pausado.
+ * O usuário envia um novo token de cartão para atualizar a assinatura e forçar uma nova cobrança.
+ * Endpoint: POST /api/assinaturas/regularizar (v1.1)
+ */
+const handleRegularizePayment = async (req, res) => {
     try {
-        const { contaId } = req.user;
-        const { card_token_id } = req.body;
+        const { cardTokenId } = req.body;
+        const userId = req.user.id;
 
-        if (!card_token_id) {
+        if (!cardTokenId) {
             return res.status(400).json({ message: 'O token do novo cartão é obrigatório.' });
         }
 
-        await subscriptionService.updateSubscriptionCard(contaId, card_token_id);
+        const assinatura = await Assinatura.findOne({ userId });
+        if (!assinatura) {
+            return res.status(404).json({ message: 'Assinatura não encontrada.' });
+        }
 
-        res.status(200).json({ message: 'Cartão de pagamento atualizado com sucesso!' });
+        // Permite a regularização apenas se o pagamento estiver pendente ou a conta pausada
+        if (!['pagamento_pendente', 'pausada'].includes(assinatura.status)) {
+            return res.status(400).json({ 
+                message: `Sua assinatura com status '${assinatura.status}' não pode ser regularizada desta forma.` 
+            });
+        }
+
+        console.log(`[Regularize v1.1] Iniciando regularização para assinatura ${assinatura._id} (Gateway ID: ${assinatura.gatewaySubscriptionId}).`);
+
+        // Delega a lógica de atualização do cartão para o serviço de assinatura.
+        // Este serviço deve interagir com o gateway para trocar o cartão.
+        // A API do Mercado Pago, ao trocar o cartão, pode re-processar o pagamento se houver uma fatura pendente.
+        await subscriptionService.updateSubscriptionCard(assinatura.gatewaySubscriptionId, cardTokenId);
+
+        // A reativação da conta é assíncrona, via webhook, após o pagamento ser 'approved'.
+        res.status(200).json({ 
+            message: 'Seu método de pagamento foi atualizado. Uma nova cobrança será feita. Você será notificado assim que o pagamento for confirmado e seu acesso reativado.' 
+        });
+
     } catch (error) {
-        console.error("Erro ao atualizar o cartão da assinatura:", error);
-        res.status(500).json({ message: error.message || 'Erro interno ao atualizar o cartão.' });
+        console.error("Erro ao regularizar pagamento (v1.1):", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao tentar regularizar seu pagamento.' });
     }
 };
 
@@ -198,6 +253,6 @@ module.exports = {
     cancelSubscription: handleCancelSubscription,
     handleUpgradePlan,
     handleGetSubscriptionDetails,
-    handleUpdateSubscriptionCard,
+    handleRegularizePayment,
     handleCreatePixPayment,
 };
