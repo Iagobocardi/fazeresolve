@@ -16,7 +16,7 @@ const handlePaymentNotification = async (paymentId) => {
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
 
-            // --- LÓGICA DE PAGAMENTO DE ASSINATURA ---
+            // --- LÓGICA DE PAGAMENTO DE ASSINATURA (CARTÃO DE CRÉDITO RECORRENTE) ---
             if (paymentInfo.preapproval_id) {
                 const conta = await Conta.findById(externalReference);
                 if (!conta) {
@@ -24,26 +24,33 @@ const handlePaymentNotification = async (paymentId) => {
                     return;
                 }
 
-                // CASO 1: Pagamento APROVADO
                 if (paymentInfo.status === 'approved') {
                     conta.statusAssinatura = 'ATIVO';
-                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver.
+                    conta.gracePeriodExpiresAt = null;
                     await conta.save();
                     console.log(`[Webhook] Pagamento da assinatura ${paymentId} aprovado. Conta ${conta._id} está ATIVA.`);
-                
-                // CASO 2: Pagamento RECUSADO
                 } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(paymentInfo.status)) {
-                    // Só entra em período de carência se a assinatura já estava ativa.
                     if (conta.statusAssinatura === 'ATIVO') {
                         const gracePeriodHours = 72;
                         conta.statusAssinatura = 'EM_ATRASO';
                         conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodHours * 60 * 60 * 1000);
                         await conta.save();
                         console.log(`[Webhook] Pagamento da assinatura ${paymentId} falhou. Conta ${conta._id} em período de carência por ${gracePeriodHours} horas.`);
-                        // Futuramente, aqui se pode disparar um e-mail ou WhatsApp de aviso.
                     }
                 }
-                return; // Encerra o processamento para pagamentos de assinatura.
+                return;
+            }
+
+            // --- LÓGICA DE PAGAMENTO DE ASSINATURA (PIX INICIAL OU REGULARIZAÇÃO) ---
+            if (paymentInfo.payment_method_id === 'pix' && paymentInfo.description?.startsWith('Pagamento da assinatura do plano')) {
+                const conta = await Conta.findById(externalReference);
+                if (conta && paymentInfo.status === 'approved') {
+                    conta.statusAssinatura = 'ATIVO';
+                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver
+                    await conta.save();
+                    console.log(`[Webhook] Pagamento PIX da assinatura ${paymentId} aprovado. Conta ${conta._id} ativada.`);
+                    return;
+                }
             }
 
             // --- LÓGICA DE PAGAMENTO DE ORÇAMENTO (Existente) ---
