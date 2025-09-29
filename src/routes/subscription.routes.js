@@ -36,4 +36,20 @@ router.post(
     subscriptionController.handleUpgradePlan
 );
 
+// Rota para buscar os detalhes da assinatura do usuário
+router.get(
+    '/details',
+    authMiddleware,
+    roleMiddleware(['Dono']),
+    subscriptionController.handleGetSubscriptionDetails
+);
+
+// Rota para o usuário atualizar o cartão da sua assinatura
+router.post(
+    '/update-card',
+    authMiddleware,
+    roleMiddleware(['Dono']),
+    subscriptionController.handleUpdateSubscriptionCard
+);
+
 module.exports = router;
