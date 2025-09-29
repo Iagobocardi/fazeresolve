@@ -52,4 +52,11 @@ router.post(
     subscriptionController.handleUpdateSubscriptionCard
 );
 
+// Rota para criar uma cobrança PIX para assinatura
+router.post(
+    '/pix',
+    provisionalAuthMiddleware, // Usamos o auth provisório pois o usuário pode não ter assinatura ativa ainda
+    subscriptionController.handleCreatePixPayment
+);
+
 module.exports = router;
