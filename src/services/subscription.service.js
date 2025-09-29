@@ -59,7 +59,8 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             preapproval_plan_id: planId,
             card_token_id: cardTokenId,
             payer_email: user.email,
-            status: 'authorized' // O status deve ser 'authorized' para ativar a assinatura imediatamente.
+            external_reference: user.contaId, // Vincula a assinatura à nossa conta interna
+            status: 'authorized' // O status deve ser 'authorized' para a primeira cobrança ser tentada.
         };
 
         // 4. A chamada `create` agora só precisa do `body`.
