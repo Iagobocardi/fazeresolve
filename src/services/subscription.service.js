@@ -61,6 +61,11 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         }
         const cnpj = conta.companyInfo?.cnpj?.replace(/\D/g, '');
 
+        // Prepara o nome e sobrenome do pagador
+        const nameParts = user.nome.split(' ');
+        const firstName = nameParts[0];
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'; // MP exige um sobrenome
+
         const body = {
             preapproval_plan_id: planId,
             reason: `Assinatura do plano para ${user.nome}`,
@@ -68,6 +73,8 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
             payer: {
                 email: user.email,
+                first_name: firstName,
+                last_name: lastName,
             }
         };
 
