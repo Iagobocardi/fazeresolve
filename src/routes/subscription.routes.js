@@ -36,20 +36,20 @@ router.post(
     subscriptionController.handleUpgradePlan
 );
 
-// Rota para buscar os detalhes da assinatura do usuário
+// Rota para buscar os detalhes da conta do usuário (v1.1)
 router.get(
-    '/details',
+    '/minha-conta',
     authMiddleware,
     roleMiddleware(['Dono']),
     subscriptionController.handleGetSubscriptionDetails
 );
 
-// Rota para o usuário atualizar o cartão da sua assinatura
+// Rota para o usuário regularizar um pagamento pendente (v1.1)
 router.post(
-    '/update-card',
+    '/regularizar',
     authMiddleware,
     roleMiddleware(['Dono']),
-    subscriptionController.handleUpdateSubscriptionCard
+    subscriptionController.handleRegularizePayment
 );
 
 // Rota para criar uma cobrança PIX para assinatura
