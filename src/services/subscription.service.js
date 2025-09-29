@@ -53,38 +53,14 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         const subscription = new PreApproval(client);
         // -------------------------------------------------------
 
-        // Busca a conta para obter o CNPJ
-        const conta = await Conta.findById(user.contaId);
-        if (!conta) {
-            // Este erro será pego pelo bloco catch e tratado como um erro 500, o que é apropriado.
-            throw new Error(`Conta não encontrada para o usuário ${user._id}`);
-        }
-        const cnpj = conta.companyInfo?.cnpj?.replace(/\D/g, '');
-
-        // Prepara o nome e sobrenome do pagador
-        const nameParts = user.nome.split(' ');
-        const firstName = nameParts[0];
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'; // MP exige um sobrenome
-
+        // O corpo da requisição para criar uma assinatura com plano é simples.
+        // Fonte: https://www.mercadopago.com.br/developers/pt/reference/subscriptions/_preapproval/post
         const body = {
             preapproval_plan_id: planId,
-            reason: `Assinatura do plano para ${user.nome}`,
             card_token_id: cardTokenId,
-            back_url: `${process.env.FRONTEND_URL}/provider/dashboard`,
-            payer: {
-                email: user.email,
-                first_name: firstName,
-                last_name: lastName,
-            }
+            payer_email: user.email,
+            status: 'authorized' // O status deve ser 'authorized' para ativar a assinatura imediatamente.
         };
-
-        // Adiciona a identificação apenas se o CNPJ existir
-        if (cnpj) {
-            body.payer.identification = {
-                type: 'CNPJ',
-                number: cnpj
-            };
-        }
 
         // 4. A chamada `create` agora só precisa do `body`.
         // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
