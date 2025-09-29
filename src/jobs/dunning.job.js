@@ -1,4 +1,4 @@
-// Em: src/jobs/dunning.job.js (Lógica v1.1)
+// Em: src/jobs/dunning.job.js (Lógica v1.1 - Corrigida)
 
 const cron = require('node-cron');
 const Assinatura = require('../models/subscription.model');
@@ -70,10 +70,11 @@ const dunningJob = cron.schedule('0 0 * * *', async () => {
                 }
             }
         } else {
-            console.log('[Cron Job - Dunning] Nenhuma assinatura em 'pendente_confirmacao' antiga encontrada.');
+            // CORREÇÃO: Uso de aspas duplas para evitar o erro de sintaxe.
+            console.log("[Cron Job - Dunning] Nenhuma assinatura em 'pendente_confirmacao' antiga encontrada.");
         }
     } catch (error) {
-        console.error('[Cron Job - Dunning] Erro na verificação de segurança de assinaturas pendentes:', error);
+        console.error("[Cron Job - Dunning] Erro na verificação de segurança de assinaturas pendentes:", error);
     }
 
     console.log('[Cron Job - Dunning] Verificação diária concluída.');
