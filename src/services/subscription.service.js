@@ -303,9 +303,69 @@ const upgradeSubscription = async (contaId, newPlanName) => {
 };
 
 
+const getSubscriptionDetails = async (contaId) => {
+    const conta = await Conta.findById(contaId);
+
+    if (!conta) {
+        throw new Error('Conta não encontrada.');
+    }
+
+    if (!conta.mercadoPagoSubscriptionId) {
+        return {
+            statusLocal: conta.statusAssinatura,
+            plano: conta.plano,
+            message: 'Nenhuma assinatura ativa encontrada no gateway de pagamento.'
+        };
+    }
+
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+    const preapproval = new PreApproval(client);
+
+    const mpSubscription = await preapproval.get({ id: conta.mercadoPagoSubscriptionId });
+
+    // TODO: Buscar os detalhes do cartão (bandeira, últimos 4 dígitos) pode exigir uma chamada adicional à API de cartões.
+    // Por enquanto, retornamos o que temos de forma segura.
+    return {
+        statusLocal: conta.statusAssinatura,
+        statusGateway: mpSubscription.status,
+        plano: conta.plano,
+        proximaCobranca: mpSubscription.next_payment_date,
+        metodoPagamento: mpSubscription.payment_method_id,
+        // Adicionar detalhes do cartão se a API retornar
+    };
+};
+
+const updateSubscriptionCard = async (contaId, cardTokenId) => {
+    const conta = await Conta.findById(contaId);
+
+    if (!conta || !conta.mercadoPagoSubscriptionId) {
+        throw new Error('Nenhuma assinatura ativa encontrada para esta conta.');
+    }
+
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+    const preapproval = new PreApproval(client);
+
+    const body = {
+        card_token_id: cardTokenId,
+    };
+
+    const result = await preapproval.update({
+        preapprovalId: conta.mercadoPagoSubscriptionId,
+        body,
+    });
+
+    // Após a atualização, a assinatura pode voltar ao status 'authorized'
+    // e o webhook de pagamento tratará a reativação da conta, se necessário.
+    console.log(`[Service] Cartão da assinatura ${conta.mercadoPagoSubscriptionId} atualizado. Novo status: ${result.status}`);
+
+    return result;
+};
+
 module.exports = {
     createSubscription,
     updateSubscriptionPriceForNewUser,
     cancelSubscription,
     upgradeSubscription,
+    getSubscriptionDetails,
+    updateSubscriptionCard,
 };
