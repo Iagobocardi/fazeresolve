@@ -171,6 +171,27 @@ const handleUpdateSubscriptionCard = async (req, res) => {
     }
 };
 
+const handleCreatePixPayment = async (req, res) => {
+    try {
+        const usuario = req.user;
+        const conta = await Conta.findById(usuario.contaId);
+
+        if (!conta) {
+            return res.status(404).json({ message: 'Conta não encontrada.' });
+        }
+        if (conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
+            return res.status(400).json({ message: 'Esta conta não está aguardando um pagamento.' });
+        }
+
+        const pixData = await subscriptionService.createPixSubscriptionPayment(usuario, conta);
+        res.status(200).json(pixData);
+
+    } catch (error) {
+        console.error("Erro ao criar pagamento PIX para assinatura:", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao criar pagamento PIX.' });
+    }
+};
+
 module.exports = {
     handleCreatePlan,
     handleSubscribe,
@@ -178,4 +199,5 @@ module.exports = {
     handleUpgradePlan,
     handleGetSubscriptionDetails,
     handleUpdateSubscriptionCard,
+    handleCreatePixPayment,
 };
