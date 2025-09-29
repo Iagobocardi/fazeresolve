@@ -35,11 +35,11 @@ const handlePaymentNotification = async (paymentId) => {
                 } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(paymentInfo.status)) {
                     // Só entra em período de carência se a assinatura já estava ativa.
                     if (conta.statusAssinatura === 'ATIVO') {
-                        const gracePeriodDays = 7;
+                        const gracePeriodHours = 72;
                         conta.statusAssinatura = 'EM_ATRASO';
-                        conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodDays * 24 * 60 * 60 * 1000);
+                        conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodHours * 60 * 60 * 1000);
                         await conta.save();
-                        console.log(`[Webhook] Pagamento da assinatura ${paymentId} falhou. Conta ${conta._id} em período de carência por ${gracePeriodDays} dias.`);
+                        console.log(`[Webhook] Pagamento da assinatura ${paymentId} falhou. Conta ${conta._id} em período de carência por ${gracePeriodHours} horas.`);
                         // Futuramente, aqui se pode disparar um e-mail ou WhatsApp de aviso.
                     }
                 }
