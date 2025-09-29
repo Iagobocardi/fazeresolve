@@ -49,48 +49,14 @@ const handleSubscribe = async (req, res) => {
         console.log(`[Subscribe] Iniciando criação de assinatura para conta ${conta._id} com plano ${conta.planId}`);
         const subscriptionResult = await subscriptionService.createSubscription(conta.planId, usuario, cardTokenId, deviceId);
 
-        // --- NOVO FLUXO SÍNCRONO ---
-        // Analisa a resposta IMEDIATA do Mercado Pago
+        // --- FLUXO SEGURO COM ATIVAÇÃO VIA WEBHOOK ---
 
-        // CASO 1: SUCESSO IMEDIATO
-        if (subscriptionResult.status === 'authorized') {
-            console.log(`[Subscribe] Assinatura autorizada com sucesso no MP. ID: ${subscriptionResult.id}`);
-
-            // ATIVA a conta imediatamente
-            conta.statusAssinatura = 'ATIVO';
-            conta.mercadoPagoSubscriptionId = subscriptionResult.id;
-            await conta.save();
-            console.log(`[Subscribe] Conta ${conta._id} atualizada para ATIVO.`);
-
-            // Gera um novo token JWT definitivo para o USUÁRIO
-            const payload = { id: usuario._id, contaId: conta._id, role: usuario.role };
-            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-            const finalUser = await Usuario.findById(usuario._id).select('-senha');
-
-            // Retorna o token para o login automático do usuário no front-end
-            return res.status(201).json({
-                message: 'Assinatura criada com sucesso!',
-                token,
-                userType: 'provider',
-                usuario: {
-                    id: finalUser._id,
-                    nome: finalUser.nome,
-                    email: finalUser.email,
-                    role: finalUser.role,
-                    plano: conta.plano,
-                    statusAssinatura: conta.statusAssinatura,
-                    permissoes: finalUser.permissoes
-                },
-                conta: conta
-            });
-        }
-        
-        // CASO 2: FALHA IMEDIATA (recusado ou erro)
-        if (subscriptionResult.error || subscriptionResult.status === 'cancelled' || subscriptionResult.status === 'rejected') {
-            console.warn(`[Subscribe] Pagamento recusado para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
+        // CASO 1: FALHA IMEDIATA (cartão recusado, erro de dados, etc.)
+        // Se a resposta da API contiver um erro explícito ou um status que não seja de sucesso ou pendência.
+        if (subscriptionResult.error || (subscriptionResult.status && !['authorized', 'pending'].includes(subscriptionResult.status))) {
+            console.warn(`[Subscribe] Falha na criação da assinatura para conta ${conta._id}. Status: ${subscriptionResult.status || 'N/A'}`);
             
-            const errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Por favor, verifique os dados do cartão ou tente outro.';
+            const errorMessage = subscriptionResult.message || 'O pagamento foi recusado. Verifique os dados do cartão ou tente outro.';
             
             return res.status(402).json({
                 message: errorMessage,
@@ -98,14 +64,16 @@ const handleSubscribe = async (req, res) => {
             });
         }
 
-        // CASO 3: PENDENTE (fallback para webhook)
-        // Se o status não for nem 'authorized' nem um erro claro, consideramos pendente.
-        console.log(`[Subscribe] Assinatura com status pendente (${subscriptionResult.status}). Aguardando webhook. ID: ${subscriptionResult.id}`);
+        // CASO 2: SUCESSO NA SUBMISSÃO (pagamento autorizado ou pendente)
+        // Se o pagamento não falhou imediatamente, salvamos o ID e aguardamos o webhook.
+        console.log(`[Subscribe] Assinatura submetida ao MP com status '${subscriptionResult.status}'. Aguardando confirmação via webhook. ID: ${subscriptionResult.id}`);
+        
         conta.mercadoPagoSubscriptionId = subscriptionResult.id;
         await conta.save();
         
+        // Informa ao front-end que o processo está pendente de confirmação final.
         return res.status(200).json({
-            message: 'Seu pagamento está pendente de aprovação. Avisaremos assim que for confirmado e seu acesso será liberado.'
+            message: 'Seu pagamento está sendo processado. Você receberá a confirmação em breve e seu acesso será liberado.'
         });
 
     } catch (error) {
