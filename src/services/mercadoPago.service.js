@@ -1,11 +1,13 @@
 const { MercadoPagoConfig, Payment } = require('mercadopago');
+const mercadoPagoConfig = require('../config/mercadoPago.config.js'); // Importa a configuração central
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
 
 const Conta = require('../models/conta.model');
 
 const handlePaymentNotification = async (paymentId) => {
-    const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+    // Utiliza a configuração centralizada para garantir que o token de acesso seja carregado corretamente.
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
     const payment = new Payment(client);
 
     try {
@@ -76,7 +78,7 @@ module.exports = {
     handlePaymentNotification,
     createPixPayment: async (paymentData) => {
         try {
-            const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+            const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
             const payment = new Payment(client);
 
             console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
