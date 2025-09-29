@@ -16,7 +16,24 @@ const handlePaymentNotification = async (paymentId) => {
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
 
-            // Tenta encontrar um orçamento primeiro
+            // 1. Lógica de Ativação de Assinatura
+            // Um pagamento de assinatura é identificado pelo campo `preapproval_id`.
+            if (paymentInfo.preapproval_id && paymentInfo.status === 'approved') {
+                const conta = await Conta.findById(externalReference);
+
+                // Ativa a conta somente se ela estiver aguardando pagamento.
+                // Isso evita reativar uma conta cancelada ou processar webhooks duplicados.
+                if (conta && conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
+                    conta.statusAssinatura = 'ATIVO';
+                    await conta.save();
+                    console.log(`[Webhook] Assinatura da conta ${conta._id} ativada com sucesso pelo pagamento ${paymentId}.`);
+                } else {
+                    console.log(`[Webhook] Pagamento de assinatura ${paymentId} recebido para conta ${externalReference}, mas a conta não estava aguardando pagamento. Nenhuma ação foi tomada.`);
+                }
+                return; // Encerra o processamento, pois já tratamos o webhook.
+            }
+
+            // 2. Lógica de Pagamento de Orçamento
             const orcamento = await Orcamento.findById(externalReference);
             if (orcamento) {
                 // Evita processar pagamentos duplicados
