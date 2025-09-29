@@ -109,6 +109,28 @@ const handleSubscribe = async (req, res) => {
     }
 };
 
+const handleUpgradePlan = async (req, res) => {
+    try {
+        const { newPlanName } = req.body; // 'Profissional' ou 'Premium'
+        const { contaId } = req.user;
+
+        if (!newPlanName) {
+            return res.status(400).json({ message: 'O nome do novo plano é obrigatório.' });
+        }
+
+        const result = await subscriptionService.upgradeSubscription(contaId, newPlanName);
+
+        res.status(200).json({
+            message: 'Plano atualizado com sucesso!',
+            ...result
+        });
+
+    } catch (error) {
+        console.error("Erro ao fazer upgrade do plano:", error);
+        res.status(500).json({ message: error.message || 'Erro interno ao atualizar o plano.' });
+    }
+};
+
 module.exports = {
     handleCreatePlan,
     handleSubscribe,
@@ -121,5 +143,6 @@ module.exports = {
             console.error("Erro ao cancelar assinatura:", error);
             res.status(500).json({ message: 'Erro interno ao cancelar a assinatura.' });
         }
-    }
+    },
+    handleUpgradePlan,
 };
