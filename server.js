@@ -71,13 +71,7 @@ const allowedOrigins = [
     'https://accounts.google.com',
 ];
 const corsOptions = {
-    origin: (origin, callback) => {
-        if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error(`Acesso não permitido por CORS. Origem: ${origin}`));
-        }
-    },
+    origin: '*', // ATENÇÃO: Configuração permissiva apenas para diagnóstico
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
