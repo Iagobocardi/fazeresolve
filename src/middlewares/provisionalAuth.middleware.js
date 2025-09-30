@@ -37,13 +37,12 @@ const provisionalAuthMiddleware = async (req, res, next) => {
             return res.status(401).json({ message: 'Usuário do token não encontrado.' });
         }
 
-        if (!conta) {
-            return res.status(401).json({ message: 'Conta associada ao usuário não encontrada.' });
+        if (!usuario) {
+            return res.status(401).json({ message: 'Usuário do token não encontrado.' });
         }
 
-        if (conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
-            return res.status(403).json({ message: 'Acesso negado. Esta rota é apenas para utilizadores com pagamento pendente.' });
-        }
+        // A verificação de status da conta foi removida para se alinhar ao novo fluxo,
+        // onde um usuário recém-registrado pode acessar esta rota para se inscrever.
 
         req.user = usuario;
         next();

@@ -13,11 +13,10 @@ router.post(
     subscriptionController.handleCreatePlan
 );
 
-// Rota para prestadores se inscreverem em um plano (v1.1)
-// Usa o middleware de autenticação padrão, pois o usuário já deve estar logado.
+// Rota para prestadores se inscreverem em um plano
 router.post(
     '/subscribe',
-    authMiddleware,
+    provisionalAuthMiddleware,
     subscriptionController.handleSubscribe
 );
 
