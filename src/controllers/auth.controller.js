@@ -251,7 +251,7 @@ const register = async (req, res) => {
         const token = jwt.sign(
             payload,
             process.env.JWT_SECRET,
-            { expiresIn: '15m' }
+            { expiresIn: '1h' } // Aumentado para 1 hora para dar tempo suficiente para o pagamento
         );
 
         res.status(201).json({
