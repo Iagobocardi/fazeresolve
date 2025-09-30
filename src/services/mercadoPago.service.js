@@ -1,16 +1,17 @@
-const mercadopago = require('mercadopago');
-const mercadoPagoConfig = require('../config/mercadoPago.config.js');
+const { MercadoPagoConfig, Payment } = require('mercadopago');
+const mercadoPagoConfig = require('../config/mercadoPago.config.js'); // Importa a configuração central
 const Orcamento = require('../models/orcamento.model');
+const Cliente = require('../models/cliente.model');
+
 const Conta = require('../models/conta.model');
 
 const handlePaymentNotification = async (paymentId) => {
-    try {
-        mercadopago.configure({
-            access_token: mercadoPagoConfig.accessToken,
-        });
+    // Utiliza a configuração centralizada para garantir que o token de acesso seja carregado corretamente.
+    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+    const payment = new Payment(client);
 
-        const paymentInfoResult = await mercadopago.payment.get(paymentId);
-        const paymentInfo = paymentInfoResult.body;
+    try {
+        const paymentInfo = await payment.get({ id: paymentId });
 
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
@@ -45,7 +46,7 @@ const handlePaymentNotification = async (paymentId) => {
                 const conta = await Conta.findById(externalReference);
                 if (conta && paymentInfo.status === 'approved') {
                     conta.statusAssinatura = 'ATIVO';
-                    conta.gracePeriodExpiresAt = null;
+                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver
                     await conta.save();
                     console.log(`[Webhook] Pagamento PIX da assinatura ${paymentId} aprovado. Conta ${conta._id} ativada.`);
                     return;
@@ -55,6 +56,7 @@ const handlePaymentNotification = async (paymentId) => {
             // --- LÓGICA DE PAGAMENTO DE ORÇAMENTO (Existente) ---
             const orcamento = await Orcamento.findById(externalReference);
             if (orcamento) {
+                // Evita processar pagamentos duplicados
                 const pagamentoJaRegistrado = orcamento.pagamentos.some(p => p.observacao.includes(paymentInfo.id));
                 if (pagamentoJaRegistrado) {
                     console.log(`[Webhook] Pagamento ${paymentInfo.id} já registrado para o orçamento ${externalReference}.`);
@@ -72,7 +74,11 @@ const handlePaymentNotification = async (paymentId) => {
                     orcamento.historico.push({ evento: `Pagamento de R$${paymentInfo.transaction_amount.toFixed(2)} aprovado via Mercado Pago.` });
 
                     const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
-                    orcamento.statusPagamento = totalPago >= orcamento.valorProposto ? 'Pago' : 'Pago Parcial';
+                    if (totalPago >= orcamento.valorProposto) {
+                        orcamento.statusPagamento = 'Pago';
+                    } else {
+                        orcamento.statusPagamento = 'Pago Parcial';
+                    }
 
                     await orcamento.save();
                     console.log(`[Webhook] Orçamento ${externalReference} atualizado com sucesso para o pagamento ${paymentInfo.id}.`);
@@ -105,23 +111,21 @@ const handlePaymentNotification = async (paymentId) => {
     }
 };
 
-const createPixPayment = async (paymentData) => {
-    try {
-        mercadopago.configure({
-            access_token: mercadoPagoConfig.accessToken,
-        });
-
-        console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
-
-        const result = await mercadopago.payment.create(paymentData);
-        return result.body;
-    } catch (error) {
-        console.error("Erro detalhado ao criar pagamento PIX no serviço:", JSON.stringify(error.response?.data || error.message, null, 2));
-        throw error;
-    }
-};
-
 module.exports = {
     handlePaymentNotification,
-    createPixPayment,
+    createPixPayment: async (paymentData) => {
+        try {
+            const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+            const payment = new Payment(client);
+
+            console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
+
+            const result = await payment.create({ body: paymentData });
+            return result;
+        } catch (error) {
+            console.error("Erro detalhado ao criar pagamento PIX no serviço:", JSON.stringify(error, null, 2));
+            // Propaga o erro para ser tratado pelo controller
+            throw error;
+        }
+    }
 };
