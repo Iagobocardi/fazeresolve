@@ -32,24 +32,11 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         }
 
         // =======================================================
-        // ==>    A CORREÇÃO DEFINITIVA ESTÁ AQUI              <==
+        // ==>    SIMPLIFICANDO A CHAMADA PARA O MERCADO PAGO    <==
         // =======================================================
-        // 1. Preparamos as opções para o cliente, incluindo os cabeçalhos customizados.
-        const clientOptions = {
-            accessToken,
-            options: {
-                timeout: 5000, // Exemplo de outra opção
-                customHeaders: {}
-            }
-        };
-
-        // 2. Adicionamos o deviceId aos cabeçalhos customizados, se ele existir.
-        if (deviceId) {
-            clientOptions.options.customHeaders['X-meli-session-id'] = deviceId;
-        }
-
-        // 3. Inicializamos o cliente com TODAS as configurações necessárias.
-        const client = new MercadoPagoConfig(clientOptions);
+        // A lógica complexa de inicialização do cliente foi removida para garantir
+        // que a chamada seja feita da forma mais padrão e robusta possível.
+        const client = new MercadoPagoConfig({ accessToken });
         const subscription = new PreApproval(client);
         // -------------------------------------------------------
 
