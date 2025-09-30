@@ -140,9 +140,9 @@ const pixRoutes = require('./src/routes/pix.routes.js');
 app.use('/api/pix', pixRoutes);
 app.use('/api/utils', providerAuthMiddlewares, utilsRoutes);
 
-// Rota de teste
+// Rota de teste para health check
 app.get('/', (req, res) => {
-    res.send('<h1>Servidor Faz&Resolve Rodando!</h1>');
+    res.status(200).send('<h1>Servidor Faz&Resolve Rodando!</h1>');
 });
 
 // PASSO 7: Middleware de Erro
@@ -481,7 +481,8 @@ const startServer = async () => {
         });
 
         // Popula o catálogo após o servidor iniciar, para não bloquear a porta.
-        await seedCatalogoMercado();
+        // Executando em segundo plano para não bloquear o processo de inicialização.
+        seedCatalogoMercado();
 
     } catch (error) {
         console.error("Falha ao iniciar o servidor:", error);
