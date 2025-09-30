@@ -64,6 +64,7 @@ const cors = require('cors');
 const allowedOrigins = [
     'https://app.fazeresolve.com',
     'https://fazeresolve.onrender.com',
+    'https://www.fazeresolve.onrender.com',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
