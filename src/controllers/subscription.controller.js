@@ -54,6 +54,25 @@ const handleSubscribe = async (req, res) => {
 
         console.log(`[Subscribe v1.1] Assinatura criada no gateway. ID: ${gatewayResult.id}, Payer ID: ${gatewayResult.payer_id}`);
 
+        // Passo Adicional: Verificar se o Customer ID do gateway já existe para outro usuário.
+        // Isso previne que um mesmo cartão (mesmo dono) seja usado para assinar duas contas diferentes.
+        const existingSubscription = await Assinatura.findOne({ 
+            gatewayCustomerId: gatewayResult.payer_id,
+            userId: { $ne: usuario._id } // Garante que não estamos pegando a assinatura do próprio usuário (em um caso de re-tentativa)
+        });
+
+        if (existingSubscription) {
+            console.warn(`[Subscribe v1.1] Tentativa de assinatura duplicada. Customer ID ${gatewayResult.payer_id} já existe para o usuário ${existingSubscription.userId}.`);
+            
+            // Cancela a assinatura recém-criada no gateway para evitar cobranças indevidas.
+            // É importante ter uma função de cancelamento que opere diretamente com o ID do gateway.
+            await subscriptionService.cancelSubscriptionByGatewayId(gatewayResult.id);
+            
+            return res.status(409).json({ // 409 Conflict é o status ideal para este caso.
+                message: 'Este método de pagamento já está associado a outra conta. Por favor, utilize um cartão diferente ou entre em contato com o suporte.'
+            });
+        }
+
         // 2. Imediatamente cria/atualiza a assinatura no DB local com status 'pendente_confirmacao'
         const assinaturaData = {
             planoId: conta.planId,
