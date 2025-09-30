@@ -71,7 +71,25 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-    origin: '*',
+    origin: function (origin, callback) {
+        console.log('Request origin:', origin);
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        // Check if the origin is in the allowedOrigins list (including regex patterns)
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            if (allowedOrigin instanceof RegExp) {
+                return allowedOrigin.test(origin);
+            }
+            return allowedOrigin === origin;
+        });
+
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
