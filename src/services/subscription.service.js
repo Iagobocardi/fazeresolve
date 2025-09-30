@@ -1,4 +1,4 @@
-const { MercadoPagoConfig, PreApproval } = require('mercadopago');
+const mercadopago = require('mercadopago');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js');
 const Subscription = require('../models/subscription.model.js');
 const Conta = require('../models/conta.model.js');
@@ -30,13 +30,11 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
             throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
         }
-
-        // =======================================================
-        // ==>         CORREÇÃO NA CHAMADA PARA O GATEWAY        <==
-        // =======================================================
-        // O cliente é inicializado de forma simples, apenas com o token.
-        const client = new MercadoPagoConfig({ accessToken });
-        const subscription = new PreApproval(client);
+        
+        // Configura o SDK do Mercado Pago (V2) com o Access Token
+        mercadopago.configure({
+            access_token: accessToken,
+        });
 
         // O corpo da requisição para criar uma assinatura com plano.
         const body = {
@@ -46,59 +44,39 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             external_reference: user.contaId,
             status: 'authorized'
         };
-
-        // As opções da requisição, incluindo o cabeçalho de prevenção a fraudes,
-        // são passadas aqui, no método `create`.
+        
+        // As opções da requisição, incluindo o cabeçalho de prevenção a fraudes
         const requestOptions = {
-            customHeaders: {}
+            headers: {}
         };
         if (deviceId) {
-            requestOptions.customHeaders['X-meli-session-id'] = deviceId;
+            requestOptions.headers['X-meli-session-id'] = deviceId;
             console.log(`[Service] Usando deviceId para prevenção a fraudes: ${deviceId}`);
         }
 
-        const result = await subscription.create({ body, requestOptions });
+        // A chamada para a API é feita diretamente pelo objeto 'mercadopago' (V2)
+        const result = await mercadopago.preapproval.create(body, requestOptions);
 
-        console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
+        console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result.body);
 
-        // Salva a referência no seu banco de dados...
-        const newSubscription = new Subscription({
-            userId: user._id,
-            planId: planId,
-            subscriptionId: result.id,
-            status: result.status,
-            nextPaymentDate: result.next_payment_date,
-        });
-        await newSubscription.save();
+        // A lógica de salvar no banco de dados foi removida daqui
+        // e é tratada exclusivamente pelo controller, que já faz isso de forma mais completa.
 
-        return result;
+        return result.body;
 
     } catch (error) {
         console.error("--- ERRO da API do Mercado Pago ---");
         
-        // Log a estrutura completa do erro para depuração, tratando possíveis erros de circularidade
-        try {
-            console.error("Objeto de erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-        } catch (e) {
-            console.error("Não foi possível serializar o objeto de erro completo:", error);
-        }
-
-        // Tenta extrair a resposta de erro da API de várias fontes comuns
-        const apiError = error.cause?.body || error.response?.data || error.data;
+        // A resposta de erro da V2 geralmente está em `error.response.data`
+        const apiError = error.response?.data;
 
         // Se encontrarmos um objeto de erro estruturado, o retornamos para o controller
         if (apiError && typeof apiError === 'object') {
             console.error("Resposta de erro da API (estruturada):", JSON.stringify(apiError, null, 2));
-            return apiError;
-        }
-
-        // Como fallback, o próprio objeto de erro pode conter as informações
-        if (error.status && error.message) {
-            console.error("Resposta de erro da API (plana):", JSON.stringify({ status: error.status, message: error.message, cause: error.cause }, null, 2));
-            return {
-                status: error.status,
-                message: error.message,
-                cause: error.cause || 'Não especificada'
+            return { 
+                error: true, 
+                message: apiError.message || 'Erro no gateway de pagamento.',
+                details: apiError 
             };
         }
 
