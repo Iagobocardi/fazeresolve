@@ -32,11 +32,24 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         }
 
         // =======================================================
-        // ==>    SIMPLIFICANDO A CHAMADA PARA O MERCADO PAGO    <==
+        // ==>    RESTAURANDO A LÓGICA DE PREVENÇÃO A FRAUDES    <==
         // =======================================================
-        // A lógica complexa de inicialização do cliente foi removida para garantir
-        // que a chamada seja feita da forma mais padrão e robusta possível.
-        const client = new MercadoPagoConfig({ accessToken });
+        // A inicialização do cliente precisa lidar com o `deviceId` para a
+        // prevenção de fraudes do Mercado Pago.
+        const clientOptions = {
+            accessToken,
+            options: {
+                timeout: 5000,
+                customHeaders: {}
+            }
+        };
+
+        if (deviceId) {
+            clientOptions.options.customHeaders['X-meli-session-id'] = deviceId;
+            console.log(`[Service] Usando deviceId para prevenção a fraudes: ${deviceId}`);
+        }
+
+        const client = new MercadoPagoConfig(clientOptions);
         const subscription = new PreApproval(client);
         // -------------------------------------------------------
 
