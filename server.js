@@ -71,7 +71,7 @@ const allowedOrigins = [
     'https://accounts.google.com',
 ];
 const corsOptions = {
-    origin: '*', // ATENÇÃO: Configuração permissiva apenas para diagnóstico
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
