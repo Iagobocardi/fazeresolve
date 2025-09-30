@@ -74,10 +74,20 @@ const handleSubscribe = async (req, res) => {
 
         // 3. Imediatamente atualiza o status do usuário para 'ativo' para liberar o acesso
         const userToUpdate = await Usuario.findById(usuario._id);
+        const PLANS = require('../config/plans.config.js');
+        
+        // Encontra o nome do plano correspondente ao planId
+        const plan = PLANS.find(p => p.monthly.id === conta.planId || p.annual.id === conta.planId);
+        if (!plan) {
+            // Se o plano não for encontrado, lança um erro para evitar salvar dados inconsistentes
+            console.error(`[Subscribe v1.1] Plano com ID ${conta.planId} não encontrado nas configurações.`);
+            return res.status(500).json({ message: 'Configuração de plano inválida. Contate o suporte.' });
+        }
+
         userToUpdate.status = 'ativo';
-        userToUpdate.plano = conta.planId;
+        userToUpdate.plano = plan.name; // Atribui o nome do plano (e.g., 'Essencial')
         await userToUpdate.save();
-        console.log(`[Subscribe v1.1] Usuário ${userToUpdate._id} atualizado para status 'ativo'.`);
+        console.log(`[Subscribe v1.1] Usuário ${userToUpdate._id} atualizado para status 'ativo' com o plano '${plan.name}'.`);
 
         // 4. Retorna sucesso com um token JWT para login automático
         const payload = { id: userToUpdate._id, contaId: conta._id, role: userToUpdate.role };
