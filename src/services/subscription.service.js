@@ -23,14 +23,11 @@ const PLAN_PRICING = {
  * @returns {Promise<object>} O objeto da assinatura criada.
  */
 const createSubscription = async (planId, user, cardTokenId, deviceId) => {
-    console.log("--- [Debug] Iniciando createSubscription ---");
-    console.log(`[Debug] Plan ID: ${planId}, User Email: ${user.email}, Card Token ID: ${cardTokenId ? 'Presente' : 'Ausente'}, Device ID: ${deviceId}`);
-
     try {
         const accessToken = mercadoPagoConfig.accessToken;
 
         if (!accessToken) {
-            console.error("--- ERRO CRÍTICO: Access Token do Mercado Pago não foi carregado! ---");
+            console.error("Access Token do Mercado Pago não está configurado no ambiente.");
             throw new Error('Access Token do Mercado Pago não está configurado no ambiente.');
         }
         
@@ -52,36 +49,19 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
             requestOptions.customHeaders['X-meli-session-id'] = deviceId;
         }
 
-        console.log("[Debug] Corpo da Requisição para o MP:", JSON.stringify(body, null, 2));
-        console.log("[Debug] Opções da Requisição para o MP:", JSON.stringify(requestOptions, null, 2));
-
         const result = await subscription.create({ body, requestOptions });
 
-        console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
-
-        const newSubscription = new Subscription({
-            userId: user._id,
-            planId: planId,
-            subscriptionId: result.id,
-            status: result.status,
-            nextPaymentDate: result.next_payment_date,
-        });
-        await newSubscription.save();
+        // A lógica de salvar a assinatura no banco de dados foi removida deste serviço.
+        // A responsabilidade agora é exclusivamente do controller, que já possui a lógica correta
+        // para mapear o status e garantir a consistência dos dados.
 
         return result;
 
     } catch (error) {
-        console.error("--- [Debug] CAPTURA DE ERRO DETALHADA ---");
+        console.error("Erro ao criar assinatura no Mercado Pago:", error.cause || error.message);
         
-        if (error.cause) {
-            console.error("[Debug] Causa do Erro (Completa):", JSON.stringify(error.cause, null, 2));
-        } else {
-            console.error("[Debug] Objeto de Erro (Completo):", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-        }
-
         const apiError = error.cause?.body || error.response?.data || error.data;
         if (apiError && typeof apiError === 'object') {
-            console.error("[Debug] Resposta de erro da API (Estruturada):", JSON.stringify(apiError, null, 2));
             return apiError;
         }
 
