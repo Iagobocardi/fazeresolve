@@ -70,18 +70,7 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-    origin: function (origin, callback) {
-        // Permite requisições sem 'origin' (ex: Postman, apps mobile)
-        if (!origin) return callback(null, true);
-
-        // Verifica se a origem da requisição corresponde a alguma das nossas regras
-        if (allowedOrigins.some(pattern => (pattern instanceof RegExp ? pattern.test(origin) : pattern === origin))) {
-            return callback(null, true);
-        }
-
-        // Se não corresponder, rejeita a requisição
-        return callback(new Error('Acesso não permitido por CORS.'));
-    },
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
