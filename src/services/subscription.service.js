@@ -348,10 +348,41 @@ const createPixSubscriptionPayment = async (usuario, conta) => {
     };
 };
 
+const cancelSubscriptionByGatewayId = async (gatewaySubscriptionId) => {
+    try {
+        const accessToken = mercadoPagoConfig.accessToken;
+        if (!accessToken) {
+            console.error('Access Token do Mercado Pago não configurado.');
+            throw new Error('Access Token do Mercado Pago não configurado.');
+        }
+
+        const client = new MercadoPagoConfig({ accessToken });
+        const preapproval = new PreApproval(client);
+
+        const result = await preapproval.update({
+            preapprovalId: gatewaySubscriptionId,
+            body: { status: 'cancelled' },
+        });
+
+        if (result.status === 'cancelled') {
+            console.log(`[Service] Assinatura do gateway ${gatewaySubscriptionId} cancelada com sucesso para prevenir duplicidade.`);
+        } else {
+            // Mesmo que não consiga cancelar, loga o erro mas não impede o fluxo de resposta ao usuário.
+            console.error(`[Service] Falha ao cancelar a assinatura do gateway ${gatewaySubscriptionId}. Status retornado: ${result.status}`);
+        }
+        return { success: true, result };
+
+    } catch (error) {
+        console.error(`[Service] Erro crítico ao tentar cancelar a assinatura do gateway ${gatewaySubscriptionId}:`, error.message);
+        // Não relança o erro para não quebrar o fluxo principal de resposta ao usuário.
+    }
+};
+
 module.exports = {
     createSubscription,
     updateSubscriptionPriceForNewUser,
     cancelSubscription,
+    cancelSubscriptionByGatewayId, // Adiciona a nova função
     upgradeSubscription,
     getSubscriptionDetails,
     updateSubscriptionCard,
