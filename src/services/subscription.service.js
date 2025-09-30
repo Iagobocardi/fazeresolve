@@ -32,40 +32,32 @@ const createSubscription = async (planId, user, cardTokenId, deviceId) => {
         }
 
         // =======================================================
-        // ==>    RESTAURANDO A LÓGICA DE PREVENÇÃO A FRAUDES    <==
+        // ==>         CORREÇÃO NA CHAMADA PARA O GATEWAY        <==
         // =======================================================
-        // A inicialização do cliente precisa lidar com o `deviceId` para a
-        // prevenção de fraudes do Mercado Pago.
-        const clientOptions = {
-            accessToken,
-            options: {
-                timeout: 5000,
-                customHeaders: {}
-            }
-        };
-
-        if (deviceId) {
-            clientOptions.options.customHeaders['X-meli-session-id'] = deviceId;
-            console.log(`[Service] Usando deviceId para prevenção a fraudes: ${deviceId}`);
-        }
-
-        const client = new MercadoPagoConfig(clientOptions);
+        // O cliente é inicializado de forma simples, apenas com o token.
+        const client = new MercadoPagoConfig({ accessToken });
         const subscription = new PreApproval(client);
-        // -------------------------------------------------------
 
-        // O corpo da requisição para criar uma assinatura com plano é simples.
-        // Fonte: https://www.mercadopago.com.br/developers/pt/reference/subscriptions/_preapproval/post
+        // O corpo da requisição para criar uma assinatura com plano.
         const body = {
             preapproval_plan_id: planId,
             card_token_id: cardTokenId,
             payer_email: user.email,
-            external_reference: user.contaId, // Vincula a assinatura à nossa conta interna
-            status: 'authorized' // O status deve ser 'authorized' para a primeira cobrança ser tentada.
+            external_reference: user.contaId,
+            status: 'authorized'
         };
 
-        // 4. A chamada `create` agora só precisa do `body`.
-        // O SDK irá usar o `client` para adicionar a autorização e os cabeçalhos customizados.
-        const result = await subscription.create({ body });
+        // As opções da requisição, incluindo o cabeçalho de prevenção a fraudes,
+        // são passadas aqui, no método `create`.
+        const requestOptions = {
+            customHeaders: {}
+        };
+        if (deviceId) {
+            requestOptions.customHeaders['X-meli-session-id'] = deviceId;
+            console.log(`[Service] Usando deviceId para prevenção a fraudes: ${deviceId}`);
+        }
+
+        const result = await subscription.create({ body, requestOptions });
 
         console.log("--- ASSINATURA CRIADA COM SUCESSO ---", result);
 
