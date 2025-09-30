@@ -61,17 +61,27 @@ const app = express();
 
 // PASSO 5: Middlewares Essenciais
 const cors = require('cors');
+// Lista de origens permitidas, agora usando Regex para mais flexibilidade
 const allowedOrigins = [
     'https://app.fazeresolve.com',
-    'https://fazeresolve.onrender.com',
-    'https://www.fazeresolve.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
+    /^https:\/\/(www\.)?fazeresolve\.onrender\.com$/, // Permite com e sem 'www'
+    /^http:\/\/localhost(:\d+)?$/,                 // Permite qualquer porta em localhost
     'https://accounts.google.com',
 ];
+
 const corsOptions = {
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+        // Permite requisições sem 'origin' (ex: Postman, apps mobile)
+        if (!origin) return callback(null, true);
+
+        // Verifica se a origem da requisição corresponde a alguma das nossas regras
+        if (allowedOrigins.some(pattern => (pattern instanceof RegExp ? pattern.test(origin) : pattern === origin))) {
+            return callback(null, true);
+        }
+
+        // Se não corresponder, rejeita a requisição
+        return callback(new Error('Acesso não permitido por CORS.'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
