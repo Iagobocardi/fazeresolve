@@ -77,6 +77,7 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
 };
 
+app.options('*', cors(corsOptions)); // Adiciona um manipulador para preflight requests
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
