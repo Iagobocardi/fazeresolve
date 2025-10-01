@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const cors = require('cors');
+const { corsOptions } = require('../config/cors.config.js');
 const subscriptionController = require('../controllers/subscription.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 const roleMiddleware = require('../middlewares/role.middleware.js');
@@ -13,9 +15,11 @@ router.post(
     subscriptionController.handleCreatePlan
 );
 
-// Rota para prestadores se inscreverem em um plano
+// Habilita o CORS para a rota de subscrição
+router.options('/subscribe', cors(corsOptions)); // Trata a requisição preflight
 router.post(
     '/subscribe',
+    cors(corsOptions), // Garante que a rota POST também tenha os cabeçalhos CORS
     provisionalAuthMiddleware,
     subscriptionController.handleSubscribe
 );
