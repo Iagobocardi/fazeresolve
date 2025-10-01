@@ -11,7 +11,7 @@ const usuarioSchema = new Schema({
     password: { type: String, required: true, select: false }, // select: false para não vir por padrão
     cpf: { type: String, unique: true, sparse: true }, // CPF para pagadores pessoa física
 
-    plano: { type: String, enum: ['essencial', 'profissional', 'premium'] },
+    plano: { type: String, enum: ['Essencial', 'Profissional', 'Premium', 'Admin'] },
     status: {
       type: String,
       enum: ['ativo', 'inativo', 'ativo_em_carencia', 'bloqueado_pagamento'], // Novo status
