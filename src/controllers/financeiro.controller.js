@@ -40,7 +40,7 @@ const getResumoFinanceiro = async (req, res) => {
             {
                 $group: {
                     _id: "$tipo",
-                    total: { $sum: "$valor" }
+                    total: { $sum: { $toDouble: "$valor" } }
                 }
             }
         ]);
