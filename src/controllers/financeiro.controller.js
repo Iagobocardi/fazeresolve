@@ -38,9 +38,29 @@ const getResumoFinanceiro = async (req, res) => {
         const resultado = await Transacao.aggregate([
             { $match: matchStage },
             {
+                $addFields: {
+                    // Converte a string de moeda "R$ 1.234,56" para um número 1234.56
+                    valorNumerico: {
+                        $toDouble: {
+                            $replaceOne: {
+                                input: {
+                                    $replaceAll: {
+                                        input: { $ltrim: { input: "$valor", chars: "R$ " } },
+                                        find: ".",
+                                        replacement: ""
+                                    }
+                                },
+                                find: ",",
+                                replacement: "."
+                            }
+                        }
+                    }
+                }
+            },
+            {
                 $group: {
                     _id: "$tipo",
-                    total: { $sum: { $toDouble: "$valor" } }
+                    total: { $sum: "$valorNumerico" }
                 }
             }
         ]);
