@@ -7,28 +7,33 @@ const mongoose = require('mongoose');
 const getResumoFinanceiro = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { periodo = 'mes_atual' } = req.query;
-
-        const agora = new Date();
-        let dataInicio;
-
-        switch (periodo) {
-            case 'ultimos_30_dias':
-                dataInicio = new Date(new Date().setDate(agora.getDate() - 30));
-                break;
-            case 'ano_atual':
-                dataInicio = new Date(agora.getFullYear(), 0, 1);
-                break;
-            case 'mes_atual':
-            default:
-                dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
-                break;
-        }
+        const { periodo } = req.query; // Remove o valor padrão para calcular tudo por default
 
         const matchStage = {
             contaId: new mongoose.Types.ObjectId(contaId),
-            data: { $gte: dataInicio }
         };
+
+        // Adiciona o filtro de data apenas se um período for especificado pelo cliente
+        if (periodo) {
+            const agora = new Date();
+            let dataInicio;
+
+            switch (periodo) {
+                case 'ultimos_30_dias':
+                    dataInicio = new Date(new Date().setDate(agora.getDate() - 30));
+                    break;
+                case 'ano_atual':
+                    dataInicio = new Date(agora.getFullYear(), 0, 1);
+                    break;
+                case 'mes_atual':
+                    dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
+                    break;
+            }
+
+            if (dataInicio) {
+                matchStage.data = { $gte: dataInicio };
+            }
+        }
 
         const resultado = await Transacao.aggregate([
             { $match: matchStage },
@@ -58,7 +63,7 @@ const getResumoFinanceiro = async (req, res) => {
             faturamentoBruto,
             totalDespesas,
             lucroLiquido,
-            margemLucro, // Enviar como número puro
+            margemLucro,
         });
 
     } catch (error) {
