@@ -177,31 +177,43 @@ const createOrcamento = async (req, res) => {
         }
 
         let cliente;
+        // Se um ID de cliente existente for fornecido, usa-o.
         if (clienteData._id) {
             cliente = await Cliente.findOne({ _id: clienteData._id, contaId }).session(session);
             if (!cliente) {
                 return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
             }
-            
+            // Atualiza o endereço se um novo for fornecido
             if (clienteData.endereco && typeof clienteData.endereco === 'object') {
                 cliente.endereco = Object.assign(cliente.endereco || {}, clienteData.endereco);
                 await cliente.save({ session });
             }
-        } else {
-            const dadosSegurosCliente = {
+        } 
+        // Se não, procura pelo telefone ou cria um novo cliente (lógica "Find or Create").
+        else {
+            // Tenta encontrar um cliente existente com o mesmo número de telefone.
+            cliente = await Cliente.findOne({ telefone: clienteData.telefone, contaId }).session(session);
+
+            const dadosClienteParaAtualizar = {
                 nome: clienteData.nome,
                 endereco: clienteData.endereco,
                 contaId: contaId
             };
-            if (clienteData.email && clienteData.email.trim() !== '') {
-                dadosSegurosCliente.email = clienteData.email;
+             if (clienteData.email && clienteData.email.trim() !== '') {
+                dadosClienteParaAtualizar.email = clienteData.email;
             }
-            Object.keys(dadosSegurosCliente).forEach(key => dadosSegurosCliente[key] === undefined && delete dadosSegurosCliente[key]);
-            cliente = await Cliente.findOneAndUpdate(
-                { telefone: clienteData.telefone, contaId },
-                { $set: dadosSegurosCliente },
-                { upsert: true, new: true, runValidators: true, session }
-            );
+            // Remove chaves indefinidas para evitar sobrepor dados existentes com 'undefined'.
+            Object.keys(dadosClienteParaAtualizar).forEach(key => dadosClienteParaAtualizar[key] === undefined && delete dadosClienteParaAtualizar[key]);
+
+            if (cliente) {
+                // Se o cliente existe, atualiza seus dados com as novas informações.
+                cliente.set(dadosClienteParaAtualizar);
+                await cliente.save({ session });
+            } else {
+                // Se o cliente não existe, cria um novo.
+                cliente = new Cliente({ ...dadosClienteParaAtualizar, telefone: clienteData.telefone });
+                await cliente.save({ session });
+            }
         }
 
         const dadosSegurosOrcamento = {
