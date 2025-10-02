@@ -21,7 +21,7 @@ const checkSubscription = async (req, res, next) => {
             return res.status(403).json({ message: 'Acesso negado. Conta não encontrada.' });
         }
 
-        const allowedStatus = ['ATIVO', 'EM_ATRASO'];
+        const allowedStatus = ['ATIVO', 'EM_ATRASO', 'AGUARDANDO_PAGAMENTO'];
 
         // Verifica se o status da assinatura permite o acesso (ativa ou em período de carência).
         if (allowedStatus.includes(conta.statusAssinatura)) {
