@@ -58,10 +58,10 @@ const authMiddleware = require('./src/middlewares/auth.middleware.js');
 const checkSubscription = require('./src/middlewares/checkSubscription.middleware.js');
 
 const app = express();
+const cors = require('cors');
 
 // PASSO 5: Middlewares Essenciais
-const cors = require('cors');
-// Lista de origens permitidas, agora usando Regex para mais flexibilidade
+// Priorizando o CORS para evitar problemas de inicialização em serviços como o Render.
 const allowedOrigins = [
     'https://app.fazeresolve.com',
     'https://fazeresolve.onrender.com',
@@ -77,7 +77,12 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
 };
 
+// Lida com as requisições pre-flight OPTIONS para todas as rotas.
+// Deve ser o primeiro middleware a ser configurado.
+app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+
+// O restante dos middlewares essenciais
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
