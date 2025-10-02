@@ -3,6 +3,7 @@ const router = express.Router();
 const financeiroController = require('../controllers/financeiro.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 const roleMiddleware = require('../middlewares/role.middleware.js');
+const noCache = require('../middlewares/noCache.middleware.js'); // Importa o middleware no-cache
 const { multerMemoryUpload, uploadToCloudinary } = require('../middlewares/cloudinary.middleware.js'); // Importa os novos middlewares
 
 // Protege todas as rotas financeiras, permitindo acesso apenas ao Dono da conta.
@@ -13,7 +14,7 @@ const needsAuth = [authMiddleware, roleMiddleware(['Dono', 'ADMIN'])];
  * @description Retorna um resumo financeiro (faturamento, despesas, lucro).
  * @access Privado (Dono, ADMIN)
  */
-router.get('/resumo', needsAuth, financeiroController.getResumoFinanceiro);
+router.get('/resumo', [...needsAuth, noCache], financeiroController.getResumoFinanceiro);
 
 /**
  * @route GET /api/financeiro/historico
