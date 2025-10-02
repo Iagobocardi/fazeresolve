@@ -39,6 +39,7 @@ const authMiddleware = async (req, res, next) => {
 
         // 3. Cria um objeto de usuário plano e anexa as informações necessárias, incluindo o plano.
         const userObject = usuario.toObject();
+        userObject.id = usuario.id; // Garante que o ID virtual seja incluído
         userObject.plano = usuario.contaId.plano; // Anexa o plano da conta ao objeto do usuário
 
         req.user = userObject; // Anexa o objeto modificado à requisição
