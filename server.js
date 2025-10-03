@@ -71,7 +71,30 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+        // Permite requisições sem 'origin' (ex: mobile apps, Postman, curl)
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        // Verifica se a origem da requisição está na lista de origens permitidas
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (typeof allowed === 'string') {
+                return allowed === origin;
+            }
+            if (allowed instanceof RegExp) {
+                return allowed.test(origin);
+            }
+            return false;
+        });
+
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            console.warn(`CORS: A origem '${origin}' foi bloqueada.`);
+            callback(new Error('Esta origem não é permitida pelo CORS.'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
