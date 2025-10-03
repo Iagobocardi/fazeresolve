@@ -59,4 +59,12 @@ router.post(
     subscriptionController.handleCreatePixPayment
 );
 
+// Rota para o usuário atualizar seu método de pagamento (v1.1)
+router.post(
+    '/update-payment-method',
+    authMiddleware,
+    roleMiddleware(['Dono']),
+    subscriptionController.handleUpdatePaymentMethod
+);
+
 module.exports = router;
