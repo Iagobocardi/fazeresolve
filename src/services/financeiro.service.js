@@ -35,9 +35,15 @@ const getResumoFinanceiro = async (contaId, periodo = 'mes_atual') => {
     const resultado = await Transacao.aggregate([
         { $match: matchStage },
         {
+            $addFields: {
+                // Garante que o valor seja tratado como número, convertendo-o se for string
+                valorNumerico: { $toDouble: "$valor" }
+            }
+        },
+        {
             $group: {
                 _id: "$tipo",
-                total: { $sum: "$valor" }
+                total: { $sum: "$valorNumerico" } // Soma o campo numérico
             }
         }
     ]);
