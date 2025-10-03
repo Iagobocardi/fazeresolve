@@ -272,6 +272,36 @@ const handleCreatePixPayment = async (req, res) => {
     }
 };
 
+const handleUpdatePaymentMethod = async (req, res) => {
+    try {
+        const { cardTokenId } = req.body;
+        const userId = req.user.id;
+
+        if (!cardTokenId) {
+            return res.status(400).json({ message: 'O token do novo cartão é obrigatório.' });
+        }
+
+        const assinatura = await Assinatura.findOne({ userId });
+        if (!assinatura || assinatura.status !== 'ativa') {
+            return res.status(404).json({ message: 'Nenhuma assinatura ativa encontrada para atualizar.' });
+        }
+
+        console.log(`[Update Card] Iniciando atualização do método de pagamento para a assinatura ${assinatura._id} (Gateway ID: ${assinatura.gatewaySubscriptionId}).`);
+
+        // Delega a lógica de atualização para o serviço de assinatura
+        await subscriptionService.updateSubscriptionCard(assinatura.gatewaySubscriptionId, cardTokenId);
+
+        res.status(200).json({
+            message: 'Seu método de pagamento foi atualizado com sucesso!'
+        });
+
+    } catch (error) {
+        console.error("Erro ao atualizar o método de pagamento:", error);
+        // O serviço pode lançar um erro com detalhes específicos do gateway
+        res.status(500).json({ message: error.message || 'Erro interno ao tentar atualizar seu método de pagamento.' });
+    }
+};
+
 module.exports = {
     handleCreatePlan,
     handleSubscribe,
@@ -280,4 +310,5 @@ module.exports = {
     handleGetSubscriptionDetails,
     handleRegularizePayment,
     handleCreatePixPayment,
+    handleUpdatePaymentMethod,
 };
