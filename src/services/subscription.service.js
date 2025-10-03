@@ -292,11 +292,9 @@ const getSubscriptionDetails = async (contaId) => {
     };
 };
 
-const updateSubscriptionCard = async (contaId, cardTokenId) => {
-    const conta = await Conta.findById(contaId);
-
-    if (!conta || !conta.mercadoPagoSubscriptionId) {
-        throw new Error('Nenhuma assinatura ativa encontrada para esta conta.');
+const updateSubscriptionCard = async (gatewaySubscriptionId, cardTokenId) => {
+    if (!gatewaySubscriptionId) {
+        throw new Error('O ID da assinatura do gateway é obrigatório para atualizar o cartão.');
     }
 
     const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
@@ -307,13 +305,13 @@ const updateSubscriptionCard = async (contaId, cardTokenId) => {
     };
 
     const result = await preapproval.update({
-        preapprovalId: conta.mercadoPagoSubscriptionId,
+        preapprovalId: gatewaySubscriptionId,
         body,
     });
 
     // Após a atualização, a assinatura pode voltar ao status 'authorized'
     // e o webhook de pagamento tratará a reativação da conta, se necessário.
-    console.log(`[Service] Cartão da assinatura ${conta.mercadoPagoSubscriptionId} atualizado. Novo status: ${result.status}`);
+    console.log(`[Service] Cartão da assinatura ${gatewaySubscriptionId} atualizado. Novo status: ${result.status}`);
 
     return result;
 };
