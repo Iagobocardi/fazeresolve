@@ -1,251 +1,187 @@
-const Cliente = require('../models/cliente.model');
-const Orcamento = require('../models/orcamento.model');
-const crypto = require('crypto');
-const whatsappService = require('../services/whatsapp.service');
+const Transacao = require('../models/transacao.model.js');
 const mongoose = require('mongoose');
 
-// Função para listar todos os clientes com dados agregados e KPIs
-const getAllClientes = async (req, res) => {
+/**
+ * Calcula e retorna um resumo financeiro para um determinado período.
+ */
+const getResumoFinanceiro = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { search } = req.query;
-        const contaObjId = new mongoose.Types.ObjectId(contaId);
+        const { periodo } = req.query; // Remove o valor padrão para calcular tudo por default
 
-        let matchStage = { contaId: contaObjId };
-
-        if (search) {
-            // Cria uma expressão regular para fazer uma busca case-insensitive
-            const searchRegex = new RegExp(search, 'i');
-            matchStage.$or = [
-                { nome: searchRegex },
-                { email: searchRegex },
-                { telefone: searchRegex }
-            ];
-        }
-
-        const clientesPromise = Cliente.aggregate([
-            { $match: matchStage },
-            {
-                $lookup: {
-                    from: 'orcamentos',
-                    localField: '_id',
-                    foreignField: 'cliente',
-                    as: 'pedidos'
-                }
-            },
-            {
-                $addFields: {
-                    valorTotalGasto: { $sum: '$pedidos.valorProposto' },
-                    totalPedidos: { $size: '$pedidos' },
-                    totalPago: { $sum: { $map: { input: "$pedidos", as: "p", in: { $sum: "$$p.pagamentos.valor" } } } },
-                    saldoDevedor: { $subtract: [ { $sum: '$pedidos.valorProposto' }, { $sum: { $map: { input: "$pedidos", as: "p", in: { $sum: "$$p.pagamentos.valor" } } } } ] },
-                    statusFinanceiro: {
-                        $cond: {
-                            if: {
-                                $gt: [
-                                    {
-                                        $size: {
-                                            $filter: {
-                                                input: '$pedidos',
-                                                as: 'pedido',
-                                                cond: {
-                                                    $and: [
-                                                        { $eq: ['$$pedido.statusPagamento', 'Pendente'] },
-                                                        { $lt: ['$$pedido.dataVencimento', new Date()] }
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    }, 0]
-                            },
-                            then: 'Inadimplente',
-                            else: 'Em dia'
-                        }
-                    }
-                }
-            },
-            {
-                $project: {
-                    pedidos: 0, // Não envia a lista inteira de pedidos para o frontend
-                    'endereco.codigo_municipio': 0,
-                    conversationState: 0,
-                    currentDemand: 0,
-                    activeContext: 0
-                }
-            },
-            { $sort: { valorTotalGasto: -1 } }
-        ]);
-
-        const kpisPromise = Cliente.aggregate([
-            { $match: { contaId: contaObjId } },
-            {
-                $group: {
-                    _id: '$contaId',
-                    clientesAtivos: { $sum: 1 },
-                    somaValorTotalGasto: { $sum: '$valorTotalGasto' },
-                    somaTotalPedidos: { $sum: '$totalPedidos' }
-                }
-            }
-        ]);
-        
-        const saldoDevedorPromise = Orcamento.aggregate([
-             { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: new Date() } } },
-             {
-                 $group: {
-                     _id: null,
-                     total: { $sum: '$valorProposto' }
-                 }
-             }
-        ]);
-
-
-        const [clientes, kpisResult, saldoDevedorResult] = await Promise.all([clientesPromise, kpisPromise, saldoDevedorPromise]);
-
-        const kpisData = kpisResult[0] || {};
-        const saldoDevedor = saldoDevedorResult[0]?.total || 0;
-
-        const kpis = {
-            clientesAtivos: kpisData.clientesAtivos || 0,
-            saldoDevedorTotal: saldoDevedor,
-            valorMedioPorPedido: (kpisData.somaTotalPedidos > 0) ? (kpisData.somaValorTotalGasto / kpisData.somaTotalPedidos) : 0
+        const matchStage = {
+            contaId: new mongoose.Types.ObjectId(contaId),
         };
 
-        res.status(200).json({ clientes, kpis });
-    } catch (error) {
-        console.error("Erro ao buscar clientes:", error);
-        res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
-    }
-};
+        // Adiciona o filtro de data apenas se um período for especificado pelo cliente
+        if (periodo) {
+            const agora = new Date();
+            let dataInicio;
 
-// Função para buscar um cliente por ID
-const buscarClientePorId = async (req, res) => {
-    try {
-        const cliente = await Cliente.findById(req.params.id);
-        if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
-        }
-        res.status(200).json(cliente);
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao buscar cliente.' });
-    }
-};
-
-// Função para criar um novo cliente (será usada pelo painel no futuro)
-const criarCliente = async (req, res) => {
-    try {
-        const novoCliente = new Cliente(req.body);
-        const clienteSalvo = await novoCliente.save();
-        res.status(201).json(clienteSalvo);
-    } catch (error) {
-        console.error('ERRO DETALHADO AO CRIAR CLIENTE:', error);
-        res.status(500).json({
-            mensagem: 'Ocorreu um erro interno no servidor.',
-            erro_detalhado: error,
-            stack_trace: error.stack
-        });
-    }
-};
-
-// Função para atualizar um cliente
-const atualizarCliente = async (req, res) => {
-    try {
-        const clienteAtualizado = await Cliente.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!clienteAtualizado) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
-        }
-        res.status(200).json(clienteAtualizado);
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao atualizar cliente.' });
-    }
-};
-
-// Função para deletar um cliente
-const deletarCliente = async (req, res) => {
-    try {
-        const clienteDeletado = await Cliente.findByIdAndDelete(req.params.id);
-        if (!clienteDeletado) {
-            return res.status(404).json({ error: 'Cliente não encontrado.' });
-        }
-        res.status(200).json({ message: 'Cliente deletado com sucesso.' });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao deletar cliente.' });
-    }
-};
-const getClienteComPedidos = async (req, res) => {
-    try {
-        const clienteId = req.params.id;
-        const { contaId } = req.user;
-
-        const clientePromise = Cliente.findOne({ _id: clienteId, contaId: contaId });
-
-        const pedidosPromise = Orcamento.find({ cliente: clienteId, contaId: contaId })
-            .select('shortId descricao status statusPagamento valorProposto tipo data dataVencimento')
-            .sort({ data: -1 });
-
-        const [cliente, pedidos] = await Promise.all([clientePromise, pedidosPromise]);
-
-        if (!cliente) {
-            return res.status(404).json({ error: 'Cliente não encontrado ou não pertence a esta conta.' });
-        }
-
-        // Calcula o saldo devedor para este cliente específico
-        const saldoDevedor = pedidos.reduce((acc, pedido) => {
-            if (pedido.statusPagamento === 'Pendente' && pedido.dataVencimento && new Date(pedido.dataVencimento) < new Date()) {
-                return acc + pedido.valorProposto;
+            switch (periodo) {
+                case 'ultimos_30_dias':
+                    dataInicio = new Date(new Date().setDate(agora.getDate() - 30));
+                    break;
+                case 'ano_atual':
+                    dataInicio = new Date(agora.getFullYear(), 0, 1);
+                    break;
+                case 'mes_atual':
+                    dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
+                    break;
             }
-            return acc;
-        }, 0);
-            
-        res.status(200).json({ cliente, pedidos, saldoDevedor });
-    } catch (error) {
-        console.error("ERRO em getClienteComPedidos:", error);
-        res.status(500).json({ error: 'Erro ao buscar detalhes do cliente.' });
-    }
-};
-const gerarConvitePortal = async (req, res) => {
-    try {
-        const { id: clienteId } = req.params;
-        const { contaId } = req.user;
 
-        const cliente = await Cliente.findOne({ _id: clienteId, contaId: contaId });
-        if (!cliente) {
-            return res.status(404).json({ message: 'Cliente não encontrado ou não pertence à sua conta.' });
+            if (dataInicio) {
+                matchStage.data = { $gte: dataInicio };
+            }
         }
 
-        // 1. Gera um token seguro e aleatório
-        const token = crypto.randomBytes(32).toString('hex');
+        const resultado = await Transacao.aggregate([
+            { $match: matchStage },
+            {
+                $addFields: {
+                    // Garante que o valor seja tratado como número, convertendo-o se for string
+                    valorNumerico: { $toDouble: "$valor" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$tipo",
+                    total: { $sum: "$valorNumerico" }
+                }
+            }
+        ]);
 
-        // 2. Define o token e a data de expiração (ex: 24 horas a partir de agora)
-        cliente.activationToken = token;
-        cliente.activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+        let faturamentoBruto = 0;
+        let totalDespesas = 0;
 
-        await cliente.save();
+        resultado.forEach(item => {
+            if (item._id === 'Receita') {
+                faturamentoBruto = item.total;
+            } else if (item._id === 'Despesa') {
+                totalDespesas = item.total;
+            }
+        });
 
-        // 3. Monta a URL de ativação (aponte para o seu frontend)
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const activationUrl = `${frontendUrl}/portal/login-token/${token}`;
+        const lucroLiquido = faturamentoBruto - totalDespesas;
+        const margemLucro = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
 
-        // 4. Retorna o link para o frontend
         res.status(200).json({
-            message: 'Link de convite gerado com sucesso!',
-            activationUrl
+            faturamentoBruto,
+            totalDespesas,
+            lucroLiquido,
+            margemLucro,
         });
 
     } catch (error) {
-        console.error("ERRO em gerarConvitePortal:", error);
-        res.status(500).json({ message: 'Erro ao gerar o link de convite.' });
+        console.error("Erro ao gerar resumo financeiro:", error);
+        res.status(500).json({ message: "Erro ao gerar resumo financeiro.", error: error.message });
     }
 };
 
+/**
+ * Retorna uma lista paginada do histórico de transações.
+ */
+const getHistoricoTransacoes = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const pagina = parseInt(req.query.pagina, 10) || 1;
+        const limite = parseInt(req.query.limite, 10) || 20;
+        const skip = (pagina - 1) * limite;
 
+        const transacoes = await Transacao.find({ contaId })
+            .sort({ data: -1 })
+            .skip(skip)
+            .limit(limite);
 
-// CORREÇÃO: Exporta TODAS as funções que as rotas precisam.
+        const totalTransacoes = await Transacao.countDocuments({ contaId });
+
+        res.status(200).json({
+            transacoes,
+            pagina,
+            totalPaginas: Math.ceil(totalTransacoes / limite)
+        });
+
+    } catch (error) {
+        console.error("Erro ao buscar histórico de transações:", error);
+        res.status(500).json({ message: "Erro ao buscar histórico de transações.", error: error.message });
+    }
+};
+
+/**
+ * Cria uma nova transação manual (receita ou despesa).
+ */
+const createManualTransacao = async (req, res) => {
+    try {
+        // Adiciona uma verificação para o corpo da requisição (que agora é multipart)
+        if (!req.body) {
+            return res.status(400).json({ message: "Corpo da requisição ausente ou malformado." });
+        }
+
+        const { contaId } = req.user;
+        const { tipo, descricao, valor, categoria, data, metodoPagamento, fornecedorId } = req.body;
+
+        if (!tipo || !descricao || !valor) {
+            return res.status(400).json({ message: "Tipo, descrição e valor são obrigatórios." });
+        }
+        if (tipo !== 'Receita' && tipo !== 'Despesa') {
+            return res.status(400).json({ message: "O tipo da transação deve ser 'Receita' ou 'Despesa'." });
+        }
+
+        const transacaoData = {
+            contaId,
+            tipo,
+            descricao,
+            valor,
+            categoria,
+            data: data ? new Date(data) : new Date(),
+            metodoPagamento,
+        };
+
+        if (fornecedorId) {
+            transacaoData.fornecedorId = fornecedorId;
+        }
+
+        const novaTransacao = new Transacao(transacaoData);
+
+        // Se o upload para o Cloudinary foi bem-sucedido, a URL estará em req.file.cloudinaryUrl
+        if (req.file && req.file.cloudinaryUrl) {
+            novaTransacao.comprovanteUrl = req.file.cloudinaryUrl;
+        }
+
+        const transacaoSalva = await novaTransacao.save();
+        res.status(201).json(transacaoSalva);
+
+    } catch (error) {
+        console.error("Erro ao criar transação manual:", error);
+        res.status(500).json({ message: "Erro ao criar transação manual.", error: error.message });
+    }
+};
+
+/**
+ * Deleta uma transação manual.
+ */
+const deleteManualTransacao = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { id } = req.params;
+
+        const transacaoDeletada = await Transacao.findOneAndDelete({ _id: id, contaId });
+
+        if (!transacaoDeletada) {
+            return res.status(404).json({ message: "Transação não encontrada ou não pertence a esta conta." });
+        }
+
+        res.status(200).json({ message: "Transação deletada com sucesso." });
+
+    } catch (error) {
+        console.error("Erro ao deletar transação manual:", error);
+        res.status(500).json({ message: "Erro ao deletar transação manual.", error: error.message });
+    }
+};
+
 module.exports = {
-    getAllClientes,
-    buscarClientePorId,
-    criarCliente,
-    atualizarCliente,
-    deletarCliente,
-    getClienteComPedidos,
-    gerarConvitePortal
+    getResumoFinanceiro,
+    getHistoricoTransacoes,
+    createManualTransacao,
+    deleteManualTransacao
 };
