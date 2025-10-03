@@ -166,8 +166,8 @@ const createOrcamento = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { contaId: contaIdString } = req.user; // Renomeia para evitar conflito
-        const contaId = new mongoose.Types.ObjectId(contaIdString); // Garante que é um ObjectId
+        // O auth.middleware popula 'contaId' como um objeto. Precisamos do seu _id.
+        const contaId = new mongoose.Types.ObjectId(req.user.contaId._id);
         const body = req.body;
 
         const clienteData = body.clienteData || body;
