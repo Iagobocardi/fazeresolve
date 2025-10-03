@@ -166,7 +166,8 @@ const createOrcamento = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { contaId } = req.user; // Captura o ID da conta
+        const { contaId: contaIdString } = req.user; // Renomeia para evitar conflito
+        const contaId = new mongoose.Types.ObjectId(contaIdString); // Garante que é um ObjectId
         const body = req.body;
 
         const clienteData = body.clienteData || body;
