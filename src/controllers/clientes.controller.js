@@ -14,7 +14,13 @@ const getAllClientes = async (req, res) => {
         let matchStage = { contaId: contaObjId };
 
         if (search) {
-            matchStage.$text = { $search: search };
+            // Cria uma expressão regular para fazer uma busca case-insensitive
+            const searchRegex = new RegExp(search, 'i');
+            matchStage.$or = [
+                { nome: searchRegex },
+                { email: searchRegex },
+                { telefone: searchRegex }
+            ];
         }
 
         const clientesPromise = Cliente.aggregate([
