@@ -36,14 +36,29 @@ const getResumoFinanceiro = async (contaId, periodo = 'mes_atual') => {
         { $match: matchStage },
         {
             $addFields: {
-                // Garante que o valor seja tratado como número, convertendo-o se for string
-                valorNumerico: { $toDouble: "$valor" }
+                // Converte a string de moeda "R$ 1.234,56" para um número 1234.56
+                // Também lida com valores que já são numéricos, convertendo-os para string primeiro.
+                valorNumerico: {
+                    $toDouble: {
+                        $replaceOne: {
+                            input: {
+                                $replaceAll: {
+                                    input: { $ltrim: { input: { $toString: "$valor" }, chars: "R$ " } },
+                                    find: ".",
+                                    replacement: ""
+                                }
+                            },
+                            find: ",",
+                            replacement: "."
+                        }
+                    }
+                }
             }
         },
         {
             $group: {
                 _id: "$tipo",
-                total: { $sum: "$valorNumerico" } // Soma o campo numérico
+                total: { $sum: "$valorNumerico" }
             }
         }
     ]);
