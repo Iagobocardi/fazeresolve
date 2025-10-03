@@ -178,44 +178,48 @@ const createOrcamento = async (req, res) => {
         }
 
         let cliente;
-        // Se um ID de cliente existente for fornecido, usa-o.
+        // Lógica de "Find or Create" robusta para contornar o índice unique incorreto
         if (clienteData._id) {
+            // Se um ID de cliente é fornecido, ele tem prioridade.
             cliente = await Cliente.findOne({ _id: clienteData._id, contaId }).session(session);
             if (!cliente) {
-                return res.status(404).json({ message: 'Cliente existente não encontrado nesta conta.' });
+                throw new Error('Cliente com o ID fornecido não foi encontrado nesta conta.');
             }
-            // Atualiza o endereço se um novo for fornecido
-            if (clienteData.endereco && typeof clienteData.endereco === 'object') {
-                cliente.endereco = Object.assign(cliente.endereco || {}, clienteData.endereco);
-                await cliente.save({ session });
-            }
-        } 
-        // Se não, procura pelo telefone ou cria um novo cliente (lógica "Find or Create").
-        else {
-            // Tenta encontrar um cliente existente com o mesmo número de telefone.
-            cliente = await Cliente.findOne({ telefone: clienteData.telefone, contaId }).session(session);
+        } else {
+            // Se não, busca pelo telefone.
+            const clienteExistente = await Cliente.findOne({ telefone: clienteData.telefone }).session(session);
 
-            const dadosClienteParaAtualizar = {
-                nome: clienteData.nome,
-                endereco: clienteData.endereco,
-                contaId: contaId
-            };
-             if (clienteData.email && clienteData.email.trim() !== '') {
-                dadosClienteParaAtualizar.email = clienteData.email;
-            }
-            // Remove chaves indefinidas para evitar sobrepor dados existentes com 'undefined'.
-            Object.keys(dadosClienteParaAtualizar).forEach(key => dadosClienteParaAtualizar[key] === undefined && delete dadosClienteParaAtualizar[key]);
-
-            if (cliente) {
-                // Se o cliente existe, atualiza seus dados com as novas informações.
-                cliente.set(dadosClienteParaAtualizar);
-                await cliente.save({ session });
+            if (clienteExistente) {
+                // Cliente com este telefone já existe. Verifica se pertence à conta certa.
+                if (clienteExistente.contaId.toString() !== contaId.toString()) {
+                    // O telefone já está em uso por OUTRA conta. Devido ao índice unique, não podemos criar um novo.
+                    throw new Error(`O telefone ${clienteData.telefone} já está cadastrado em outra conta e não pode ser duplicado.`);
+                } else {
+                    // O cliente pertence a esta conta, então o usamos.
+                    cliente = clienteExistente;
+                }
             } else {
-                // Se o cliente não existe, cria um novo.
-                cliente = new Cliente({ ...dadosClienteParaAtualizar, telefone: clienteData.telefone });
-                await cliente.save({ session });
+                // Nenhum cliente com este telefone existe em NENHUMA conta, então podemos criar um novo.
+                cliente = new Cliente({
+                    nome: clienteData.nome,
+                    telefone: clienteData.telefone,
+                    contaId: contaId
+                });
             }
         }
+
+        // Atualiza os dados do cliente (seja ele novo ou existente)
+        const dadosClienteParaAtualizar = {
+            nome: clienteData.nome,
+            endereco: clienteData.endereco,
+        };
+        if (clienteData.email && clienteData.email.trim() !== '') {
+            dadosClienteParaAtualizar.email = clienteData.email;
+        }
+        Object.keys(dadosClienteParaAtualizar).forEach(key => dadosClienteParaAtualizar[key] === undefined && delete dadosClienteParaAtualizar[key]);
+        
+        cliente.set(dadosClienteParaAtualizar);
+        await cliente.save({ session });
 
         const dadosSegurosOrcamento = {
             descricao: orcamentoData.descricao,
