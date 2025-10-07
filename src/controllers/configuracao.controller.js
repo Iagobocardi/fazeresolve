@@ -4,6 +4,11 @@ const { google } = require('googleapis');
 const axios = require('axios');
 const Configuracao = require('../models/configuracao.model.js');
 const Conta = require('../models/conta.model.js');
+const Subscription = require('../models/subscription.model.js');
+const Transacao = require('../models/transacao.model.js');
+const subscriptionService = require('../services/subscription.service.js');
+const PLANS = require('../config/plans.config.js');
+
 
 // Defina o cliente OAuth2 AQUI, no topo do ficheiro
 const oauth2Client = new google.auth.OAuth2(
@@ -193,6 +198,211 @@ exports.iniciarWhatsappOnboarding = async (req, res) => {
         const errorMessage = error.response?.data?.message || 'Erro ao iniciar o processo de onboarding do WhatsApp.';
         const errorCode = error.response?.status || 500;
         res.status(errorCode).json({ message: errorMessage });
+    }
+};
+
+// Função para atualizar os dados do perfil da empresa
+exports.updatePerfil = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { nomeEmpresa, cnpjCpf, telefone, endereco } = req.body;
+
+        // Montar o objeto de atualização
+        const updateData = {
+            nome: nomeEmpresa,
+            'companyInfo.cnpj': cnpjCpf,
+            'companyInfo.telefone': telefone,
+            'companyInfo.endereco': endereco,
+        };
+
+        const contaAtualizada = await Conta.findByIdAndUpdate(
+            contaId,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        );
+
+        if (!contaAtualizada) {
+            return res.status(404).json({ message: 'Conta não encontrada.' });
+        }
+
+        res.status(200).json({ message: 'Perfil atualizado com sucesso.', data: contaAtualizada });
+
+    } catch (error) {
+        console.error("Erro em updatePerfil:", error);
+        res.status(500).json({ message: "Erro ao atualizar o perfil." });
+    }
+};
+
+// Função para alterar o plano do usuário
+exports.alterarPlano = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { novoPlano } = req.body; // ex: 'Premium'
+
+        if (!novoPlano) {
+            return res.status(400).json({ message: 'O nome do novo plano é obrigatório.' });
+        }
+
+        // A lógica de upgrade/downgrade é complexa e já está (ou deveria estar) no subscriptionService
+        const resultado = await subscriptionService.upgradeSubscription(contaId, novoPlano);
+
+        res.status(200).json({ message: `Plano alterado para ${novoPlano} com sucesso!`, data: resultado });
+
+    } catch (error) {
+        console.error("Erro em alterarPlano:", error);
+        res.status(500).json({ message: error.message || "Erro ao alterar o plano." });
+    }
+};
+
+// Função para cancelar a assinatura do usuário
+exports.cancelarAssinatura = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+
+        const resultado = await subscriptionService.cancelSubscription(contaId);
+
+        res.status(200).json({ message: 'Assinatura cancelada com sucesso.', data: resultado });
+
+    } catch (error) {
+        console.error("Erro em cancelarAssinatura:", error);
+        res.status(500).json({ message: error.message || "Erro ao cancelar a assinatura." });
+    }
+};
+
+// Função para atualizar o método de pagamento
+exports.atualizarMetodoPagamento = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { cardTokenId } = req.body; // O frontend deve gerar este token
+
+        if (!cardTokenId) {
+            return res.status(400).json({ message: 'O token do cartão é obrigatório.' });
+        }
+
+        // Precisamos encontrar o ID da assinatura no gateway
+        const conta = await Conta.findById(contaId).select('mercadoPagoSubscriptionId').lean();
+        if (!conta || !conta.mercadoPagoSubscriptionId) {
+            return res.status(404).json({ message: 'Nenhuma assinatura ativa encontrada para atualizar.' });
+        }
+
+        const resultado = await subscriptionService.updateSubscriptionCard(conta.mercadoPagoSubscriptionId, cardTokenId);
+
+        res.status(200).json({ message: 'Método de pagamento atualizado com sucesso.', data: resultado });
+
+    } catch (error) {
+        console.error("Erro em atualizarMetodoPagamento:", error);
+        res.status(500).json({ message: error.message || "Erro ao atualizar o método de pagamento." });
+    }
+};
+
+// Função para atualizar as configurações de recebimento
+exports.updateRecebimentos = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { metodo, chavePix } = req.body;
+
+        if (!metodo || !['MANUAL', 'MERCADOPAGO'].includes(metodo)) {
+            return res.status(400).json({ message: 'Método de recebimento inválido.' });
+        }
+
+        const updateData = {
+            metodoRecebimento: metodo,
+            chavePixManual: metodo === 'MANUAL' ? chavePix : null,
+        };
+
+        const contaAtualizada = await Conta.findByIdAndUpdate(
+            contaId,
+            { $set: updateData },
+            { new: true }
+        );
+
+        if (!contaAtualizada) {
+            return res.status(404).json({ message: 'Conta não encontrada.' });
+        }
+
+        res.status(200).json({ message: 'Configurações de recebimento atualizadas com sucesso.', data: contaAtualizada });
+
+    } catch (error) {
+        console.error("Erro em updateRecebimentos:", error);
+        res.status(500).json({ message: "Erro ao atualizar as configurações de recebimento." });
+    }
+};
+
+// Função unificada para obter todos os dados da página de configurações
+exports.getAllData = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+
+        // 1. Obter dados do Perfil e Integrações (a partir do modelo Conta)
+        const contaPromise = Conta.findById(contaId)
+            .select('nome companyInfo metodoRecebimento chavePixManual googleCalendarConnected googleAccountEmail isWhatsappConnected focusNFeConnected plano statusAssinatura')
+            .lean();
+
+        // 2. Obter dados da Assinatura
+        const subscriptionDetailsPromise = subscriptionService.getSubscriptionDetails(contaId).catch(err => {
+            console.warn(`Aviso: Não foi possível obter detalhes da assinatura para a conta ${contaId}. Erro: ${err.message}`);
+            return null; // Retorna nulo se houver erro, para não quebrar a Promise.all
+        });
+
+        // 3. Obter Histórico de Faturas (últimas 5)
+        const faturasPromise = Transacao.find({ contaId, tipo: 'FATURA_ASSINATURA' })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('createdAt valor status linkBoleto')
+            .lean();
+        
+        // 4. Obter todos os planos disponíveis para o modal de alteração
+        const planosDisponiveisPromise = Promise.resolve(PLANS);
+
+        // Executar todas as promessas em paralelo
+        const [conta, subscriptionDetails, faturas, planosDisponiveis] = await Promise.all([
+            contaPromise,
+            subscriptionDetailsPromise,
+            faturasPromise,
+            planosDisponiveisPromise
+        ]);
+
+        if (!conta) {
+            return res.status(404).json({ message: 'Conta não encontrada.' });
+        }
+
+        // Montar o objeto de resposta final
+        const response = {
+            perfil: {
+                nomeEmpresa: conta.nome,
+                cnpjCpf: conta.companyInfo?.cnpj,
+                telefone: conta.companyInfo?.telefone, // Supondo que o telefone esteja em companyInfo
+                endereco: conta.companyInfo?.endereco
+            },
+            assinatura: {
+                planoAtual: conta.plano,
+                status: conta.statusAssinatura,
+                proximaCobranca: subscriptionDetails?.proximaCobranca,
+                metodoPagamento: subscriptionDetails?.metodoPagamento, // Ex: { brand: 'visa', last4: '4242' }
+                faturas: faturas,
+                planosDisponiveis: planosDisponiveis.map(p => ({
+                    nome: p.name,
+                    precoMensal: p.monthly.price,
+                    precoAnual: p.annual.price,
+                }))
+            },
+            recebimentos: {
+                metodo: conta.metodoRecebimento,
+                chavePix: conta.chavePixManual
+            },
+            integracoes: {
+                whatsapp: { conectado: conta.isWhatsappConnected },
+                google: { conectado: conta.googleCalendarConnected, email: conta.googleAccountEmail },
+                focusNFe: { conectado: conta.focusNFeConnected },
+                mercadoPago: { conectado: conta.metodoRecebimento === 'MERCADOPAGO' }
+            }
+        };
+
+        res.status(200).json(response);
+
+    } catch (error) {
+        console.error("Erro em getAllData:", error);
+        res.status(500).json({ message: "Erro ao buscar os dados de configuração." });
     }
 };
 
