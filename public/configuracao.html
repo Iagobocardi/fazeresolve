@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações - Faz & Resolve</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .tab-link.active {
+            background-color: #eef2ff; /* bg-indigo-50 */
+            color: #4f46e5; /* text-indigo-600 */
+            font-weight: 600;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.success { background-color: #22c55e; } /* green-500 */
+        .toast.error { background-color: #ef4444; } /* red-500 */
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="toast-container" class="toast"></div>
+
+    <div class="flex min-h-screen">
+        <!-- Sidebar Principal (Exemplo de Navegação) -->
+        <aside class="w-64 flex flex-col border-r bg-white">
+            <div class="flex items-center justify-start p-4 gap-2 border-b h-16">
+                <svg width="24" height="24" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M29.8213 18.5732C29.8213 17.5126 29.563 16.5123 29.0463 15.5724L32.8113 12.639C34.004 14.639 34.6425 16.9806 34.6425 19.4554C34.6425 24.8468 31.8198 29.5549 27.4298 32.1408L24.955 28.5351C27.9963 26.7538 29.8213 22.9888 29.8213 18.5732Z" fill="#4f46e5"/><path d="M10.1787 21.4268C10.1787 22.4874 10.437 23.4877 10.9537 24.4276L7.18872 27.361C5.99602 25.361 5.35752 23.0194 5.35752 20.5446C5.35752 15.1532 8.18022 10.4451 12.5702 7.85921L15.045 11.4649C12.0037 13.2462 10.1787 17.0112 10.1787 21.4268Z" fill="#4f46e5"/><path d="M22.3831 16.9805V5.35742H17.6164V16.9805H6.17871V21.7471H17.6164V33.3701H22.3831V21.7471H33.8208V16.9805H22.3831Z" fill="#4f46e5"/></svg>
+                <h1 class="text-xl font-bold text-slate-800">Faz&Resolve</h1>
+            </div>
+            <nav class="mt-6 px-4 space-y-2 flex-1">
+                <a href="#" class="flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"><i class="fas fa-table-columns h-5 w-5"></i><span>Dashboard</span></a>
+                <a href="#" class="flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"><i class="fas fa-list h-5 w-5"></i><span>Pedidos</span></a>
+                <a href="#" class="flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"><i class="fas fa-users h-5 w-5"></i><span>Clientes</span></a>
+            </nav>
+            <div class="p-4 border-t">
+                 <a href="#" class="flex items-center space-x-3 px-4 py-2.5 bg-indigo-50 text-indigo-600 rounded-lg font-semibold"><i class="fas fa-gear h-5 w-5"></i><span>Configurações</span></a>
+            </div>
+        </aside>
+
+        <!-- Conteúdo Principal -->
+        <main class="flex-1 p-8">
+            <div class="max-w-7xl mx-auto">
+                <header class="mb-8">
+                    <h1 class="text-3xl font-bold text-slate-800">Configurações</h1>
+                    <p class="text-slate-500">Gerencie as informações da sua empresa, sua assinatura e suas integrações.</p>
+                </header>
+
+                <div class="flex flex-col md:flex-row gap-8">
+                    <!-- Navegação das Configurações -->
+                    <nav class="flex-shrink-0 md:w-1/4">
+                        <ul class="space-y-2">
+                            <li><a href="#" class="tab-link active flex items-center gap-3 p-3 rounded-lg" data-target="perfil-content"><i class="fas fa-user-circle w-5"></i> Perfil</a></li>
+                            <li><a href="#" class="tab-link flex items-center gap-3 p-3 rounded-lg" data-target="assinatura-content"><i class="fas fa-credit-card w-5"></i> Plano e Assinatura</a></li>
+                            <li><a href="#" class="tab-link flex items-center gap-3 p-3 rounded-lg" data-target="recebimentos-content"><i class="fas fa-hand-holding-dollar w-5"></i> Recebimentos</a></li>
+                            <li><a href="#" class="tab-link flex items-center gap-3 p-3 rounded-lg" data-target="integracoes-content"><i class="fas fa-plug w-5"></i> Integrações</a></li>
+                            <li><a href="#" class="tab-link flex items-center gap-3 p-3 rounded-lg" data-target="suporte-content"><i class="fas fa-life-ring w-5"></i> Suporte</a></li>
+                        </ul>
+                    </nav>
+
+                    <!-- Conteúdo das Abas -->
+                    <div class="flex-1">
+                        <!-- Conteúdo da Aba Perfil -->
+                        <div id="perfil-content" class="tab-content space-y-8">
+                            <form id="perfil-form">
+                                <div class="bg-white p-6 rounded-lg border border-slate-200">
+                                    <h2 class="text-xl font-bold mb-4">Informações Principais</h2>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Nome da Empresa</label><input type="text" id="nome-empresa" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">CNPJ ou CPF</label><input type="text" id="cnpj-cpf" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Telefone</label><input type="text" id="telefone" class="w-full border-slate-300 rounded-md"></div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-lg border border-slate-200 mt-8">
+                                    <h2 class="text-xl font-bold mb-4">Endereço</h2>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">CEP</label><input type="text" id="cep" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Logradouro</label><input type="text" id="logradouro" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Número</label><input type="text" id="numero" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Bairro</label><input type="text" id="bairro" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Cidade</label><input type="text" id="cidade" class="w-full border-slate-300 rounded-md"></div>
+                                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Estado</label><input type="text" id="estado" class="w-full border-slate-300 rounded-md"></div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end mt-8"><button type="submit" class="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700">Salvar Alterações</button></div>
+                            </form>
+                        </div>
+
+                        <!-- Conteúdo da Aba Plano e Assinatura -->
+                        <div id="assinatura-content" class="tab-content space-y-8 hidden">
+                            <div class="bg-white p-6 rounded-lg border border-slate-200">
+                                <h2 class="text-xl font-bold mb-4">Seu Plano Atual</h2>
+                                <div class="flex flex-col md:flex-row justify-between items-start bg-slate-50 p-6 rounded-lg border">
+                                    <div>
+                                        <h3 id="plano-nome" class="text-lg font-bold">Carregando...</h3>
+                                        <p id="plano-preco" class="text-2xl font-bold mt-1">R$ --<span class="text-base font-medium text-slate-500">/mês</span></p>
+                                        <p class="text-sm text-slate-500 mt-2">Sua próxima cobrança será em <span id="plano-proxima-cobranca" class="font-semibold">--</span>.</p>
+                                    </div>
+                                    <div><span id="plano-status" class="text-sm font-medium px-3 py-1 rounded-full">--</span></div>
+                                </div>
+                                <div class="mt-6 flex flex-wrap gap-4">
+                                    <button class="bg-blue-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-blue-700" data-modal-toggle="modal-alterar-plano">Alterar Plano</button>
+                                    <button id="btn-cancelar-assinatura" class="bg-slate-100 text-slate-700 font-semibold px-5 py-2 rounded-lg hover:bg-slate-200">Cancelar Assinatura</button>
+                                </div>
+                            </div>
+                            <div class="bg-white p-6 rounded-lg border border-slate-200">
+                                <h2 class="text-xl font-bold mb-4">Método de Pagamento</h2>
+                                <div id="metodo-pagamento-info" class="flex items-center gap-4">
+                                    <!-- Conteúdo dinâmico aqui -->
+                                </div>
+                            </div>
+                             <div class="bg-white p-6 rounded-lg border border-slate-200">
+                                <h2 class="text-xl font-bold mb-4">Histórico de Faturas</h2>
+                                <table class="w-full text-left">
+                                    <thead class="text-sm text-slate-500"><tr><th class="p-2">Data</th><th class="p-2">Valor</th><th class="p-2">Status</th><th class="p-2"></th></tr></thead>
+                                    <tbody id="faturas-historico">
+                                        <!-- Conteúdo dinâmico aqui -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Conteúdo da Aba Recebimentos -->
+                        <div id="recebimentos-content" class="tab-content hidden">
+                           <form id="recebimentos-form">
+                                <div class="bg-white p-6 rounded-lg border border-slate-200">
+                                    <h2 class="text-xl font-bold mb-4">Configurações de Recebimento</h2>
+                                    <p class="text-slate-600 mb-4">Escolha como você deseja receber os pagamentos dos seus clientes.</p>
+                                    <div class="space-y-4">
+                                        <label class="block p-4 border rounded-lg has-[:checked]:bg-blue-50 has-[:checked]:border-blue-500 cursor-pointer">
+                                            <div class="flex items-center">
+                                                <input type="radio" name="payment_method" value="MANUAL" id="metodo-manual" class="mr-3 h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500">
+                                                <span class="font-semibold">PIX Manual ou Outro Método</span>
+                                            </div>
+                                            <div class="mt-4 pl-7 text-sm text-slate-500">
+                                                <label class="block font-medium text-slate-600 mb-1">Sua Chave PIX (opcional)</label>
+                                                <input type="text" id="chave-pix" class="w-full border-slate-300 rounded-md" placeholder="Ex: email@dominio.com ou (11) 9999-9999">
+                                                <p class="mt-1 text-xs">Esta chave PIX será exibida ao seu cliente para facilitar o pagamento.</p>
+                                            </div>
+                                        </label>
+                                        <label class="block p-4 border rounded-lg has-[:checked]:bg-blue-50 has-[:checked]:border-blue-500 cursor-pointer">
+                                            <div class="flex items-center">
+                                                <input type="radio" name="payment_method" value="MERCADOPAGO" id="metodo-mercadopago" class="mr-3 h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500">
+                                                <span class="font-semibold">Mercado Pago (Integrado)</span>
+                                            </div>
+                                            <p class="mt-1 pl-7 text-sm text-slate-500">Permita que seus clientes paguem com Cartão de Crédito diretamente pelo portal.</p>
+                                        </label>
+                                    </div>
+                                    <div class="flex justify-end mt-6"><button type="submit" class="bg-blue-600 text-white font-bold px-6 py-2 rounded-lg hover:bg-blue-700">Salvar Configurações</button></div>
+                                </div>
+                           </form>
+                        </div>
+
+                        <!-- Conteúdo da Aba Integrações -->
+                        <div id="integracoes-content" class="tab-content hidden">
+                           <!-- Conteúdo preenchido dinamicamente -->
+                        </div>
+
+                        <!-- Conteúdo da Aba Suporte -->
+                        <div id="suporte-content" class="tab-content hidden">
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                               <div class="bg-white p-6 rounded-lg border border-slate-200 flex flex-col items-center text-center">
+                                   <i class="fab fa-whatsapp text-4xl text-green-500 mb-3"></i>
+                                   <h3 class="text-lg font-bold">Suporte via WhatsApp</h3>
+                                   <p class="text-sm text-slate-600 my-2 flex-grow">Fale com nossa equipe em tempo real para resolver dúvidas urgentes.</p>
+                                   <a href="#" class="mt-auto w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600 text-center">Iniciar Conversa</a>
+                               </div>
+                               <div class="bg-white p-6 rounded-lg border border-slate-200 flex flex-col items-center text-center">
+                                   <i class="fas fa-envelope text-4xl text-blue-500 mb-3"></i>
+                                   <h3 class="text-lg font-bold">Suporte via E-mail</h3>
+                                   <p class="text-sm text-slate-600 my-2 flex-grow">Prefere enviar um e-mail? Nossa equipe responderá em até 24h.</p>
+                                   <a href="mailto:suporte@fazeresolve.com" class="mt-auto w-full bg-blue-500 text-white font-semibold py-2 rounded-lg hover:bg-blue-600 text-center">Enviar E-mail</a>
+                               </div>
+                                <div class="bg-white p-6 rounded-lg border border-slate-200 flex flex-col items-center text-center md:col-span-2">
+                                   <i class="fas fa-book-open text-4xl text-indigo-500 mb-3"></i>
+                                   <h3 class="text-lg font-bold">Central de Ajuda</h3>
+                                   <p class="text-sm text-slate-600 my-2 flex-grow">Acesse nossos tutoriais em vídeo e artigos para aprender a usar todas as funcionalidades.</p>
+                                   <a href="#" class="mt-auto w-full bg-indigo-500 text-white font-semibold py-2 rounded-lg hover:bg-indigo-600 text-center">Acessar Tutoriais</a>
+                               </div>
+                           </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-alterar-plano" class="fixed inset-0 z-50 modal-overlay items-center justify-center hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 m-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Alterar seu plano</h2>
+                <button class="text-slate-500 hover:text-slate-800 text-2xl" data-modal-close="modal-alterar-plano">&times;</button>
+            </div>
+            <p class="text-slate-600 mb-6">Você está no plano <strong id="modal-plano-atual">--</strong>. Escolha um novo plano abaixo:</p>
+            <div id="planos-disponiveis-modal" class="space-y-4">
+                <!-- Conteúdo dinâmico aqui -->
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-cancelar-assinatura" class="fixed inset-0 z-50 modal-overlay items-center justify-center hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4 text-center">
+            <i class="fas fa-exclamation-triangle text-4xl text-amber-500 mb-4"></i>
+            <h2 class="text-2xl font-bold">Tem certeza?</h2>
+            <p class="text-slate-600 my-4">Você tem certeza que deseja cancelar sua assinatura? Você perderá o acesso aos recursos do seu plano no final do seu ciclo de faturamento.</p>
+            <div class="flex justify-center gap-4 mt-6">
+                <button class="bg-slate-100 text-slate-700 font-semibold px-6 py-2 rounded-lg hover:bg-slate-200" data-modal-close="modal-cancelar-assinatura">Voltar</button>
+                <button id="confirmar-cancelamento-btn" class="bg-red-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-red-700">Sim, cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-atualizar-pagamento" class="fixed inset-0 z-50 modal-overlay items-center justify-center hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 m-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Atualizar método de pagamento</h2>
+                <button class="text-slate-500 hover:text-slate-800 text-2xl" data-modal-close="modal-atualizar-pagamento">&times;</button>
+            </div>
+            <p class="text-sm text-slate-600 mb-4">Por segurança, insira novamente os dados do seu cartão. Esta ação irá atualizar o cartão para futuras cobranças da sua assinatura.</p>
+            <form id="form-atualizar-pagamento">
+                <div class="space-y-4">
+                    <div><label class="block text-sm font-medium text-slate-600 mb-1">Número do Cartão</label><input type="text" class="w-full border-slate-300 rounded-md" id="card-number"></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-sm font-medium text-slate-600 mb-1">Validade (MM/AA)</label><input type="text" class="w-full border-slate-300 rounded-md" id="card-expiration"></div>
+                        <div><label class="block text-sm font-medium text-slate-600 mb-1">CVC</label><input type="text" class="w-full border-slate-300 rounded-md" id="card-cvc"></div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" class="bg-slate-100 text-slate-700 font-semibold px-6 py-2 rounded-lg hover:bg-slate-200" data-modal-close="modal-atualizar-pagamento">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Lógica das Abas e Modais (semelhante à anterior)
+        const tabs = document.querySelectorAll('.tab-link');
+        const contents = document.querySelectorAll('.tab-content');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                e.preventDefault();
+                tabs.forEach(item => item.classList.remove('active'));
+                contents.forEach(content => content.classList.add('hidden'));
+                tab.classList.add('active');
+                document.getElementById(tab.getAttribute('data-target')).classList.remove('hidden');
+            });
+        });
+
+        const modalToggles = document.querySelectorAll('[data-modal-toggle]');
+        const modalCloses = document.querySelectorAll('[data-modal-close]');
+        modalToggles.forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const modal = document.getElementById(toggle.getAttribute('data-modal-toggle'));
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                }
+            });
+        });
+        modalCloses.forEach(close => {
+            close.addEventListener('click', () => {
+                const modal = document.getElementById(close.getAttribute('data-modal-close'));
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            });
+        });
+        window.addEventListener('click', (event) => {
+            if (event.target.classList.contains('modal-overlay')) {
+                event.target.classList.add('hidden');
+                event.target.classList.remove('flex');
+            }
+        });
+
+        // --- LÓGICA DE INTEGRAÇÃO COM O BACKEND ---
+
+        const API_BASE_URL = '/api/configuracoes';
+        // Mock do token. Em uma aplicação real, isso viria do localStorage ou de um cookie.
+        const AUTH_TOKEN = localStorage.getItem('token');
+
+        // Função para mostrar notificações
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast-container');
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+
+        async function apiRequest(endpoint, method = 'GET', body = null) {
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${AUTH_TOKEN}`
+            };
+            const options = { method, headers };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `Erro ${response.status}`);
+                }
+                return response.json();
+            } catch (error) {
+                showToast(error.message, 'error');
+                throw error;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettingsData();
+
+            document.getElementById('perfil-form').addEventListener('submit', handleUpdatePerfil);
+            document.getElementById('recebimentos-form').addEventListener('submit', handleUpdateRecebimentos);
+            document.getElementById('btn-cancelar-assinatura').addEventListener('click', () => {
+                 document.getElementById('modal-cancelar-assinatura').classList.remove('hidden');
+                 document.getElementById('modal-cancelar-assinatura').classList.add('flex');
+            });
+            document.getElementById('confirmar-cancelamento-btn').addEventListener('click', handleCancelarAssinatura);
+        });
+
+        async function loadSettingsData() {
+            try {
+                const data = await apiRequest('/all-data');
+
+                // Popular Perfil
+                document.getElementById('nome-empresa').value = data.perfil.nomeEmpresa || '';
+                document.getElementById('cnpj-cpf').value = data.perfil.cnpjCpf || '';
+                document.getElementById('telefone').value = data.perfil.telefone || '';
+                if(data.perfil.endereco) {
+                    document.getElementById('cep').value = data.perfil.endereco.cep || '';
+                    document.getElementById('logradouro').value = data.perfil.endereco.logradouro || '';
+                    document.getElementById('numero').value = data.perfil.endereco.numero || '';
+                    document.getElementById('bairro').value = data.perfil.endereco.bairro || '';
+                    document.getElementById('cidade').value = data.perfil.endereco.cidade || '';
+                    document.getElementById('estado').value = data.perfil.endereco.estado || '';
+                }
+
+                // Popular Assinatura
+                const { assinatura } = data;
+                document.getElementById('plano-nome').textContent = assinatura.planoAtual;
+                const planoInfo = assinatura.planosDisponiveis.find(p => p.nome === assinatura.planoAtual);
+                if (planoInfo) {
+                    document.getElementById('plano-preco').innerHTML = `R$ ${planoInfo.precoMensal}<span class="text-base font-medium text-slate-500">/mês</span>`;
+                }
+                document.getElementById('plano-proxima-cobranca').textContent = new Date(assinatura.proximaCobranca).toLocaleDateString('pt-BR');
+                const statusEl = document.getElementById('plano-status');
+                statusEl.textContent = assinatura.status;
+                statusEl.className = `text-sm font-medium px-3 py-1 rounded-full ${assinatura.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`;
+
+                // Popular Método de Pagamento
+                const pagamentoInfoEl = document.getElementById('metodo-pagamento-info');
+                if (assinatura.metodoPagamento) {
+                    pagamentoInfoEl.innerHTML = `
+                        <i class="fab fa-cc-${assinatura.metodoPagamento.brand || 'visa'} text-4xl text-blue-800"></i>
+                        <div>
+                            <p class="font-semibold">Cartão de Crédito final ${assinatura.metodoPagamento.last4}</p>
+                            <p class="text-sm text-slate-500">Expira em 12/2028</p> <!-- Mockado por enquanto -->
+                        </div>
+                        <button class="ml-auto bg-slate-100 text-slate-700 font-semibold px-5 py-2 rounded-lg hover:bg-slate-200 text-sm" data-modal-toggle="modal-atualizar-pagamento">Atualizar</button>
+                    `;
+                    // Re-adicionar listener para o novo botão
+                     pagamentoInfoEl.querySelector('button').addEventListener('click', () => {
+                        const modal = document.getElementById('modal-atualizar-pagamento');
+                        modal.classList.remove('hidden');
+                        modal.classList.add('flex');
+                    });
+                } else {
+                    pagamentoInfoEl.innerHTML = `<p class="text-slate-500">Nenhum método de pagamento configurado.</p>`;
+                }
+
+                // Popular Faturas
+                const faturasTbody = document.getElementById('faturas-historico');
+                faturasTbody.innerHTML = assinatura.faturas.map(f => `
+                    <tr class="border-t">
+                        <td class="p-2">${new Date(f.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td class="p-2">R$ ${f.valor.toFixed(2)}</td>
+                        <td class="p-2"><span class="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">${f.status}</span></td>
+                        <td class="p-2 text-right"><a href="#" class="text-blue-600 font-semibold text-sm">Ver fatura</a></td>
+                    </tr>
+                `).join('');
+
+                // Popular Modal de Alteração de Plano
+                document.getElementById('modal-plano-atual').textContent = assinatura.planoAtual;
+                const planosModalContainer = document.getElementById('planos-disponiveis-modal');
+                planosModalContainer.innerHTML = assinatura.planosDisponiveis
+                    .filter(p => p.nome !== assinatura.planoAtual)
+                    .map(p => {
+                        const isUpgrade = parseFloat(p.precoMensal) > parseFloat(planoInfo.precoMensal);
+                        return `
+                        <div class="p-4 border rounded-lg flex justify-between items-center">
+                            <div><h3 class="font-bold">Plano ${p.nome}</h3><p>R$ ${p.precoMensal}/mês</p></div>
+                            <button class="${isUpgrade ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'} font-semibold px-4 py-2 rounded-lg" onclick="handleAlterarPlano('${p.nome}')">${isUpgrade ? 'Upgrade' : 'Downgrade'}</button>
+                        </div>
+                    `}).join('');
+
+                // Popular Recebimentos
+                if (data.recebimentos.metodo === 'MANUAL') {
+                    document.getElementById('metodo-manual').checked = true;
+                    document.getElementById('chave-pix').value = data.recebimentos.chavePix || '';
+                } else {
+                    document.getElementById('metodo-mercadopago').checked = true;
+                }
+
+            } catch (error) {
+                console.error('Falha ao carregar dados:', error);
+            }
+        }
+
+        async function handleUpdatePerfil(e) {
+            e.preventDefault();
+            const body = {
+                nomeEmpresa: document.getElementById('nome-empresa').value,
+                cnpjCpf: document.getElementById('cnpj-cpf').value,
+                telefone: document.getElementById('telefone').value,
+                endereco: {
+                    cep: document.getElementById('cep').value,
+                    logradouro: document.getElementById('logradouro').value,
+                    numero: document.getElementById('numero').value,
+                    bairro: document.getElementById('bairro').value,
+                    cidade: document.getElementById('cidade').value,
+                    estado: document.getElementById('estado').value,
+                }
+            };
+            try {
+                await apiRequest('/perfil', 'PUT', body);
+                showToast('Perfil atualizado com sucesso!');
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function handleUpdateRecebimentos(e) {
+            e.preventDefault();
+            const metodo = document.querySelector('input[name="payment_method"]:checked').value;
+            const body = {
+                metodo,
+                chavePix: document.getElementById('chave-pix').value
+            };
+            try {
+                await apiRequest('/recebimentos', 'PUT', body);
+                showToast('Configurações de recebimento salvas!');
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function handleAlterarPlano(novoPlano) {
+            try {
+                await apiRequest('/assinatura/alterar-plano', 'POST', { novoPlano });
+                showToast(`Plano alterado para ${novoPlano} com sucesso!`);
+                document.getElementById('modal-alterar-plano').classList.add('hidden');
+                loadSettingsData(); // Recarrega os dados
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function handleCancelarAssinatura() {
+             try {
+                await apiRequest('/assinatura/cancelar', 'POST');
+                showToast('Assinatura cancelada com sucesso.');
+                document.getElementById('modal-cancelar-assinatura').classList.add('hidden');
+                loadSettingsData(); // Recarrega os dados
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+    </script>
+</body>
+</html>

@@ -16,6 +16,20 @@ router.get('/', needsAuth, configuracaoController.getConfiguracao);
 // PUT /api/configuracoes
 router.put('/', needsAuth, configuracaoController.updateConfiguracao);
 
+// Rota para obter todos os dados da página de configuração de uma vez
+router.get('/all-data', needsAuth, configuracaoController.getAllData);
+
+// Rota para ATUALIZAR as informações do perfil da empresa
+router.put('/perfil', needsAuth, configuracaoController.updatePerfil);
+
+// Rotas para gerenciar a assinatura
+router.post('/assinatura/alterar-plano', needsAuth, configuracaoController.alterarPlano);
+router.post('/assinatura/cancelar', needsAuth, configuracaoController.cancelarAssinatura);
+router.post('/assinatura/atualizar-pagamento', needsAuth, configuracaoController.atualizarMetodoPagamento);
+
+// Rota para ATUALIZAR as configurações de recebimento
+router.put('/recebimentos', needsAuth, configuracaoController.updateRecebimentos);
+
 // --- NOVAS ROTAS PARA A INTEGRAÇÃO ---
 router.get('/google/connect', needsAuth, configuracaoController.connectGoogleCalendar);
 router.get('/google/callback', configuracaoController.handleGoogleCallback); // Esta rota não deve ter autenticação
