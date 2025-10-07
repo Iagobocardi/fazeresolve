@@ -7,6 +7,11 @@
  */
 const roleMiddleware = (allowedRoles) => {
   return (req, res, next) => {
+    // Permite que as requisições OPTIONS passem sem verificar a role (importante para o CORS)
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+    
     // O middleware de autenticação (authMiddleware) DEVE ter sido executado antes,
     // o que significa que `req.user` deve existir.
     if (!req.user || !req.user.role) {
