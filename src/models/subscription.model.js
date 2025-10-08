@@ -41,6 +41,10 @@ const assinaturaSchema = new Schema({
   },
   carenciaExpiraEm: {
     type: Date
+  },
+  lastPaymentAttemptId: { // Adicionado para rastrear o último pagamento pendente
+    type: String,
+    sparse: true
   }
 }, { timestamps: true });
 
