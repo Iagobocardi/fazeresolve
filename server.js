@@ -170,6 +170,10 @@ app.use('/api/catalogo', providerAuthMiddlewares, catalogoRoutes);
 const modelosDeServicoRoutes = require('./src/routes/modelosDeServico.routes.js');
 app.use('/api/modelos', providerAuthMiddlewares, modelosDeServicoRoutes);
 
+// Importação e uso das rotas de notificação
+const notificacaoRoutes = require('./src/routes/notificacao.routes.js');
+app.use('/api/notificacoes', providerAuthMiddlewares, notificacaoRoutes);
+
 const pixRoutes = require('./src/routes/pix.routes.js');
 app.use('/api/pix', pixRoutes);
 app.use('/api/utils', providerAuthMiddlewares, utilsRoutes);
