@@ -178,9 +178,9 @@ const upgradeSubscription = async (contaId, newPlanName) => {
         if (!conta) {
             throw new Error('Conta não encontrada.');
         }
-        if (conta.statusAssinatura !== 'ATIVO') {
-            throw new Error('A conta não possui uma assinatura ativa para ser atualizada.');
-        }
+        // if (conta.statusAssinatura !== 'ATIVO') {
+        //     throw new Error('A conta não possui uma assinatura ativa para ser atualizada.');
+        // }
         if (!conta.mercadoPagoSubscriptionId) {
             throw new Error('ID da assinatura do Mercado Pago não encontrado na conta.');
         }
