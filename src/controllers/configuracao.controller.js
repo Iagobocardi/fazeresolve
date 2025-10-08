@@ -246,6 +246,17 @@ exports.alterarPlano = async (req, res) => {
         // A lógica de upgrade/downgrade é complexa e já está (ou deveria estar) no subscriptionService
         const resultado = await subscriptionService.upgradeSubscription(contaId, novoPlano);
 
+        // Se o serviço indicar que uma nova assinatura precisa ser criada (ex: upgrade do Essencial)
+        if (resultado.needsCreation) {
+            return res.status(409).json({
+                message: 'É necessário criar uma nova assinatura para este plano.',
+                code: 'NEEDS_NEW_SUBSCRIPTION',
+                data: {
+                    newPlanId: resultado.newPlanId
+                }
+            });
+        }
+
         res.status(200).json({ message: `Plano alterado para ${novoPlano} com sucesso!`, data: resultado });
 
     } catch (error) {
