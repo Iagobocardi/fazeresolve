@@ -65,8 +65,9 @@ const handleWebhook = async (req, res) => {
             else if (['pending', 'in_process'].includes(paymentDetails.status)) {
                 console.log(`[Webhook v1.1] Pagamento pendente/em processo para assinatura ${assinatura._id}.`);
                 assinatura.status = 'pagamento_pendente';
+                assinatura.lastPaymentAttemptId = paymentDetails.id; // Salva o ID do pagamento
                 await assinatura.save();
-                console.log(`[Webhook v1.1] Assinatura ${assinatura._id} atualizada para 'pagamento_pendente'.`);
+                console.log(`[Webhook v1.1] Assinatura ${assinatura._id} atualizada para 'pagamento_pendente' com o ID de pagamento ${paymentDetails.id}.`);
             }
             // Cenário 3: Pagamento RECUSADO (inicia o período de carência)
             else if (paymentDetails.status === 'rejected' && assinatura.status !== 'pagamento_pendente') {
