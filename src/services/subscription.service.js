@@ -181,10 +181,6 @@ const upgradeSubscription = async (contaId, newPlanName) => {
         // if (conta.statusAssinatura !== 'ATIVO') {
         //     throw new Error('A conta não possui uma assinatura ativa para ser atualizada.');
         // }
-        if (!conta.mercadoPagoSubscriptionId) {
-            throw new Error('ID da assinatura do Mercado Pago não encontrado na conta.');
-        }
-
         const currentPlan = PLANS.find(p => p.name === conta.plano);
         const newPlan = PLANS.find(p => p.name === newPlanName);
 
@@ -211,6 +207,16 @@ const upgradeSubscription = async (contaId, newPlanName) => {
 
         if (!newPlanId) {
             throw new Error(`ID do plano para ${newPlanName} (${isAnnual ? 'Anual' : 'Mensal'}) não encontrado.`);
+        }
+
+        // Se não houver ID de assinatura, significa que é um upgrade de um plano gratuito/essencial.
+        // O fluxo correto é o front-end iniciar uma NOVA assinatura.
+        if (!conta.mercadoPagoSubscriptionId) {
+            console.log(`[Upgrade] A conta ${contaId} não tem ID de assinatura. Solicitando nova criação para o plano ${newPlanId}.`);
+            return {
+                needsCreation: true,
+                newPlanId: newPlanId,
+            };
         }
 
         // 3. Atualizar a assinatura no Mercado Pago
