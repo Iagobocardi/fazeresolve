@@ -42,5 +42,8 @@ router.post('/whatsapp/verificar-sender', authMiddleware, configuracaoController
 // Rota para iniciar a conexão com o Mercado Pago
 router.get('/mercadopago/connect', needsAuth, configuracaoController.connectMercadoPago);
 
+// Rota de callback para o Mercado Pago após a autorização do vendedor
+router.get('/mercadopago/callback', configuracaoController.handleMercadoPagoCallback);
+
 
 module.exports = router;
