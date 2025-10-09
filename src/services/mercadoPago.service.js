@@ -1,4 +1,5 @@
 const { MercadoPagoConfig, Payment } = require('mercadopago');
+const axios = require('axios');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js'); // Importa a configuração central
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
@@ -135,9 +136,56 @@ const createConnectionUrl = async (state, redirectUri) => {
     return `${baseUrl}?${params.toString()}`;
 };
 
+/**
+ * Troca um código de autorização temporário por tokens de acesso permanentes.
+ * @param {string} code - O código de autorização recebido do callback do Mercado Pago.
+ * @param {string} redirectUri - A mesma URI de redirecionamento usada na etapa de autorização.
+ * @returns {object} As credenciais do Mercado Pago (accessToken, refreshToken, publicKey, userId, expiresAt).
+ */
+const exchangeCodeForTokens = async (code, redirectUri) => {
+    const { accessToken, appId } = mercadoPagoConfig;
+    if (!accessToken || !appId) {
+        throw new Error("Credenciais da aplicação (MP_ACCESS_TOKEN ou MP_APP_ID) não configuradas.");
+    }
+
+    const url = "https://api.mercadopago.com/oauth/token";
+
+    const body = {
+        client_secret: accessToken,
+        client_id: appId,
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: redirectUri,
+    };
+
+    try {
+        const response = await axios.post(url, body, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        const { data } = response;
+        const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+        return {
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            publicKey: data.public_key,
+            userId: data.user_id.toString(),
+            expiresAt: expiresAt,
+        };
+    } catch (error) {
+        console.error("Erro ao trocar código por tokens no Mercado Pago:", error.response?.data || error.message);
+        throw new Error("Falha ao obter credenciais do Mercado Pago.");
+    }
+};
+
 module.exports = {
     handlePaymentNotification,
     createConnectionUrl,
+    exchangeCodeForTokens,
     createPixPayment: async (paymentData) => {
         try {
             const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
