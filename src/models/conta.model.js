@@ -47,8 +47,13 @@ const contaSchema = new Schema({
         enum: ['MERCADOPAGO', 'MANUAL'],
         default: 'MANUAL'
     },
-    credenciaisMercadoPago: {
-        type: Object
+    mercadoPagoCredentials: {
+        userId: { type: String, trim: true },
+        publicKey: { type: String, trim: true },
+        accessToken: { type: String, trim: true, set: encrypt, get: decrypt },
+        refreshToken: { type: String, trim: true, set: encrypt, get: decrypt },
+        expiresAt: { type: Date },
+        connectedAt: { type: Date },
     },
     chavePixManual: {
         type: String,
