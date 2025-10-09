@@ -8,6 +8,7 @@ const Subscription = require('../models/subscription.model.js');
 const Transacao = require('../models/transacao.model.js');
 const subscriptionService = require('../services/subscription.service.js');
 const mercadoPagoService = require('../services/mercadoPago.service.js');
+const Usuario = require('../models/usuario.model.js');
 const PLANS = require('../config/plans.config.js');
 
 
@@ -301,27 +302,65 @@ exports.updatePerfil = async (req, res) => {
 exports.alterarPlano = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { novoPlano } = req.body; // ex: 'Premium'
+        const { novoPlano: newPlanName } = req.body; // ex: 'Premium'
 
-        if (!novoPlano) {
+        if (!newPlanName) {
             return res.status(400).json({ message: 'O nome do novo plano é obrigatório.' });
         }
 
-        // A lógica de upgrade/downgrade é complexa e já está (ou deveria estar) no subscriptionService
-        const resultado = await subscriptionService.upgradeSubscription(contaId, novoPlano);
+        const conta = await Conta.findById(contaId);
+        if (!conta) {
+            return res.status(404).json({ message: 'Conta não encontrada.' });
+        }
 
-        // Se o serviço indicar que uma nova assinatura precisa ser criada (ex: upgrade do Essencial)
-        if (resultado.needsCreation) {
-            return res.status(409).json({
-                message: 'É necessário criar uma nova assinatura para este plano.',
-                code: 'NEEDS_NEW_SUBSCRIPTION',
+        const newPlanConfig = PLANS.find(p => p.name === newPlanName);
+        if (!newPlanConfig) {
+            return res.status(400).json({ message: 'Novo plano inválido.' });
+        }
+        
+        // Se a assinatura estiver ativa, tenta fazer o upgrade no gateway
+        if (conta.statusAssinatura === 'ATIVO') {
+            const resultado = await subscriptionService.upgradeSubscription(contaId, newPlanName);
+
+            // Se o serviço indicar que uma nova assinatura precisa ser criada (ex: upgrade do Essencial sem ID de gateway)
+            if (resultado.needsCreation) {
+                return res.status(409).json({
+                    message: 'É necessário criar uma nova assinatura para este plano.',
+                    code: 'NEEDS_NEW_SUBSCRIPTION',
+                    data: {
+                        newPlanId: resultado.newPlanId
+                    }
+                });
+            }
+            
+            res.status(200).json({ message: `Plano alterado para ${newPlanName} com sucesso!`, data: resultado });
+
+        } 
+        // Se a assinatura não estiver ativa (ex: aguardando pagamento), apenas atualiza o plano localmente
+        else {
+            console.log(`[Plano] Alterando plano localmente para a conta ${contaId} para ${newPlanName}.`);
+            
+            const isAnnual = conta.planId && PLANS.some(p => p.annual.id === conta.planId);
+            const newPlanId = isAnnual ? newPlanConfig.annual.id : newPlanConfig.monthly.id;
+
+            conta.plano = newPlanName;
+            conta.planId = newPlanId;
+            await conta.save();
+
+            // Atualiza as permissões de todos os usuários da conta
+            await Usuario.updateMany(
+                { contaId: contaId },
+                { $set: { permissoes: newPlanConfig.permissions } }
+            );
+
+            res.status(200).json({ 
+                message: `Plano alterado para ${newPlanName}. Prossiga para a tela de pagamento para ativar sua assinatura.`,
                 data: {
-                    newPlanId: resultado.newPlanId
+                    newPlan: newPlanName,
+                    newPlanId: newPlanId
                 }
             });
         }
-
-        res.status(200).json({ message: `Plano alterado para ${novoPlano} com sucesso!`, data: resultado });
 
     } catch (error) {
         console.error("Erro em alterarPlano:", error);
