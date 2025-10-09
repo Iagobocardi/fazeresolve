@@ -202,6 +202,45 @@ exports.iniciarWhatsappOnboarding = async (req, res) => {
     }
 };
 
+// Manipula o callback do Mercado Pago após a autorização do vendedor
+exports.handleMercadoPagoCallback = async (req, res) => {
+    const { code, state, error } = req.query;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const redirectPath = '/configuracoes?tab=recebimentos';
+
+    if (error || !code) {
+        console.error("Callback do Mercado Pago com erro ou sem código:", error || "Código ausente");
+        return res.redirect(`${frontendUrl}${redirectPath}&mp_connect=error`);
+    }
+
+    if (!state) {
+        console.error("Callback do Mercado Pago sem 'state' (contaId).");
+        return res.redirect(`${frontendUrl}${redirectPath}&mp_connect=error_no_state`);
+    }
+
+    try {
+        const contaId = state;
+        const redirectUri = `${process.env.API_URL}/configuracoes/mercadopago/callback`;
+
+        const credentials = await mercadoPagoService.exchangeCodeForTokens(code, redirectUri);
+
+        await Conta.findByIdAndUpdate(contaId, {
+            'mercadoPagoCredentials': {
+                ...credentials,
+                connectedAt: new Date(),
+            },
+            'metodoRecebimento': 'MERCADOPAGO',
+        });
+
+        console.log(`Conta ${contaId} conectada com sucesso ao Mercado Pago.`);
+        res.redirect(`${frontendUrl}${redirectPath}&mp_connect=success`);
+
+    } catch (err) {
+        console.error("Erro crítico ao processar callback do Mercado Pago:", err);
+        res.redirect(`${frontendUrl}${redirectPath}&mp_connect=error_critical`);
+    }
+};
+
 // Inicia a conexão com o Mercado Pago para o Split de Pagamentos
 exports.connectMercadoPago = async (req, res) => {
     try {
