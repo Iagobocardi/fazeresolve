@@ -111,8 +111,33 @@ const handlePaymentNotification = async (paymentId) => {
     }
 };
 
+/**
+ * Cria a URL de autorização OAuth para que os vendedores conectem suas contas do Mercado Pago.
+ * @param {string} state - Um valor único para manter o estado entre a requisição e o callback (usaremos o contaId).
+ * @param {string} redirectUri - A URL de callback para onde o Mercado Pago deve redirecionar após a autorização.
+ * @returns {string} A URL de autorização completa.
+ */
+const createConnectionUrl = async (state, redirectUri) => {
+    const appId = mercadoPagoConfig.appId;
+    if (!appId) {
+        throw new Error("MP_APP_ID não está configurado nas variáveis de ambiente.");
+    }
+
+    const baseUrl = "https://auth.mercadopago.com.br/authorization";
+    const params = new URLSearchParams({
+        client_id: appId,
+        response_type: 'code',
+        platform_id: 'mp',
+        state: state,
+        redirect_uri: redirectUri,
+    });
+
+    return `${baseUrl}?${params.toString()}`;
+};
+
 module.exports = {
     handlePaymentNotification,
+    createConnectionUrl,
     createPixPayment: async (paymentData) => {
         try {
             const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
