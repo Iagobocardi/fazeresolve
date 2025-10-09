@@ -259,8 +259,9 @@ exports.connectMercadoPago = async (req, res) => {
         res.redirect(connectionUrl);
 
     } catch (error) {
-        console.error("Erro ao iniciar conexão com o Mercado Pago:", error);
-        res.status(500).json({ message: "Erro interno ao tentar conectar com o Mercado Pago." });
+        console.error("Erro ao iniciar conexão com o Mercado Pago:", error.message);
+        // Retorna a mensagem de erro específica do serviço para facilitar a depuração.
+        res.status(500).json({ message: error.message || "Erro interno ao tentar conectar com o Mercado Pago." });
     }
 };
 
