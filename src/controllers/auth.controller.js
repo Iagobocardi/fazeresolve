@@ -1,8 +1,11 @@
 // Arquivo: src/controllers/auth.controller.js
 const Usuario = require('../models/usuario.model'); // MUDANÇA: Usa o modelo Usuario
 const Conta = require('../models/conta.model');   // MUDANÇA: Usa o novo modelo Conta
+const PasswordReset = require('../models/passwordReset.model');
+const authService = require('../services/auth.service');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 
 const { google } = require('googleapis');
@@ -267,10 +270,59 @@ const register = async (req, res) => {
     }
 };
 
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await Usuario.findOne({ email });
+
+        if (user) {
+            await authService.createAndSendPasswordReset(user);
+        }
+
+        res.status(200).json({ message: 'Se um usuário com este email existir, um link para redefinição de senha será enviado.' });
+    } catch (error) {
+        console.error("Erro ao solicitar redefinição de senha:", error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { token, password } = req.body;
+
+        if (!token || !password) {
+            return res.status(400).json({ message: 'Token e nova senha são obrigatórios.' });
+        }
+
+        const resetRequest = await PasswordReset.findOne({ token: token });
+
+        if (!resetRequest || resetRequest.expiresAt < new Date()) {
+            return res.status(400).json({ message: 'Token inválido ou expirado.' });
+        }
+
+        const user = await Usuario.findById(resetRequest.userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        user.password = password; // O hash é feito pelo middleware pré-save do Mongoose
+        await user.save();
+
+        await PasswordReset.deleteOne({ _id: resetRequest._id });
+
+        res.status(200).json({ message: 'Senha redefinida com sucesso.' });
+    } catch (error) {
+        console.error("Erro ao redefinir a senha:", error);
+        res.status(500).json({ message: 'Erro interno no servidor ao redefinir a senha.' });
+    }
+};
+
+
 module.exports = {
-    login, // MUDANÇA: exporta a nova função de login
+    login,
     register,
-    // Mantendo as rotas do google por enquanto, mas desabilitadas
     handleGoogleCallback,
     iniciarAuthGoogle,
+    forgotPassword,
+    resetPassword,
 };
