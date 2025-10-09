@@ -1,21 +1,40 @@
-// src/services/email.service.js
+// Em: src/services/email.service.js
+const sgMail = require('@sendgrid/mail');
 
-// Este é um serviço de email de placeholder.
-// Em um ambiente de produção, você usaria uma biblioteca como Nodemailer ou um serviço como SendGrid.
+// A chave de API é lida das variáveis de ambiente
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const sendEmail = async ({ to, subject, html }) => {
-    console.log('--- SERVIÇO DE EMAIL (PLACEHOLDER) ---');
-    console.log(`Para: ${to}`);
-    console.log(`Assunto: ${subject}`);
-    console.log('Corpo (HTML):');
-    console.log(html);
-    console.log('------------------------------------');
+/**
+ * Envia um email usando um template dinâmico do SendGrid.
+ * @param {string} to - O destinatário do email.
+ * @param {string} templateId - O ID do template dinâmico do SendGrid.
+ * @param {object} dynamicTemplateData - Um objeto com os dados para preencher o template.
+ */
+const sendEmailWithTemplate = async ({ to, templateId, dynamicTemplateData }) => {
+    const msg = {
+        to: to,
+        // O remetente DEVE ser um dos que você verificou no SendGrid
+        from: {
+            email: 'suporte@fazeresolve.com', // Altere se você configurou outro email verificado
+            name: 'Faz e Resolve'
+        },
+        templateId: templateId,
+        dynamic_template_data: dynamicTemplateData,
+    };
 
-    // Em uma implementação real, aqui ocorreria o envio do email.
-    // Como este é um placeholder, nós apenas simulamos o sucesso.
-    return Promise.resolve();
+    try {
+        await sgMail.send(msg);
+        console.log(`Email enviado com sucesso para ${to} usando o template ${templateId}`);
+    } catch (error) {
+        console.error('Erro ao enviar email pelo SendGrid:', error);
+        if (error.response) {
+            console.error(error.response.body);
+        }
+        // Lançar o erro permite que o serviço que chamou saiba que falhou
+        throw new Error('Falha ao enviar o email.');
+    }
 };
 
 module.exports = {
-    sendEmail,
+    sendEmailWithTemplate,
 };
