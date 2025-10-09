@@ -30,4 +30,10 @@ const registerRules = [
 // Rota para registrar um novo utilizador, com validação
 router.post('/register', registerRules, validate, authController.register);
 
+// Rota para solicitar a redefinição de senha
+router.post('/forgot-password', authController.forgotPassword);
+
+// Rota para redefinir a senha
+router.post('/reset-password', authController.resetPassword);
+
 module.exports = router;
