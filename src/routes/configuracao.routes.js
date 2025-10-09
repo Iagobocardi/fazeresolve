@@ -39,5 +39,8 @@ router.delete('/google/disconnect', needsAuth, configuracaoController.disconnect
 router.post('/whatsapp/iniciar-onboarding', authMiddleware, configuracaoController.iniciarWhatsappOnboarding);
 router.post('/whatsapp/verificar-sender', authMiddleware, configuracaoController.verificarWhatsappSender);
 
+// Rota para iniciar a conexão com o Mercado Pago
+router.get('/mercadopago/connect', needsAuth, configuracaoController.connectMercadoPago);
+
 
 module.exports = router;
