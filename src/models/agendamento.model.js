@@ -1,7 +1,30 @@
 // Arquivo: src/models/agendamento.model.js
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const agendamentoSchema = new mongoose.Schema({
+// Subdocumento para as mensagens dentro do agendamento
+const mensagemSchema = new Schema({
+    remetente: {
+        type: String, // Ex: "Prestador" ou "Cliente"
+        required: true
+    },
+    nomeRemetente: {
+        type: String, // Ex: "Nome do Usuário Logado" ou "Nome do Cliente"
+        required: true
+    },
+    texto: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    dataEnvio: {
+        type: Date,
+        default: Date.now
+    }
+}, { _id: true, timestamps: true });
+
+
+const agendamentoSchema = new Schema({
     contaId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Conta',
@@ -11,8 +34,9 @@ const agendamentoSchema = new mongoose.Schema({
     dataHoraInicio: { type: Date, required: true },
     dataHoraFim: { type: Date, required: true },
     servico: { type: mongoose.Schema.Types.ObjectId, ref: 'Servico', required: true },
-    cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true }, // Referencia ao cliente
+    cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
     observacoes: { type: String, trim: true },
+    mensagens: [mensagemSchema] // Array de mensagens
 });
 
 // Validação customizada para garantir que dataHoraFim seja posterior a dataHoraInicio
