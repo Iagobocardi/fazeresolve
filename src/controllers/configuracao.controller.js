@@ -7,6 +7,7 @@ const Conta = require('../models/conta.model.js');
 const Subscription = require('../models/subscription.model.js');
 const Transacao = require('../models/transacao.model.js');
 const subscriptionService = require('../services/subscription.service.js');
+const mercadoPagoService = require('../services/mercadoPago.service.js');
 const PLANS = require('../config/plans.config.js');
 
 
@@ -198,6 +199,29 @@ exports.iniciarWhatsappOnboarding = async (req, res) => {
         const errorMessage = error.response?.data?.message || 'Erro ao iniciar o processo de onboarding do WhatsApp.';
         const errorCode = error.response?.status || 500;
         res.status(errorCode).json({ message: errorMessage });
+    }
+};
+
+// Inicia a conexão com o Mercado Pago para o Split de Pagamentos
+exports.connectMercadoPago = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const { redirect_uri } = req.query;
+
+        if (!redirect_uri) {
+            return res.status(400).json({ message: "O parâmetro 'redirect_uri' é obrigatório." });
+        }
+
+        // O state é usado para passar o ID da conta através do fluxo OAuth e validar no callback
+        const state = contaId.toString();
+
+        const connectionUrl = await mercadoPagoService.createConnectionUrl(state, redirect_uri);
+        
+        res.redirect(connectionUrl);
+
+    } catch (error) {
+        console.error("Erro ao iniciar conexão com o Mercado Pago:", error);
+        res.status(500).json({ message: "Erro interno ao tentar conectar com o Mercado Pago." });
     }
 };
 
