@@ -16,4 +16,7 @@ router.post('/', checkPermission('editar_agenda'), agendamentoValidationRules, v
 router.put('/:id', checkPermission('editar_agenda'), agendamentoValidationRules, validate, agendamentosController.updateAgendamento);
 router.delete('/:id', checkPermission('editar_agenda'), agendamentosController.deleteAgendamento);
 
+// Rota para adicionar uma mensagem a um agendamento
+router.post('/:id/mensagens', checkPermission('editar_agenda'), agendamentosController.enviarMensagem);
+
 module.exports = router;
