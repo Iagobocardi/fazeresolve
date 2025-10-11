@@ -79,5 +79,8 @@ router.delete('/:orcamentoId/custos/:custoId', checkPermission('editar_orcamento
 // --- Rota para Automação de Cobrança ---
 router.post('/:id/enviar-cobranca', checkPlan(['Premium']), checkPermission('editar_orcamentos'), orcamentosController.enviarCobranca);
 
+// Rota para adicionar uma nova entrada ao histórico do orçamento
+router.post('/:id/historico', checkPermission('editar_orcamentos'), orcamentosController.adicionarHistorico);
+
 
 module.exports = router;
