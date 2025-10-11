@@ -246,15 +246,11 @@ exports.handleMercadoPagoCallback = async (req, res) => {
 exports.connectMercadoPago = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { redirect_uri } = req.query;
-
-        if (!redirect_uri) {
-            return res.status(400).json({ message: "O parâmetro 'redirect_uri' é obrigatório." });
-        }
 
         // O state é usado para passar o ID da conta através do fluxo OAuth e validar no callback
         const state = req.user.contaId._id.toString();
 
+        const redirect_uri = `${process.env.API_URL}/configuracoes/mercadopago/callback`;
         const connectionUrl = await mercadoPagoService.createConnectionUrl(state, redirect_uri);
         
         res.redirect(connectionUrl);
