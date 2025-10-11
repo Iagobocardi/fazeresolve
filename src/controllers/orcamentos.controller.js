@@ -1215,7 +1215,36 @@ const calcularOrcamentoPorModelo = async (req, res, next) => {
     }
 };
 
+const adicionarHistorico = async (req, res) => {
+    try {
+        const { id: orcamentoId } = req.params;
+        const { evento } = req.body;
+        const { contaId } = req.user;
+
+        if (!evento || typeof evento !== 'string' || evento.trim() === '') {
+            return res.status(400).json({ message: 'O texto do evento é obrigatório.' });
+        }
+
+        const orcamento = await Orcamento.findOne({ _id: orcamentoId, contaId });
+
+        if (!orcamento) {
+            return res.status(404).json({ message: 'Orçamento não encontrado ou não pertence a esta conta.' });
+        }
+
+        orcamento.historico.push({ evento: evento.trim() });
+
+        const orcamentoAtualizado = await orcamento.save();
+
+        res.status(200).json(orcamentoAtualizado);
+
+    } catch (error) {
+        console.error("Erro ao adicionar entrada ao histórico:", error);
+        res.status(500).json({ message: 'Erro interno ao adicionar ao histórico.' });
+    }
+};
+
 module.exports = {
+    adicionarHistorico,
     calcularOrcamentoPorModelo,
     debugCosts,
     orcamentoValidationRules,
