@@ -253,7 +253,7 @@ exports.connectMercadoPago = async (req, res) => {
         }
 
         // O state é usado para passar o ID da conta através do fluxo OAuth e validar no callback
-        const state = contaId.toString();
+        const state = req.user.contaId._id.toString();
 
         const connectionUrl = await mercadoPagoService.createConnectionUrl(state, redirect_uri);
         
