@@ -36,4 +36,7 @@ router.post('/forgot-password', authController.forgotPassword);
 // Rota para redefinir a senha
 router.post('/reset-password', authController.resetPassword);
 
+// Rota para verificar registro existente
+router.post('/check-existing-registration', authController.checkExistingRegistration);
+
 module.exports = router;

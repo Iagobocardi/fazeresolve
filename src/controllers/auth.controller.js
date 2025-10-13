@@ -191,7 +191,10 @@ const register = async (req, res) => {
         // Checa se o usuário já existe
         const existingUser = await Usuario.findOne({ $or: [{ email: email }, { telefone: telefone }] });
         if (existingUser) {
-            return res.status(409).json({ message: 'Um usuário com este email já existe.' });
+            const conta = await Conta.findById(existingUser.contaId);
+            if(conta && conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
+                return res.status(409).json({ message: 'Um usuário com este email ou telefone já existe.' });
+            }
         }
         
         // --- Lógica para associar plano e permissões ---
@@ -317,6 +320,61 @@ const resetPassword = async (req, res) => {
     }
 };
 
+const checkExistingRegistration = async (req, res) => {
+    try {
+        const { identifier } = req.body;
+
+        if (!identifier) {
+            return res.status(400).json({ message: 'Identificador (email ou telefone) é obrigatório.' });
+        }
+
+        const usuario = await Usuario.findOne({
+            $or: [{ email: identifier }, { telefone: identifier }]
+        });
+
+        if (!usuario) {
+            return res.status(200).json({ pending_registration: false });
+        }
+
+        const conta = await Conta.findById(usuario.contaId);
+
+        if (conta && conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
+            const payload = {
+                id: usuario._id,
+                contaId: conta._id,
+                statusAssinatura: conta.statusAssinatura
+            };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+            return res.status(200).json({
+                pending_registration: true,
+                message: 'Registro pendente encontrado. Prossiga para o pagamento.',
+                token,
+                usuario: {
+                    id: usuario._id,
+                    nome: usuario.nome,
+                    email: usuario.email,
+                    telefone: usuario.telefone,
+                    cpf: usuario.cpf
+                },
+                conta: {
+                    id: conta._id,
+                    nome: conta.nome,
+                    plano: conta.plano,
+                    planId: conta.planId,
+                    companyInfo: conta.companyInfo
+                }
+            });
+        }
+
+        return res.status(200).json({ pending_registration: false });
+
+    } catch (error) {
+        console.error("Erro ao verificar registro existente:", error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
+    }
+};
+
 
 module.exports = {
     login,
@@ -325,4 +383,5 @@ module.exports = {
     iniciarAuthGoogle,
     forgotPassword,
     resetPassword,
+    checkExistingRegistration,
 };
