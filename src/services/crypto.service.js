@@ -8,10 +8,12 @@ const SECRET_KEY = process.env.CRYPTO_SECRET_KEY;
 // O IV DEVE ter 16 caracteres (128 bits)
 const IV = process.env.CRYPTO_IV;
 
-if (!SECRET_KEY || !IV || SECRET_KEY.length !== 32 || IV.length !== 16) {
-    console.error("ERRO CRÍTICO: As variáveis de ambiente CRYPTO_SECRET_KEY (32 caracteres) e CRYPTO_IV (16 caracteres) são obrigatórias para a encriptação.");
-    // Em um ambiente real, você poderia querer que a aplicação não iniciasse.
-    // process.exit(1); 
+if (!SECRET_KEY || SECRET_KEY.length !== 32) {
+    throw new Error("ERRO CRÍTICO: A variável de ambiente CRYPTO_SECRET_KEY é obrigatória e deve ter exatamente 32 caracteres.");
+}
+
+if (!IV || IV.length !== 16) {
+    throw new Error("ERRO CRÍTICO: A variável de ambiente CRYPTO_IV é obrigatória e deve ter exatamente 16 caracteres.");
 }
 
 /**
