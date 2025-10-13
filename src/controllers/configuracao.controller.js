@@ -237,7 +237,10 @@ exports.handleMercadoPagoCallback = async (req, res) => {
         res.redirect(`${frontendUrl}${redirectPath}&mp_connect=success`);
 
     } catch (err) {
-        console.error("Erro crítico ao processar callback do Mercado Pago:", err);
+        console.error("Erro crítico ao processar callback do Mercado Pago:", err.message);
+        if (err.response) {
+            console.error("Detalhes do erro da API:", err.response.data);
+        }
         res.redirect(`${frontendUrl}${redirectPath}&mp_connect=error_critical`);
     }
 };
