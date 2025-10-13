@@ -143,15 +143,15 @@ const createConnectionUrl = async (state, redirectUri) => {
  * @returns {object} As credenciais do Mercado Pago (accessToken, refreshToken, publicKey, userId, expiresAt).
  */
 const exchangeCodeForTokens = async (code, redirectUri) => {
-    const { accessToken, appId } = mercadoPagoConfig;
-    if (!accessToken || !appId) {
-        throw new Error("Credenciais da aplicação (MP_ACCESS_TOKEN ou MP_APP_ID) não configuradas.");
+    const { clientSecret, appId } = mercadoPagoConfig;
+    if (!clientSecret || !appId) {
+        throw new Error("Credenciais da aplicação (MERCADO_PAGO_CLIENT_SECRET ou MP_APP_ID) não configuradas.");
     }
 
     const url = "https://api.mercadopago.com/oauth/token";
 
     const body = {
-        client_secret: accessToken,
+        client_secret: clientSecret,
         client_id: appId,
         grant_type: 'authorization_code',
         code: code,
