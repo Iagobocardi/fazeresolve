@@ -1,9 +1,9 @@
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const axios = require('axios');
-const mercadoPagoConfig = require('../config/mercadoPago.config.js'); // Importa a configuração central
+const mercadoPagoConfig = require('../config/mercadoPago.config.js');
+const PLANS = require('../config/plans.config.js');
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
-
 const Conta = require('../models/conta.model');
 
 const handlePaymentNotification = async (paymentId) => {
@@ -16,6 +16,35 @@ const handlePaymentNotification = async (paymentId) => {
 
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
+
+            // --- LÓGICA DE PAGAMENTO ÚNICO (PIX OU CARTÃO) ---
+            if (externalReference.includes('_') && paymentInfo.status === 'approved') {
+                const [contaId, planId] = externalReference.split('_');
+                
+                let selectedPlan = null;
+                for (const plan of PLANS) {
+                    const found = plan.oneTime.find(p => p.id === planId);
+                    if (found) {
+                        selectedPlan = found;
+                        break;
+                    }
+                }
+
+                if (selectedPlan) {
+                    const conta = await Conta.findById(contaId);
+                    if (conta) {
+                        const now = new Date();
+                        // Se a conta já tiver um acesso válido, estende a partir da data existente.
+                        const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
+                        
+                        conta.acessoValidoAte = new Date(startDate.setMonth(startDate.getMonth() + selectedPlan.months));
+                        conta.statusAssinatura = 'ATIVO'; // Garante que a conta seja considerada ativa
+                        await conta.save();
+                        console.log(`[Webhook] Acesso da conta ${contaId} estendido por ${selectedPlan.months} meses via pagamento único.`);
+                        return; // Processamento concluído
+                    }
+                }
+            }
 
             // --- LÓGICA DE PAGAMENTO DE ASSINATURA (CARTÃO DE CRÉDITO RECORRENTE) ---
             if (paymentInfo.preapproval_id) {
@@ -151,7 +180,7 @@ const exchangeCodeForTokens = async (code, redirectUri) => {
     const url = "https://api.mercadopago.com/oauth/token";
 
     const body = {
-        client_secret: clientSecret,
+        client_secret: mercadoPagoConfig.clientSecret,
         client_id: appId,
         grant_type: 'authorization_code',
         code: code,
@@ -187,18 +216,16 @@ module.exports = {
     createConnectionUrl,
     exchangeCodeForTokens,
     createPixPayment: async (paymentData) => {
+        const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+        const payment = new Payment(client);
+
         try {
-            const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
-            const payment = new Payment(client);
-
             console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
-
             const result = await payment.create({ body: paymentData });
             return result;
         } catch (error) {
-            console.error("Erro detalhado ao criar pagamento PIX no serviço:", JSON.stringify(error, null, 2));
-            // Propaga o erro para ser tratado pelo controller
-            throw error;
+            console.error("Erro detalhado ao criar pagamento PIX no serviço:", error?.cause ?? error.message);
+            throw new Error("Falha ao criar cobrança PIX no Mercado Pago.");
         }
-    }
+    },
 };
