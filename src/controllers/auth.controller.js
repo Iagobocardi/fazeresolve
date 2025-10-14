@@ -198,14 +198,6 @@ const register = async (req, res) => {
             return res.status(400).json({ message: 'O tipo de pagamento (subscription ou onetime) é obrigatório.' });
         }
 
-        const existingUser = await Usuario.findOne({ $or: [{ email: email }, { telefone: telefone }] });
-        if (existingUser) {
-            const conta = await Conta.findById(existingUser.contaId);
-            if (conta && conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
-                return res.status(409).json({ message: 'Um usuário com este email ou telefone já existe.' });
-            }
-        }
-
         const PLANS = require('../config/plans.config.js');
         let selectedPlanDetails = null;
         let planName = '';
@@ -224,28 +216,39 @@ const register = async (req, res) => {
                 break;
             }
         }
-
         if (!selectedPlanDetails) {
             return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
         }
 
-        const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
-        if (cnpj) companyInfo.cnpj = cnpj;
+        let usuario, conta;
+        const existingUser = await Usuario.findOne({ $or: [{ email: email }, { telefone: telefone }] });
 
-        const novaConta = new Conta({
-            nome: nomeEmpresa || nome,
-            plano: planName,
-            planId: planId,
-            companyInfo: companyInfo
-        });
-        await novaConta.save();
+        if (existingUser) {
+            const existingConta = await Conta.findById(existingUser.contaId);
+            if (existingConta && existingConta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
+                return res.status(409).json({ message: 'Um usuário com este email ou telefone já possui uma assinatura ativa.' });
+            }
+            usuario = existingUser;
+            conta = existingConta;
+            // Atualiza o plano caso o usuário tenha tentado se cadastrar com um plano diferente
+            conta.plano = planName;
+            conta.planId = planId;
+            await conta.save();
+        } else {
+            const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
+            if (cnpj) companyInfo.cnpj = cnpj;
+            const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, companyInfo: companyInfo });
+            await novaConta.save();
+            conta = novaConta;
 
-        const userData = { nome, email, telefone, password, contaId: novaConta._id, role: 'Dono', permissoes: selectedPlanDetails.permissions };
-        if (cpf) userData.cpf = cpf;
-        const novoUsuario = new Usuario(userData);
-        await novoUsuario.save();
+            const userData = { nome, email, telefone, password, contaId: conta._id, role: 'Dono', permissoes: selectedPlanDetails.permissions };
+            if (cpf) userData.cpf = cpf;
+            const novoUsuario = new Usuario(userData);
+            await novoUsuario.save();
+            usuario = novoUsuario;
+        }
 
-        const payload = { id: novoUsuario._id, contaId: novaConta._id, statusAssinatura: novaConta.statusAssinatura };
+        const payload = { id: usuario._id, contaId: conta._id, statusAssinatura: conta.statusAssinatura };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
         if (paymentType === 'onetime') {
@@ -253,17 +256,17 @@ const register = async (req, res) => {
                 transaction_amount: parseFloat(selectedPlanDetails.price),
                 description: `Acesso ${planName} por ${selectedPlanDetails.months} meses`,
                 payment_method_id: 'pix',
-                payer: { email: novoUsuario.email, first_name: novoUsuario.nome },
-                external_reference: `${novaConta._id}_${planId}`,
+                payer: { email: usuario.email, first_name: usuario.nome },
+                external_reference: `${conta._id}_${planId}`,
                 notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
             };
 
             const pixData = await mercadoPagoService.createPixPayment(paymentData);
             return res.status(201).json({
-                message: 'Conta criada! Pague o PIX para ativar seu acesso.',
+                message: 'Conta pronta! Pague o PIX para ativar seu acesso.',
                 token,
-                usuario: { id: novoUsuario._id, nome: novoUsuario.nome, email: novoUsuario.email },
-                conta: novaConta,
+                usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
+                conta: conta,
                 paymentInfo: {
                     type: 'pix',
                     paymentId: pixData.id,
@@ -277,8 +280,8 @@ const register = async (req, res) => {
         res.status(201).json({
             message: 'Conta e usuário registrados com sucesso! Prossiga para o pagamento da assinatura.',
             token,
-            usuario: { id: novoUsuario._id, nome: novoUsuario.nome, email: novoUsuario.email },
-            conta: novaConta
+            usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
+            conta: conta
         });
 
     } catch (error) {
