@@ -46,7 +46,7 @@ const handlePaymentNotification = async (paymentId) => {
             // 2. LÓGICA DE PAGAMENTO ÚNICO (tem `_` na referência)
             if (externalReference.includes('_') && paymentInfo.status === 'approved') {
                 const [contaId, planId] = externalReference.split('_');
-
+                
                 let selectedPlan = null;
                 for (const plan of PLANS) {
                     const found = plan.oneTime.find(p => p.id === planId);
@@ -61,7 +61,7 @@ const handlePaymentNotification = async (paymentId) => {
                     if (conta) {
                         const now = new Date();
                         const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
-
+                        
                         conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
                         conta.statusAssinatura = 'ATIVO';
                         await conta.save();
@@ -70,7 +70,7 @@ const handlePaymentNotification = async (paymentId) => {
                     }
                 }
             }
-
+            
             // 3. LÓGICA DE PAGAMENTO DE ORÇAMENTO (é um ObjectId válido)
             if (mongoose.Types.ObjectId.isValid(externalReference)) {
                 const orcamento = await Orcamento.findById(externalReference);
@@ -108,20 +108,13 @@ const handlePaymentNotification = async (paymentId) => {
             // Se não for um orçamento, tenta encontrar uma conta
             const conta = await Conta.findById(externalReference);
             if (conta && paymentInfo.payment_method_id === 'pix' && paymentInfo.status === 'approved') {
-                const description = paymentInfo.description; // Ex: "Plano Profissional - 6 Meses"
-                let months = 0;
-                if (description.includes('1 Mes')) months = 1;
-                if (description.includes('6 Meses')) months = 6;
-                if (description.includes('12 Meses')) months = 12;
-
-                if (months > 0) {
-                    const now = new Date();
-                    const newExpiryDate = new Date(now.setMonth(now.getMonth() + months));
-                    
+                 // LÓGICA DE PAGAMENTO DE ASSINATURA (PIX INICIAL OU REGULARIZAÇÃO)
+                if (paymentInfo.description?.startsWith('Pagamento da assinatura do plano')) {
                     conta.statusAssinatura = 'ATIVO';
-                    conta.acessoValidoAte = newExpiryDate;
+                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver
                     await conta.save();
-                    console.log(`[Webhook] Acesso da conta ${conta._id} estendido por ${months} meses via Pix.`);
+                    console.log(`[Webhook] Pagamento PIX da assinatura ${paymentId} aprovado. Conta ${conta._id} ativada.`);
+                    return;
                 }
             }
         }
@@ -207,7 +200,6 @@ module.exports = {
     createPixPayment: async (paymentData) => {
         const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
         const payment = new Payment(client);
-
         try {
             console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
             const result = await payment.create({ body: paymentData });
