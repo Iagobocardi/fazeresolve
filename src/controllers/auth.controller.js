@@ -224,17 +224,32 @@ const register = async (req, res) => {
         const existingUser = await Usuario.findOne({ $or: [{ email: email }, { telefone: telefone }] });
 
         if (existingUser) {
-            const existingConta = await Conta.findById(existingUser.contaId);
-            if (existingConta && existingConta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
-                return res.status(409).json({ message: 'Um usuário com este email ou telefone já possui uma assinatura ativa.' });
-            }
             usuario = existingUser;
-            conta = existingConta;
-            // Atualiza o plano caso o usuário tenha tentado se cadastrar com um plano diferente
-            conta.plano = planName;
-            conta.planId = planId;
-            await conta.save();
+            let existingConta = await Conta.findById(usuario.contaId);
+
+            if (existingConta) {
+                // Cenário 1: Usuário e Conta existem.
+                if (existingConta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
+                    return res.status(409).json({ message: 'Um usuário com este email ou telefone já possui uma assinatura ativa.' });
+                }
+                // Atualiza o plano da conta pendente.
+                existingConta.plano = planName;
+                existingConta.planId = planId;
+                await existingConta.save();
+                conta = existingConta;
+            } else {
+                // Cenário 2: Usuário existe mas está órfão (sem conta). Cria uma nova conta e associa.
+                const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
+                if (cnpj) companyInfo.cnpj = cnpj;
+                const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, companyInfo: companyInfo });
+                await novaConta.save();
+                
+                usuario.contaId = novaConta._id;
+                await usuario.save();
+                conta = novaConta;
+            }
         } else {
+            // Cenário 3: Usuário e Conta não existem. Cria ambos do zero.
             const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
             if (cnpj) companyInfo.cnpj = cnpj;
             const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, companyInfo: companyInfo });
