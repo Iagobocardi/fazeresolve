@@ -186,7 +186,10 @@ const register = async (req, res) => {
     }
 
     try {
-        const { nomeEmpresa, nome, email, telefone, password, planId, paymentType, cpf, cnpj } = req.body;
+        // CORREÇÃO: Busca os dados do plano tanto do corpo quanto da query string.
+        const { nomeEmpresa, nome, email, telefone, password, cpf, cnpj } = req.body;
+        const planId = req.body.planId || req.query.planId;
+        const paymentType = req.body.paymentType || req.query.paymentType;
 
         if (!paymentType || !['subscription', 'onetime'].includes(paymentType)) {
             return res.status(400).json({ message: 'O tipo de pagamento (subscription ou onetime) é obrigatório.' });
@@ -201,10 +204,6 @@ const register = async (req, res) => {
         }
 
         const PLANS = require('../config/plans.config.js');
-        console.log("----- INÍCIO DO DIAGNÓSTICO DE PLANOS -----");
-        console.log("Plan ID recebido do Frontend:", planId);
-        console.log("Estrutura de Planos que o Servidor conhece:", JSON.stringify(PLANS, null, 2));
-        
         let selectedPlanDetails = null;
         let planName = '';
 
@@ -224,7 +223,6 @@ const register = async (req, res) => {
         }
 
         if (!selectedPlanDetails) {
-            console.log("----- FIM DO DIAGNÓSTICO: PLANO NÃO ENCONTRADO -----");
             return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
         }
 
