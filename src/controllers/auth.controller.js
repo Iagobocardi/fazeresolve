@@ -191,6 +191,9 @@ const register = async (req, res) => {
         const planId = req.body.planId || req.query.planId;
         const paymentType = req.body.paymentType || req.query.paymentType;
 
+        if (!planId) {
+            return res.status(400).json({ message: 'O ID do plano é obrigatório.' });
+        }
         if (!paymentType || !['subscription', 'onetime'].includes(paymentType)) {
             return res.status(400).json({ message: 'O tipo de pagamento (subscription ou onetime) é obrigatório.' });
         }
