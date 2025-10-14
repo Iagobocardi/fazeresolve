@@ -8,118 +8,83 @@ const Cliente = require('../models/cliente.model');
 const Conta = require('../models/conta.model');
 
 const handlePaymentNotification = async (paymentId) => {
-    // Utiliza a configuração centralizada para garantir que o token de acesso seja carregado corretamente.
     const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
     const payment = new Payment(client);
 
     try {
         const paymentInfo = await payment.get({ id: paymentId });
+        if (!paymentInfo || !paymentInfo.external_reference) {
+            console.log(`[Webhook] Notificação de pagamento ${paymentId} recebida sem referência externa.`);
+            return;
+        }
 
-        if (paymentInfo && paymentInfo.external_reference) {
-            const externalReference = paymentInfo.external_reference;
+        const { external_reference, status } = paymentInfo;
 
-            // 1. LÓGICA DE PAGAMENTO DE ASSINATURA RECORRENTE (tem `preapproval_id`)
-            if (paymentInfo.preapproval_id) {
-                const conta = await Conta.findById(externalReference);
-                if (!conta) {
-                    console.log(`[Webhook] Conta ${externalReference} não encontrada para o pagamento de assinatura ${paymentId}.`);
-                    return;
-                }
+        // 1. LÓGICA DE PAGAMENTO DE ASSINATURA RECORRENTE (tem `preapproval_id`)
+        if (paymentInfo.preapproval_id) {
+            const conta = await Conta.findById(external_reference);
+            if (!conta) return console.log(`[Webhook] Conta de assinatura ${external_reference} não encontrada.`);
 
-                if (paymentInfo.status === 'approved') {
+            if (status === 'approved') {
+                conta.statusAssinatura = 'ATIVO';
+                conta.gracePeriodExpiresAt = null;
+                await conta.save();
+                console.log(`[Webhook] Assinatura da conta ${conta._id} renovada.`);
+            } else if (['rejected', 'cancelled'].includes(status) && conta.statusAssinatura === 'ATIVO') {
+                const gracePeriodHours = 72;
+                conta.statusAssinatura = 'EM_ATRASO';
+                conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodHours * 60 * 60 * 1000);
+                await conta.save();
+                console.log(`[Webhook] Falha na renovação da assinatura da conta ${conta._id}. Período de carência iniciado.`);
+            }
+            return;
+        }
+
+        // 2. LÓGICA DE PAGAMENTO ÚNICO (tem `_` na referência)
+        if (external_reference.includes('_') && status === 'approved') {
+            const [contaId, planId] = external_reference.split('_');
+            const selectedPlan = PLANS.flatMap(p => p.oneTime).find(p => p.id === planId);
+
+            if (selectedPlan) {
+                const conta = await Conta.findById(contaId);
+                if (conta) {
+                    const now = new Date();
+                    const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
+                    conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
                     conta.statusAssinatura = 'ATIVO';
-                    conta.gracePeriodExpiresAt = null;
                     await conta.save();
-                    console.log(`[Webhook] Pagamento da assinatura ${paymentId} aprovado. Conta ${conta._id} está ATIVA.`);
-                } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(paymentInfo.status)) {
-                    if (conta.statusAssinatura === 'ATIVO') {
-                        const gracePeriodHours = 72;
-                        conta.statusAssinatura = 'EM_ATRASO';
-                        conta.gracePeriodExpiresAt = new Date(Date.now() + gracePeriodHours * 60 * 60 * 1000);
-                        await conta.save();
-                        console.log(`[Webhook] Pagamento da assinatura ${paymentId} falhou. Conta ${conta._id} em período de carência por ${gracePeriodHours} horas.`);
-                    }
-                }
-                return;
-            }
-
-            // 2. LÓGICA DE PAGAMENTO ÚNICO (tem `_` na referência)
-            if (externalReference.includes('_') && paymentInfo.status === 'approved') {
-                const [contaId, planId] = externalReference.split('_');
-                
-                let selectedPlan = null;
-                for (const plan of PLANS) {
-                    const found = plan.oneTime.find(p => p.id === planId);
-                    if (found) {
-                        selectedPlan = found;
-                        break;
-                    }
-                }
-
-                if (selectedPlan) {
-                    const conta = await Conta.findById(contaId);
-                    if (conta) {
-                        const now = new Date();
-                        const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
-                        
-                        conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
-                        conta.statusAssinatura = 'ATIVO';
-                        await conta.save();
-                        console.log(`[Webhook] Acesso da conta ${contaId} estendido por ${selectedPlan.months} meses via pagamento único.`);
-                        return;
-                    }
-                }
-            }
-            
-            // 3. LÓGICA DE PAGAMENTO DE ORÇAMENTO (é um ObjectId válido)
-            if (mongoose.Types.ObjectId.isValid(externalReference)) {
-                const orcamento = await Orcamento.findById(externalReference);
-                if (orcamento) {
-                // Evita processar pagamentos duplicados
-                const pagamentoJaRegistrado = orcamento.pagamentos.some(p => p.observacao.includes(paymentInfo.id));
-                if (pagamentoJaRegistrado) {
-                    console.log(`[Webhook] Pagamento ${paymentInfo.id} já registrado para o orçamento ${externalReference}.`);
-                    return;
-                }
-
-                if (paymentInfo.status === 'approved') {
-                    orcamento.pagamentos.push({
-                        valor: paymentInfo.transaction_amount,
-                        metodo: 'Mercado Pago',
-                        data: new Date(paymentInfo.date_approved),
-                        observacao: `Pagamento online via MP. ID: ${paymentInfo.id}`
-                    });
-
-                    orcamento.historico.push({ evento: `Pagamento de R$${paymentInfo.transaction_amount.toFixed(2)} aprovado via Mercado Pago.` });
-
-                    const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
-                    if (totalPago >= orcamento.valorProposto) {
-                        orcamento.statusPagamento = 'Pago';
-                    } else {
-                        orcamento.statusPagamento = 'Pago Parcial';
-                    }
-
-                    await orcamento.save();
-                    console.log(`[Webhook] Orçamento ${externalReference} atualizado com sucesso para o pagamento ${paymentInfo.id}.`);
-                }
-                return;
-            }
-
-            // Se não for um orçamento, tenta encontrar uma conta
-            const conta = await Conta.findById(externalReference);
-            if (conta && paymentInfo.payment_method_id === 'pix' && paymentInfo.status === 'approved') {
-                 // LÓGICA DE PAGAMENTO DE ASSINATURA (PIX INICIAL OU REGULARIZAÇÃO)
-                if (paymentInfo.description?.startsWith('Pagamento da assinatura do plano')) {
-                    conta.statusAssinatura = 'ATIVO';
-                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver
-                    await conta.save();
-                    console.log(`[Webhook] Pagamento PIX da assinatura ${paymentId} aprovado. Conta ${conta._id} ativada.`);
+                    console.log(`[Webhook] Acesso da conta ${contaId} estendido por ${selectedPlan.months} meses.`);
                     return;
                 }
             }
         }
+
+        // 3. LÓGICA DE PAGAMENTO DE ORÇAMENTO (é um ObjectId válido)
+        if (mongoose.Types.ObjectId.isValid(external_reference)) {
+            const orcamento = await Orcamento.findById(external_reference);
+            if (orcamento && status === 'approved') {
+                const pagamentoJaRegistrado = orcamento.pagamentos.some(p => p.observacao.includes(paymentId));
+                if (pagamentoJaRegistrado) return console.log(`[Webhook] Pagamento ${paymentId} já registrado para o orçamento ${external_reference}.`);
+
+                orcamento.pagamentos.push({
+                    valor: paymentInfo.transaction_amount,
+                    metodo: 'Mercado Pago',
+                    data: new Date(paymentInfo.date_approved),
+                    observacao: `Pagamento online via MP. ID: ${paymentId}`
+                });
+
+                const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
+                orcamento.statusPagamento = totalPago >= orcamento.valorProposto ? 'Pago' : 'Pago Parcial';
+                orcamento.historico.push({ evento: `Pagamento de R$${paymentInfo.transaction_amount.toFixed(2)} aprovado via Mercado Pago.` });
+                
+                await orcamento.save();
+                console.log(`[Webhook] Orçamento ${external_reference} atualizado com o pagamento ${paymentId}.`);
+                return;
+            }
+        }
+
     } catch (error) {
-        console.error(`[MercadoPagoService] Erro ao processar notificação de pagamento ${paymentId}:`, error);
+        console.error(`[MercadoPagoService] Erro crítico ao processar notificação de pagamento ${paymentId}:`, error);
     }
 };
 
