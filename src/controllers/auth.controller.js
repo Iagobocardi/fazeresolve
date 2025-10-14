@@ -201,6 +201,10 @@ const register = async (req, res) => {
         }
 
         const PLANS = require('../config/plans.config.js');
+        console.log("----- INÍCIO DO DIAGNÓSTICO DE PLANOS -----");
+        console.log("Plan ID recebido do Frontend:", planId);
+        console.log("Estrutura de Planos que o Servidor conhece:", JSON.stringify(PLANS, null, 2));
+        
         let selectedPlanDetails = null;
         let planName = '';
 
@@ -220,6 +224,7 @@ const register = async (req, res) => {
         }
 
         if (!selectedPlanDetails) {
+            console.log("----- FIM DO DIAGNÓSTICO: PLANO NÃO ENCONTRADO -----");
             return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
         }
 
