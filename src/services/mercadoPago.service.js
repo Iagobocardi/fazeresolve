@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const axios = require('axios');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js');
@@ -17,36 +18,7 @@ const handlePaymentNotification = async (paymentId) => {
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
 
-            // --- LÓGICA DE PAGAMENTO ÚNICO (PIX OU CARTÃO) ---
-            if (externalReference.includes('_') && paymentInfo.status === 'approved') {
-                const [contaId, planId] = externalReference.split('_');
-                
-                let selectedPlan = null;
-                for (const plan of PLANS) {
-                    const found = plan.oneTime.find(p => p.id === planId);
-                    if (found) {
-                        selectedPlan = found;
-                        break;
-                    }
-                }
-
-                if (selectedPlan) {
-                    const conta = await Conta.findById(contaId);
-                    if (conta) {
-                        const now = new Date();
-                        // Se a conta já tiver um acesso válido, estende a partir da data existente.
-                        const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
-                        
-                        conta.acessoValidoAte = new Date(startDate.setMonth(startDate.getMonth() + selectedPlan.months));
-                        conta.statusAssinatura = 'ATIVO'; // Garante que a conta seja considerada ativa
-                        await conta.save();
-                        console.log(`[Webhook] Acesso da conta ${contaId} estendido por ${selectedPlan.months} meses via pagamento único.`);
-                        return; // Processamento concluído
-                    }
-                }
-            }
-
-            // --- LÓGICA DE PAGAMENTO DE ASSINATURA (CARTÃO DE CRÉDITO RECORRENTE) ---
+            // 1. LÓGICA DE PAGAMENTO DE ASSINATURA RECORRENTE (tem `preapproval_id`)
             if (paymentInfo.preapproval_id) {
                 const conta = await Conta.findById(externalReference);
                 if (!conta) {
@@ -71,21 +43,38 @@ const handlePaymentNotification = async (paymentId) => {
                 return;
             }
 
-            // --- LÓGICA DE PAGAMENTO DE ASSINATURA (PIX INICIAL OU REGULARIZAÇÃO) ---
-            if (paymentInfo.payment_method_id === 'pix' && paymentInfo.description?.startsWith('Pagamento da assinatura do plano')) {
-                const conta = await Conta.findById(externalReference);
-                if (conta && paymentInfo.status === 'approved') {
-                    conta.statusAssinatura = 'ATIVO';
-                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver
-                    await conta.save();
-                    console.log(`[Webhook] Pagamento PIX da assinatura ${paymentId} aprovado. Conta ${conta._id} ativada.`);
-                    return;
+            // 2. LÓGICA DE PAGAMENTO ÚNICO (tem `_` na referência)
+            if (externalReference.includes('_') && paymentInfo.status === 'approved') {
+                const [contaId, planId] = externalReference.split('_');
+
+                let selectedPlan = null;
+                for (const plan of PLANS) {
+                    const found = plan.oneTime.find(p => p.id === planId);
+                    if (found) {
+                        selectedPlan = found;
+                        break;
+                    }
+                }
+
+                if (selectedPlan) {
+                    const conta = await Conta.findById(contaId);
+                    if (conta) {
+                        const now = new Date();
+                        const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
+
+                        conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
+                        conta.statusAssinatura = 'ATIVO';
+                        await conta.save();
+                        console.log(`[Webhook] Acesso da conta ${contaId} estendido por ${selectedPlan.months} meses via pagamento único.`);
+                        return;
+                    }
                 }
             }
 
-            // --- LÓGICA DE PAGAMENTO DE ORÇAMENTO (Existente) ---
-            const orcamento = await Orcamento.findById(externalReference);
-            if (orcamento) {
+            // 3. LÓGICA DE PAGAMENTO DE ORÇAMENTO (é um ObjectId válido)
+            if (mongoose.Types.ObjectId.isValid(externalReference)) {
+                const orcamento = await Orcamento.findById(externalReference);
+                if (orcamento) {
                 // Evita processar pagamentos duplicados
                 const pagamentoJaRegistrado = orcamento.pagamentos.some(p => p.observacao.includes(paymentInfo.id));
                 if (pagamentoJaRegistrado) {
