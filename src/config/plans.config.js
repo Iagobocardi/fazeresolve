@@ -9,6 +9,12 @@ const PLANS = [
             id: '660696cc47e047ce8cf5033e92dd3b95',
             price: '790'
         },
+        oneTime: [
+            { id: 'onetime-essencial-1', price: '89', months: 1 },
+            { id: 'onetime-essencial-3', price: '250', months: 3 },
+            { id: 'onetime-essencial-6', price: '480', months: 6 },
+            { id: 'onetime-essencial-12', price: '900', months: 12 },
+        ],
         permissions: [
             'ver_dashboard', 
             'ver_agenda', 
@@ -28,6 +34,12 @@ const PLANS = [
             id: '179d53b0bd4340db8aab22dc9c4c65fc',
             price: '1290'
         },
+        oneTime: [
+            { id: 'onetime-profissional-1', price: '139', months: 1 },
+            { id: 'onetime-profissional-3', price: '390', months: 3 },
+            { id: 'onetime-profissional-6', price: '750', months: 6 },
+            { id: 'onetime-profissional-12', price: '1400', months: 12 },
+        ],
         permissions: [
             'ver_dashboard',
             'ver_agenda',
@@ -51,6 +63,12 @@ const PLANS = [
             id: '1b2f16ce5d0241c0bcb2952f29f6748b',
             price: '1990'
         },
+        oneTime: [
+            { id: 'onetime-premium-1', price: '210', months: 1 },
+            { id: 'onetime-premium-3', price: '600', months: 3 },
+            { id: 'onetime-premium-6', price: '1140', months: 6 },
+            { id: 'onetime-premium-12', price: '2200', months: 12 },
+        ],
         permissions: [
             'ver_dashboard',
             'ver_agenda',
