@@ -1,8 +1,9 @@
 // Arquivo: src/controllers/auth.controller.js
-const Usuario = require('../models/usuario.model'); // MUDANÇA: Usa o modelo Usuario
-const Conta = require('../models/conta.model');   // MUDANÇA: Usa o novo modelo Conta
+const Usuario = require('../models/usuario.model');
+const Conta = require('../models/conta.model');
 const PasswordReset = require('../models/passwordReset.model');
 const authService = require('../services/auth.service');
+const mercadoPagoService = require('../services/mercadoPago.service');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -178,7 +179,6 @@ const login = async (req, res) => {
     }
 };
 
-// MUDANÇA: Função de Registro agora cria Conta e Usuario
 const register = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -186,82 +186,90 @@ const register = async (req, res) => {
     }
 
     try {
-        const { nomeEmpresa, nome, email, telefone, password, planoId, cpf, cnpj } = req.body; // Adicionado cpf e cnpj
+        const { nomeEmpresa, nome, email, telefone, password, planId, paymentType, cpf, cnpj } = req.body;
 
-        // Checa se o usuário já existe
+        if (!paymentType || !['subscription', 'onetime'].includes(paymentType)) {
+            return res.status(400).json({ message: 'O tipo de pagamento (subscription ou onetime) é obrigatório.' });
+        }
+
         const existingUser = await Usuario.findOne({ $or: [{ email: email }, { telefone: telefone }] });
         if (existingUser) {
             const conta = await Conta.findById(existingUser.contaId);
-            if(conta && conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
+            if (conta && conta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
                 return res.status(409).json({ message: 'Um usuário com este email ou telefone já existe.' });
             }
         }
-        
-        // --- Lógica para associar plano e permissões ---
-        const PLANS = require('../config/plans.config.js');
-        let selectedPlan = null;
 
-        // Procura o ID tanto nos planos mensais quanto nos anuais
+        const PLANS = require('../config/plans.config.js');
+        let selectedPlanDetails = null;
+        let planName = '';
+
         for (const plan of PLANS) {
-            if (plan.monthly.id === planoId || plan.annual.id === planoId) {
-                selectedPlan = plan;
+            let found = null;
+            if (paymentType === 'subscription') {
+                if (plan.monthly.id === planId) found = plan.monthly;
+                if (plan.annual.id === planId) found = plan.annual;
+            } else { // onetime
+                found = plan.oneTime.find(p => p.id === planId);
+            }
+            if (found) {
+                selectedPlanDetails = { ...found, permissions: plan.permissions };
+                planName = plan.name;
                 break;
             }
         }
 
-        if (!selectedPlan) {
+        if (!selectedPlanDetails) {
             return res.status(400).json({ message: 'Plano inválido ou não reconhecido.' });
         }
 
-        // 1. Cria a nova Conta, adicionando o CNPJ se ele for fornecido
-        const companyInfo = {
-            nomeFantasia: nomeEmpresa || nome,
-            razaoSocial: nomeEmpresa || nome,
-        };
-        if (cnpj) {
-            companyInfo.cnpj = cnpj;
-        }
+        const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
+        if (cnpj) companyInfo.cnpj = cnpj;
 
         const novaConta = new Conta({
             nome: nomeEmpresa || nome,
-            plano: selectedPlan.name,
-            planId: planoId,
+            plano: planName,
+            planId: planId,
             companyInfo: companyInfo
         });
         await novaConta.save();
 
-        // 2. Cria o novo Usuário, adicionando o CPF se ele for fornecido
-        const userData = {
-            nome,
-            email,
-            telefone,
-            password,
-            contaId: novaConta._id,
-            role: 'Dono',
-            permissoes: selectedPlan.permissions
-        };
-        if (cpf) {
-            userData.cpf = cpf;
-        }
-
+        const userData = { nome, email, telefone, password, contaId: novaConta._id, role: 'Dono', permissoes: selectedPlanDetails.permissions };
+        if (cpf) userData.cpf = cpf;
         const novoUsuario = new Usuario(userData);
         await novoUsuario.save();
 
-        // 3. Gera o token JWT provisório
-        const payload = {
-            id: novoUsuario._id,
-            contaId: novaConta._id,
-            statusAssinatura: novaConta.statusAssinatura
-        };
+        const payload = { id: novoUsuario._id, contaId: novaConta._id, statusAssinatura: novaConta.statusAssinatura };
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        const token = jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' } // Aumentado para 1 hora para dar tempo suficiente para o pagamento
-        );
+        if (paymentType === 'onetime') {
+            const paymentData = {
+                transaction_amount: parseFloat(selectedPlanDetails.price),
+                description: `Acesso ${planName} por ${selectedPlanDetails.months} meses`,
+                payment_method_id: 'pix',
+                payer: { email: novoUsuario.email, first_name: novoUsuario.nome },
+                external_reference: `${novaConta._id}_${planId}`,
+                notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
+            };
 
+            const pixData = await mercadoPagoService.createPixPayment(paymentData);
+            return res.status(201).json({
+                message: 'Conta criada! Pague o PIX para ativar seu acesso.',
+                token,
+                usuario: { id: novoUsuario._id, nome: novoUsuario.nome, email: novoUsuario.email },
+                conta: novaConta,
+                paymentInfo: {
+                    type: 'pix',
+                    paymentId: pixData.id,
+                    qrCode: pixData.point_of_interaction.transaction_data.qr_code,
+                    qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+                }
+            });
+        }
+
+        // Default behavior for subscription
         res.status(201).json({
-            message: 'Conta e usuário registrados com sucesso! Aguardando pagamento.',
+            message: 'Conta e usuário registrados com sucesso! Prossiga para o pagamento da assinatura.',
             token,
             usuario: { id: novoUsuario._id, nome: novoUsuario.nome, email: novoUsuario.email },
             conta: novaConta
