@@ -76,7 +76,7 @@ const handlePaymentNotification = async (paymentId) => {
                 const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
                 orcamento.statusPagamento = totalPago >= orcamento.valorProposto ? 'Pago' : 'Pago Parcial';
                 orcamento.historico.push({ evento: `Pagamento de R$${paymentInfo.transaction_amount.toFixed(2)} aprovado via Mercado Pago.` });
-                
+
                 await orcamento.save();
                 console.log(`[Webhook] Orçamento ${external_reference} atualizado com o pagamento ${paymentId}.`);
                 return;
