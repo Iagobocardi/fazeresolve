@@ -1,9 +1,10 @@
+const mongoose = require('mongoose');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const axios = require('axios');
-const mercadoPagoConfig = require('../config/mercadoPago.config.js'); // Importa a configuração central
+const mercadoPagoConfig = require('../config/mercadoPago.config.js');
+const PLANS = require('../config/plans.config.js');
 const Orcamento = require('../models/orcamento.model');
 const Cliente = require('../models/cliente.model');
-
 const Conta = require('../models/conta.model');
 
 const handlePaymentNotification = async (paymentId) => {
@@ -17,7 +18,7 @@ const handlePaymentNotification = async (paymentId) => {
         if (paymentInfo && paymentInfo.external_reference) {
             const externalReference = paymentInfo.external_reference;
 
-            // --- LÓGICA DE PAGAMENTO DE ASSINATURA (CARTÃO DE CRÉDITO RECORRENTE) ---
+            // 1. LÓGICA DE PAGAMENTO DE ASSINATURA RECORRENTE (tem `preapproval_id`)
             if (paymentInfo.preapproval_id) {
                 const conta = await Conta.findById(externalReference);
                 if (!conta) {
@@ -42,21 +43,38 @@ const handlePaymentNotification = async (paymentId) => {
                 return;
             }
 
-            // --- LÓGICA DE PAGAMENTO DE ASSINATURA (PIX INICIAL OU REGULARIZAÇÃO) ---
-            if (paymentInfo.payment_method_id === 'pix' && paymentInfo.description?.startsWith('Pagamento da assinatura do plano')) {
-                const conta = await Conta.findById(externalReference);
-                if (conta && paymentInfo.status === 'approved') {
-                    conta.statusAssinatura = 'ATIVO';
-                    conta.gracePeriodExpiresAt = null; // Limpa o período de carência, se houver
-                    await conta.save();
-                    console.log(`[Webhook] Pagamento PIX da assinatura ${paymentId} aprovado. Conta ${conta._id} ativada.`);
-                    return;
+            // 2. LÓGICA DE PAGAMENTO ÚNICO (tem `_` na referência)
+            if (externalReference.includes('_') && paymentInfo.status === 'approved') {
+                const [contaId, planId] = externalReference.split('_');
+
+                let selectedPlan = null;
+                for (const plan of PLANS) {
+                    const found = plan.oneTime.find(p => p.id === planId);
+                    if (found) {
+                        selectedPlan = found;
+                        break;
+                    }
+                }
+
+                if (selectedPlan) {
+                    const conta = await Conta.findById(contaId);
+                    if (conta) {
+                        const now = new Date();
+                        const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
+
+                        conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
+                        conta.statusAssinatura = 'ATIVO';
+                        await conta.save();
+                        console.log(`[Webhook] Acesso da conta ${contaId} estendido por ${selectedPlan.months} meses via pagamento único.`);
+                        return;
+                    }
                 }
             }
 
-            // --- LÓGICA DE PAGAMENTO DE ORÇAMENTO (Existente) ---
-            const orcamento = await Orcamento.findById(externalReference);
-            if (orcamento) {
+            // 3. LÓGICA DE PAGAMENTO DE ORÇAMENTO (é um ObjectId válido)
+            if (mongoose.Types.ObjectId.isValid(externalReference)) {
+                const orcamento = await Orcamento.findById(externalReference);
+                if (orcamento) {
                 // Evita processar pagamentos duplicados
                 const pagamentoJaRegistrado = orcamento.pagamentos.some(p => p.observacao.includes(paymentInfo.id));
                 if (pagamentoJaRegistrado) {
@@ -143,15 +161,15 @@ const createConnectionUrl = async (state, redirectUri) => {
  * @returns {object} As credenciais do Mercado Pago (accessToken, refreshToken, publicKey, userId, expiresAt).
  */
 const exchangeCodeForTokens = async (code, redirectUri) => {
-    const { accessToken, appId } = mercadoPagoConfig;
-    if (!accessToken || !appId) {
-        throw new Error("Credenciais da aplicação (MP_ACCESS_TOKEN ou MP_APP_ID) não configuradas.");
+    const { clientSecret, appId } = mercadoPagoConfig;
+    if (!clientSecret || !appId) {
+        throw new Error("Credenciais da aplicação (MERCADO_PAGO_CLIENT_SECRET ou MP_APP_ID) não configuradas.");
     }
 
     const url = "https://api.mercadopago.com/oauth/token";
 
     const body = {
-        client_secret: accessToken,
+        client_secret: mercadoPagoConfig.clientSecret,
         client_id: appId,
         grant_type: 'authorization_code',
         code: code,
@@ -187,18 +205,16 @@ module.exports = {
     createConnectionUrl,
     exchangeCodeForTokens,
     createPixPayment: async (paymentData) => {
+        const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+        const payment = new Payment(client);
+
         try {
-            const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
-            const payment = new Payment(client);
-
             console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
-
             const result = await payment.create({ body: paymentData });
             return result;
         } catch (error) {
-            console.error("Erro detalhado ao criar pagamento PIX no serviço:", JSON.stringify(error, null, 2));
-            // Propaga o erro para ser tratado pelo controller
-            throw error;
+            console.error("Erro detalhado ao criar pagamento PIX no serviço:", error?.cause ?? error.message);
+            throw new Error("Falha ao criar cobrança PIX no Mercado Pago.");
         }
-    }
+    },
 };

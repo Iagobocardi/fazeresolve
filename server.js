@@ -131,6 +131,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/portal-cliente', portalClienteRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
+app.use('/api/pagamentos', require('./src/routes/pagamento.routes.js'));
 app.use('/api/admin', adminRoutes);
 app.use('/api/provider', providerPublicRoutes); // <-- ROTA PÚBLICA DO PRESTADOR
 

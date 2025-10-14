@@ -20,6 +20,10 @@ const contaSchema = new Schema({
         type: Date,
         default: null,
     },
+    acessoValidoAte: {
+        type: Date,
+        default: null,
+    },
     planId: { type: String },
     mercadoPagoSubscriptionId: { type: String },
 

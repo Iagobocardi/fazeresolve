@@ -22,15 +22,18 @@ const checkSubscription = async (req, res, next) => {
         }
 
         const allowedStatus = ['ATIVO', 'EM_ATRASO', 'AGUARDANDO_PAGAMENTO'];
-
-        // Verifica se o status da assinatura permite o acesso (ativa ou em período de carência).
         if (allowedStatus.includes(conta.statusAssinatura)) {
-            return next(); // O usuário pode prosseguir.
+            return next(); // Assinatura recorrente está OK.
         }
 
-        // Se a assinatura não estiver em um estado permitido, nega o acesso.
+        // Se não for pela assinatura, verifica se há um acesso único válido.
+        if (conta.acessoValidoAte && conta.acessoValidoAte > new Date()) {
+            return next(); // Acesso único está OK.
+        }
+
+        // Se nenhuma das condições for atendida, nega o acesso.
         return res.status(403).json({
-            message: 'Acesso negado. É necessária uma assinatura ativa para acessar este recurso.'
+            message: 'Acesso negado. É necessária uma assinatura ativa ou um pacote de acesso válido para acessar este recurso.'
         });
 
     } catch (error) {
