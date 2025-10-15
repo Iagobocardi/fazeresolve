@@ -5,7 +5,7 @@ const mercadoPagoService = require('../services/mercadoPago.service');
 exports.createOneTimePayment = async (req, res) => {
     try {
         const { contaId, id: userId, email: userEmail, nome: userName } = req.user;
-        const { planId, paymentMethod } = req.body; // planId: 'onetime-premium-6', paymentMethod: 'PIX' or 'CREDIT_CARD'
+        const { planId, paymentMethod, cardTokenId } = req.body;
 
         if (!planId || !paymentMethod) {
             return res.status(400).json({ message: 'O ID do plano e o método de pagamento são obrigatórios.' });
@@ -46,13 +46,27 @@ exports.createOneTimePayment = async (req, res) => {
             const pixData = await mercadoPagoService.createPixPayment(paymentData);
             return res.status(201).json({
                 message: 'Cobrança PIX criada com sucesso.',
+                type: 'pix',
                 paymentId: pixData.id,
                 qrCode: pixData.point_of_interaction.transaction_data.qr_code,
                 qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
             });
+        } else if (paymentMethod.toLowerCase() === 'credit_card') {
+            if (!cardTokenId) {
+                return res.status(400).json({ message: 'O token do cartão é obrigatório para pagamentos com cartão de crédito.' });
+            }
+            const cardPaymentData = { ...paymentData, token: cardTokenId };
+            const paymentResult = await mercadoPagoService.createCardPayment(cardPaymentData);
+            
+            // O webhook irá lidar com a ativação, mas retornamos um sucesso imediato para o frontend.
+            return res.status(201).json({
+                message: 'Pagamento com cartão de crédito processado com sucesso.',
+                type: 'credit_card',
+                paymentId: paymentResult.id,
+                status: paymentResult.status,
+            });
         } else {
-            // Placeholder for credit card payment creation if needed
-            return res.status(501).json({ message: 'Pagamento com cartão de crédito ainda não implementado para pagamentos únicos.' });
+            return res.status(400).json({ message: 'Método de pagamento inválido.' });
         }
 
     } catch (error) {
