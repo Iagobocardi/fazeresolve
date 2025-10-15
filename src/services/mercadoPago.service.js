@@ -76,7 +76,7 @@ const handlePaymentNotification = async (paymentId) => {
                 const totalPago = orcamento.pagamentos.reduce((acc, p) => acc + p.valor, 0);
                 orcamento.statusPagamento = totalPago >= orcamento.valorProposto ? 'Pago' : 'Pago Parcial';
                 orcamento.historico.push({ evento: `Pagamento de R$${paymentInfo.transaction_amount.toFixed(2)} aprovado via Mercado Pago.` });
-
+                
                 await orcamento.save();
                 console.log(`[Webhook] Orçamento ${external_reference} atualizado com o pagamento ${paymentId}.`);
                 return;
@@ -172,6 +172,24 @@ module.exports = {
         } catch (error) {
             console.error("Erro detalhado ao criar pagamento PIX no serviço:", error?.cause ?? error.message);
             throw new Error("Falha ao criar cobrança PIX no Mercado Pago.");
+        }
+    },
+    createCardPayment: async (paymentData) => {
+        const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+        const payment = new Payment(client);
+        try {
+            console.log("Criando cobrança com Cartão com os seguintes dados:", JSON.stringify(paymentData, null, 2));
+            // O 'payment_method_id' e 'installments' virão do frontend, aqui usamos um padrão.
+            const body = {
+                ...paymentData,
+                payment_method_id: paymentData.payment_method_id || 'visa', // Exemplo, pode ser dinâmico
+                installments: paymentData.installments || 1,
+            };
+            const result = await payment.create({ body });
+            return result;
+        } catch (error) {
+            console.error("Erro detalhado ao criar pagamento com Cartão no serviço:", error?.cause ?? error.message);
+            throw new Error("Falha ao criar cobrança com Cartão de Crédito no Mercado Pago.");
         }
     },
 };
