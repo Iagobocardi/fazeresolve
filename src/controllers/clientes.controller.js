@@ -119,7 +119,14 @@ const getAllClientes = async (req, res) => {
             valorMedioPorPedido: (kpisData.somaTotalPedidos > 0) ? (kpisData.somaValorTotalGasto / kpisData.somaTotalPedidos) : 0
         };
 
-        res.status(200).json({ clientes, kpis });
+        // GARANTIA: Assegura que 'clientes' seja sempre um array na resposta.
+        // Isso previne que a API retorne um status 204 (No Content) em vez de 200 OK com uma lista vazia.
+        const responsePayload = {
+            clientes: clientes || [],
+            kpis
+        };
+
+        res.status(200).json(responsePayload);
     } catch (error) {
         console.error("Erro ao buscar clientes:", error);
         res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
