@@ -42,6 +42,7 @@ const invoiceRoutes = require('./src/routes/invoices.routes.js');
 const membroRoutes = require('./src/routes/membros.routes.js');
 const mercadoPagoRoutes = require('./src/routes/mercadoPago.routes.js');
 const orcamentoRoutes = require('./src/routes/orcamentos.routes.js');
+const pagamentoRoutes = require('./src/routes/pagamento.routes.js');
 const permissoesRoutes = require('./src/routes/permissoes.routes.js');
 const portalClienteRoutes = require('./src/routes/portalCliente.routes.js');
 const produtosRoutes = require('./src/routes/produtos.routes.js');
@@ -131,7 +132,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/portal-cliente', portalClienteRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
-app.use('/api/pagamentos', require('./src/routes/pagamento.routes.js'));
+app.use('/api/pagamentos', pagamentoRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/provider', providerPublicRoutes); // <-- ROTA PÚBLICA DO PRESTADOR
 
