@@ -168,10 +168,21 @@ module.exports = {
         try {
             console.log("Criando cobrança PIX com os seguintes dados:", JSON.stringify(paymentData, null, 2));
             const result = await payment.create({ body: paymentData });
+
+            // LOG APRIMORADO: Loga a resposta completa da API para depuração.
+            console.log("Resposta completa da API do Mercado Pago (PIX):", JSON.stringify(result, null, 2));
+
+            if (!result.point_of_interaction?.transaction_data?.qr_code || !result.point_of_interaction?.transaction_data?.qr_code_base64) {
+                // Log de erro específico se a estrutura esperada não for encontrada.
+                console.error("Estrutura da resposta da API do MP para PIX está incorreta ou faltando dados do QR Code.");
+                throw new Error("Não foi possível obter os dados do QR Code da resposta do Mercado Pago.");
+            }
+
             return result;
         } catch (error) {
             console.error("Erro detalhado ao criar pagamento PIX no serviço:", error?.cause ?? error.message);
-            throw new Error("Falha ao criar cobrança PIX no Mercado Pago.");
+            // Propaga o erro para ser tratado pelo controller.
+            throw error;
         }
     },
     createCardPayment: async (paymentData) => {
