@@ -1,96 +1,98 @@
+// Arquivo: src/controllers/pagamento.controller.js
+const mercadopago = require('mercadopago');
 const Conta = require('../models/conta.model');
-const PLANS = require('../config/plans.config');
+const Usuario = require('../models/usuario.model');
+const PLANS = require('../config/plans.config.js');
 const mercadoPagoService = require('../services/mercadoPago.service');
 
-exports.createOneTimePayment = async (req, res) => {
+const createOnetimePayment = async (req, res) => {
     try {
-        const { contaId, id: userId, email: userEmail, nome: userName } = req.user;
-        const { planId, paymentMethod, cardTokenId } = req.body;
-
-        if (!planId || !paymentMethod) {
-            return res.status(400).json({ message: 'O ID do plano e o método de pagamento são obrigatórios.' });
+        const { paymentMethod, planId, cardToken, installments, issuerId } = req.body;
+        const { contaId } = req.user;
+        const usuario = await Usuario.findOne({ contaId: contaId, role: 'Dono' });
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuário principal da conta não encontrado.' });
         }
 
-        // Find the selected plan details from the config file
-        let selectedPlan = null;
-        for (const plan of PLANS) {
-            const found = plan.oneTime.find(p => p.id === planId);
-            if (found) {
-                selectedPlan = { ...found, name: plan.name };
-                break;
-            }
+        const conta = await Conta.findById(contaId);
+        if (!conta || conta.planId !== planId) {
+            return res.status(400).json({ message: 'Plano da conta não corresponde ao plano da solicitação.' });
         }
 
+        const selectedPlan = PLANS.flatMap(p => p.oneTime).find(p => p.id === planId);
         if (!selectedPlan) {
-            return res.status(404).json({ message: 'O plano selecionado não foi encontrado.' });
+            return res.status(404).json({ message: 'Plano não encontrado.' });
         }
 
-        const conta = await Conta.findById(contaId).lean();
-        if (!conta) {
-            return res.status(404).json({ message: 'Conta não encontrada.' });
-        }
-
-        const paymentData = {
+        const commonPaymentData = {
             transaction_amount: parseFloat(selectedPlan.price),
             description: `Acesso ${selectedPlan.name} por ${selectedPlan.months} meses`,
-            payment_method_id: paymentMethod.toLowerCase() === 'pix' ? 'pix' : 'credit_card',
-            payer: {
-                email: userEmail,
-                first_name: userName,
-            },
-            external_reference: `${contaId}_${planId}`, // Unique reference for webhook
+            payer: { email: usuario.email },
+            external_reference: `${conta._id}_${planId}`,
             notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
         };
 
-        if (paymentMethod.toLowerCase() === 'pix') {
-            const pixData = await mercadoPagoService.createPixPayment(paymentData);
-            return res.status(201).json({
-                message: 'Cobrança PIX criada com sucesso.',
-                type: 'pix',
-                paymentId: pixData.id,
-                qrCode: pixData.point_of_interaction.transaction_data.qr_code,
-                qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+        if (paymentMethod === 'pix') {
+            const pixData = await mercadoPagoService.createPixPayment({
+                ...commonPaymentData,
+                payment_method_id: 'pix',
             });
-        } else if (paymentMethod.toLowerCase() === 'credit_card') {
-            if (!cardTokenId) {
-                return res.status(400).json({ message: 'O token do cartão é obrigatório para pagamentos com cartão de crédito.' });
+
+            if (!pixData.point_of_interaction?.transaction_data) {
+                console.error("Resposta do MP para PIX não contém transaction_data:", pixData);
+                return res.status(500).json({ message: 'Falha ao obter os dados do QR Code do PIX.' });
             }
-            const cardPaymentData = { ...paymentData, token: cardTokenId };
-            const paymentResult = await mercadoPagoService.createCardPayment(cardPaymentData);
-            
-            // O webhook irá lidar com a ativação, mas retornamos um sucesso imediato para o frontend.
+
             return res.status(201).json({
-                message: 'Pagamento com cartão de crédito processado com sucesso.',
-                type: 'credit_card',
-                paymentId: paymentResult.id,
-                status: paymentResult.status,
+                message: 'Cobrança PIX criada com sucesso. Pague para ativar.',
+                paymentInfo: {
+                    type: 'pix',
+                    paymentId: pixData.id,
+                    qrCode: pixData.point_of_interaction.transaction_data.qr_code,
+                    qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+                }
+            });
+        } else if (paymentMethod === 'card') {
+            if (!cardToken) {
+                return res.status(400).json({ message: 'O token do cartão é obrigatório para pagamentos com cartão.' });
+            }
+            
+            const cardPaymentData = {
+                ...commonPaymentData,
+                token: cardToken,
+                installments: installments || 1,
+                payment_method_id: req.body.paymentMethodId, // ex: 'visa'
+                issuer_id: issuerId,
+            };
+
+            const paymentResult = await mercadoPagoService.createCardPayment(cardPaymentData);
+
+            if (paymentResult.status === 'approved') {
+                const now = new Date();
+                const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
+                conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
+                conta.statusAssinatura = 'ATIVO';
+                await conta.save();
+            }
+
+            return res.status(201).json({
+                message: `Pagamento com cartão ${paymentResult.status}.`,
+                paymentInfo: {
+                    type: 'card',
+                    paymentId: paymentResult.id,
+                    status: paymentResult.status,
+                    statusDetail: paymentResult.status_detail,
+                }
             });
         } else {
             return res.status(400).json({ message: 'Método de pagamento inválido.' });
         }
-
     } catch (error) {
         console.error("Erro ao criar pagamento único:", error);
-        res.status(500).json({ message: error.message || "Ocorreu um erro ao processar o pagamento." });
+        res.status(500).json({ message: error.message || 'Erro interno no servidor ao processar pagamento.' });
     }
 };
 
-exports.handleWebhook = async (req, res) => {
-    const { body } = req;
-
-    if (body.type === 'payment') {
-        const paymentId = body.data.id;
-        console.log(`[Webhook] Recebida notificação para o pagamento: ${paymentId}`);
-        try {
-            await mercadoPagoService.handlePaymentNotification(paymentId);
-            console.log(`[Webhook] Notificação do pagamento ${paymentId} processada com sucesso.`);
-        } catch (error) {
-            console.error(`[Webhook] Erro ao processar notificação para o pagamento ${paymentId}:`, error);
-            // É importante retornar um status 500 para que o Mercado Pago tente reenviar a notificação.
-            return res.status(500).send('Erro ao processar notificação.');
-        }
-    }
-
-    // Retorna 200 para confirmar o recebimento da notificação para o Mercado Pago.
-    res.status(200).send('Notificação recebida.');
+module.exports = {
+    createOnetimePayment,
 };
