@@ -67,16 +67,11 @@ const createOnetimePayment = async (req, res) => {
 
             const paymentResult = await mercadoPagoService.createCardPayment(cardPaymentData);
 
-            if (paymentResult.status === 'approved') {
-                const now = new Date();
-                const startDate = conta.acessoValidoAte && conta.acessoValidoAte > now ? conta.acessoValidoAte : now;
-                conta.acessoValidoAte = new Date(new Date(startDate).setMonth(startDate.getMonth() + selectedPlan.months));
-                conta.statusAssinatura = 'ATIVO';
-                await conta.save();
-            }
-
+            // A lógica de ativação foi removida daqui.
+            // O webhook agora é a única fonte de verdade para ativar a conta,
+            // garantindo consistência entre pagamentos de Cartão e PIX.
             return res.status(201).json({
-                message: `Pagamento com cartão ${paymentResult.status}.`,
+                message: `Pagamento com cartão enviado. Status: ${paymentResult.status}. A confirmação final será processada em breve.`,
                 paymentInfo: {
                     type: 'card',
                     paymentId: paymentResult.id,
