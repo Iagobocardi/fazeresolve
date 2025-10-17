@@ -187,9 +187,10 @@ const register = async (req, res) => {
 
     try {
         // CORREÇÃO: Busca os dados do plano tanto do corpo quanto da query string.
-        const { nomeEmpresa, nome, email, telefone, password, cpf, cnpj } = req.body;
+        const { nomeEmpresa, nome, email, telefone, password, cpf, cnpj, cardTokenId } = req.body;
         const planId = req.body.planId || req.query.planId;
         const paymentType = req.body.paymentType || req.query.paymentType;
+        const paymentMethod = req.body.paymentMethod || req.query.paymentMethod;
 
         if (!planId) {
             return res.status(400).json({ message: 'O ID do plano é obrigatório.' });
@@ -267,28 +268,49 @@ const register = async (req, res) => {
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
         if (paymentType === 'onetime') {
-            const paymentData = {
+            const basePaymentData = {
                 transaction_amount: parseFloat(selectedPlanDetails.price),
                 description: `Acesso ${planName} por ${selectedPlanDetails.months} meses`,
-                payment_method_id: 'pix',
                 payer: { email: usuario.email, first_name: usuario.nome },
                 external_reference: `${conta._id}_${planId}`,
                 notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
             };
 
-            const pixData = await mercadoPagoService.createPixPayment(paymentData);
-            return res.status(201).json({
-                message: 'Conta pronta! Pague o PIX para ativar seu acesso.',
-                token,
-                usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
-                conta: conta,
-                paymentInfo: {
-                    type: 'pix',
-                    paymentId: pixData.id,
-                    qrCode: pixData.point_of_interaction.transaction_data.qr_code,
-                    qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+            if (paymentMethod === 'PIX') {
+                const pixPaymentData = { ...basePaymentData, payment_method_id: 'pix' };
+                const pixData = await mercadoPagoService.createPixPayment(pixPaymentData);
+                return res.status(201).json({
+                    message: 'Conta pronta! Pague o PIX para ativar seu acesso.',
+                    token,
+                    usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
+                    conta: conta,
+                    paymentInfo: {
+                        type: 'pix',
+                        paymentId: pixData.id,
+                        qrCode: pixData.point_of_interaction.transaction_data.qr_code,
+                        qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+                    }
+                });
+            } else if (paymentMethod === 'CREDIT_CARD') {
+                if (!cardTokenId) {
+                    return res.status(400).json({ message: 'O token do cartão é obrigatório para pagamentos com cartão de crédito.' });
                 }
-            });
+                const cardPaymentData = { ...basePaymentData, token: cardTokenId };
+                const paymentResult = await mercadoPagoService.createCardPayment(cardPaymentData);
+                return res.status(201).json({
+                    message: 'Pagamento com cartão de crédito processado com sucesso.',
+                    token,
+                    usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
+                    conta: conta,
+                    paymentInfo: {
+                        type: 'credit_card',
+                        paymentId: paymentResult.id,
+                        status: paymentResult.status,
+                    }
+                });
+            } else {
+                return res.status(400).json({ message: 'Método de pagamento para pagamento único inválido.' });
+            }
         }
 
         // Default behavior for subscription
