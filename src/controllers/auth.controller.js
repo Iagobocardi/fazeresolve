@@ -266,14 +266,34 @@ const register = async (req, res) => {
         const payload = { id: usuario._id, contaId: conta._id, statusAssinatura: conta.statusAssinatura };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        // Simplificado: A lógica de pagamento foi movida para um endpoint dedicado.
-        // O frontend agora usa o token para iniciar o processo de pagamento.
-        const message = paymentType === 'onetime'
-            ? 'Conta pronta! Prossiga para a etapa de pagamento.'
-            : 'Conta e usuário registrados com sucesso! Prossiga para o pagamento da assinatura.';
+        if (paymentType === 'onetime') {
+            const paymentData = {
+                transaction_amount: parseFloat(selectedPlanDetails.price),
+                description: `Acesso ${planName} por ${selectedPlanDetails.months} meses`,
+                payment_method_id: 'pix',
+                payer: { email: usuario.email, first_name: usuario.nome },
+                external_reference: `${conta._id}_${planId}`,
+                notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
+            };
 
+            const pixData = await mercadoPagoService.createPixPayment(paymentData);
+            return res.status(201).json({
+                message: 'Conta pronta! Pague o PIX para ativar seu acesso.',
+                token,
+                usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
+                conta: conta,
+                paymentInfo: {
+                    type: 'pix',
+                    paymentId: pixData.id,
+                    qrCode: pixData.point_of_interaction.transaction_data.qr_code,
+                    qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+                }
+            });
+        }
+
+        // Default behavior for subscription
         res.status(201).json({
-            message,
+            message: 'Conta e usuário registrados com sucesso! Prossiga para o pagamento da assinatura.',
             token,
             usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
             conta: conta
