@@ -292,20 +292,15 @@ const register = async (req, res) => {
                     }
                 });
             } else if (paymentMethod === 'CREDIT_CARD') {
-                if (!cardTokenId) {
-                    return res.status(400).json({ message: 'O token do cartão é obrigatório para pagamentos com cartão de crédito.' });
-                }
-                const cardPaymentData = { ...basePaymentData, token: cardTokenId };
-                const paymentResult = await mercadoPagoService.createCardPayment(cardPaymentData);
+                // Para cartão, apenas criamos o usuário e retornamos o token.
+                // O frontend irá redirecionar para uma página de pagamento separada.
                 return res.status(201).json({
-                    message: 'Pagamento com cartão de crédito processado com sucesso.',
+                    message: 'Conta criada com sucesso! Prossiga para o pagamento com cartão.',
                     token,
                     usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
                     conta: conta,
                     paymentInfo: {
-                        type: 'credit_card',
-                        paymentId: paymentResult.id,
-                        status: paymentResult.status,
+                        type: 'credit_card_pending',
                     }
                 });
             } else {
@@ -314,7 +309,7 @@ const register = async (req, res) => {
         }
 
         // Default behavior for subscription
-        res.status(201).json({
+        return res.status(201).json({
             message: 'Conta e usuário registrados com sucesso! Prossiga para o pagamento da assinatura.',
             token,
             usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
