@@ -2,7 +2,7 @@ const Conta = require('../models/conta.model');
 const PLANS = require('../config/plans.config');
 const mercadoPagoService = require('../services/mercadoPago.service');
 
-exports.createOneTimePayment = async (req, res) => {
+const createOneTimePayment = async (req, res) => {
     try {
         const { contaId, id: userId, email: userEmail, nome: userName } = req.user;
         const { planId, paymentMethod, cardTokenId } = req.body;
@@ -16,7 +16,7 @@ exports.createOneTimePayment = async (req, res) => {
         for (const plan of PLANS) {
             const found = plan.oneTime.find(p => p.id === planId);
             if (found) {
-                selectedPlan = { ...found, name: plan.name }; // Correctly associate the plan name
+                selectedPlan = { ...found, name: plan.name };
                 break;
             }
         }
@@ -39,17 +39,11 @@ exports.createOneTimePayment = async (req, res) => {
                 first_name: userName,
             },
             external_reference: `${contaId}_${planId}`, // Unique reference for webhook
-            notification_url: `${process.env.API_URL}/api/mercado-pago/webhook`,
+            notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
         };
 
         if (paymentMethod.toLowerCase() === 'pix') {
             const pixData = await mercadoPagoService.createPixPayment(paymentData);
-            
-            if (!pixData.point_of_interaction?.transaction_data) {
-                console.error("Resposta do MP para PIX não contém transaction_data:", pixData);
-                return res.status(500).json({ message: 'Falha ao obter os dados do QR Code do PIX.' });
-            }
-
             return res.status(201).json({
                 message: 'Cobrança PIX criada com sucesso.',
                 type: 'pix',
@@ -81,7 +75,7 @@ exports.createOneTimePayment = async (req, res) => {
     }
 };
 
-exports.handleWebhook = async (req, res) => {
+const handleWebhook = async (req, res) => {
     const { body } = req;
 
     if (body.type === 'payment') {
@@ -99,4 +93,9 @@ exports.handleWebhook = async (req, res) => {
 
     // Retorna 200 para confirmar o recebimento da notificação para o Mercado Pago.
     res.status(200).send('Notificação recebida.');
+};
+
+module.exports = {
+    createOneTimePayment,
+    handleWebhook,
 };
