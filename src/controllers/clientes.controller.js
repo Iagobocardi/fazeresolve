@@ -1,8 +1,9 @@
+const mongoose = require('mongoose');
 const Cliente = require('../models/cliente.model');
 const Orcamento = require('../models/orcamento.model');
+const Agendamento = require('../models/agendamento.model');
 const crypto = require('crypto');
 const whatsappService = require('../services/whatsapp.service');
-const mongoose = require('mongoose');
 
 // Função para listar todos os clientes com dados agregados e KPIs
 const getAllClientes = async (req, res) => {
@@ -11,129 +12,133 @@ const getAllClientes = async (req, res) => {
         const { search } = req.query;
         const contaObjId = new mongoose.Types.ObjectId(contaId);
 
-        let matchStage = { contaId: contaObjId };
-
-        if (search) {
-            const escapeRegex = (string) => {
-                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            };
-            const trimmedSearch = search.trim();
-            const escapedSearch = escapeRegex(trimmedSearch);
-            const searchRegex = new RegExp(escapedSearch, 'i');
-            
-            matchStage.$or = [
-                { nome: searchRegex },
-                { email: searchRegex },
-                { telefone: searchRegex },
-                { 'endereco.logradouro': searchRegex },
-                { 'endereco.bairro': searchRegex },
-                { 'endereco.cidade': searchRegex },
-                { 'endereco.cep': searchRegex }
-            ];
-        }
-
-        const clientesPromise = Cliente.aggregate([
-            { $match: matchStage },
-            {
-                $lookup: {
-                    from: 'orcamentos',
-                    localField: '_id',
-                    foreignField: 'cliente',
-                    as: 'pedidos'
-                }
-            },
+        let pipeline = [
+            { $match: { contaId: contaObjId } },
+            { $lookup: { from: 'orcamentos', localField: '_id', foreignField: 'cliente', as: 'pedidos' } },
+            { $lookup: { from: 'agendamentos', localField: '_id', foreignField: 'cliente', as: 'agendamentos' } },
             {
                 $addFields: {
                     valorTotalGasto: { $sum: '$pedidos.valorProposto' },
                     totalPedidos: { $size: '$pedidos' },
-                    totalPago: { $sum: { $map: { input: "$pedidos", as: "p", in: { $sum: "$$p.pagamentos.valor" } } } },
-                    saldoDevedor: { $subtract: [ { $sum: '$pedidos.valorProposto' }, { $sum: { $map: { input: "$pedidos", as: "p", in: { $sum: "$$p.pagamentos.valor" } } } } ] },
-                    statusFinanceiro: {
-                        $cond: {
-                            if: {
-                                $gt: [
-                                    {
-                                        $size: {
-                                            $filter: {
-                                                input: '$pedidos',
-                                                as: 'pedido',
-                                                cond: {
-                                                    $and: [
-                                                        { $eq: ['$$pedido.statusPagamento', 'Pendente'] },
-                                                        { $lt: ['$$pedido.dataVencimento', new Date()] }
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    }, 0]
-                            },
-                            then: 'Inadimplente',
-                            else: 'Em dia'
+                    ultimoServico: { $max: '$pedidos.data' },
+                    proximoAgendamentoObj: {
+                        $first: {
+                            $filter: {
+                                input: '$agendamentos',
+                                as: 'ag',
+                                cond: { $gte: ['$$ag.dataHoraInicio', new Date()] }
+                            }
                         }
-                    }
+                    },
+                    faturasAtrasadas: { $filter: { input: '$pedidos', as: 'p', cond: { $and: [ { $eq: ['$$p.statusPagamento', 'Pendente'] }, { $lt: ['$$p.dataVencimento', new Date()] } ] } } },
+                    faturaAberta: { $first: { $filter: { input: '$pedidos', as: 'p', cond: { $eq: ['$$p.statusPagamento', 'Pendente'] } } } }
                 }
             },
             {
+                $addFields: {
+                    faturaAtrasada: { $first: '$faturasAtrasadas' },
+                    statusFinanceiro: {
+                        $switch: {
+                            branches: [
+                                { case: { $gt: [{ $size: '$faturasAtrasadas' }, 0] }, then: 'INADIMPLENTE' },
+                                { case: { $ne: ['$faturaAberta', null] }, then: 'AG_PGTO' }
+                            ],
+                            default: 'EM_DIA'
+                        }
+                    },
+                    clientTag: {
+                        $cond: {
+                            if: { $eq: ['$totalPedidos', 0] },
+                            then: 'Novo Cliente',
+                            else: 'Cliente Recorrente'
+                        }
+                    },
+                    proximoAgendamento: '$proximoAgendamentoObj.dataHoraInicio',
+                    proximoAgendamentoDesc: { $ifNull: [ '$proximoAgendamentoObj.observacoes', 'N/A' ] },
+                    faturaAtrasadaValor: '$faturaAtrasada.valorProposto',
+                    faturaAtrasadaId: '$faturaAtrasada.shortId',
+                    faturaAbertaValor: '$faturaAberta.valorProposto',
+                    faturaAbertaId: '$faturaAberta.shortId',
+                }
+            }
+        ];
+        
+        if (search) {
+            const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const searchRegex = new RegExp(escapeRegex(search.trim()), 'i');
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { nome: searchRegex }, { email: searchRegex }, { telefone: searchRegex },
+                        { 'endereco.cidade': searchRegex }, { 'pedidos.descricao': searchRegex }
+                    ]
+                }
+            });
+        }
+
+        pipeline.push(
+            {
                 $project: {
-                    pedidos: 0, // Não envia a lista inteira de pedidos para o frontend
-                    'endereco.codigo_municipio': 0,
-                    conversationState: 0,
-                    currentDemand: 0,
-                    activeContext: 0
+                    nome: 1, email: 1, telefone: 1, 'endereco.cidade': 1, 'endereco.estado': 1, 
+                    statusFinanceiro: 1, clientTag: 1, ultimoServico: 1, proximoAgendamento: 1, 
+                    proximoAgendamentoDesc: 1, valorTotalGasto: 1, faturaAtrasadaValor: 1, 
+                    faturaAtrasadaId: 1, faturaAbertaValor: 1, faturaAbertaId: 1,
                 }
             },
             { $sort: { valorTotalGasto: -1 } }
-        ]);
+        );
 
-        const kpisPromise = Cliente.aggregate([
-            { $match: { contaId: contaObjId } },
-            {
-                $group: {
-                    _id: '$contaId',
-                    clientesAtivos: { $sum: 1 },
-                    somaValorTotalGasto: { $sum: '$valorTotalGasto' },
-                    somaTotalPedidos: { $sum: '$totalPedidos' }
-                }
-            }
+        const clientesPromise = Cliente.aggregate(pipeline);
+
+        // KPIs
+        const now = new Date();
+        const thirtyDaysAgo = new Date(new Date().setDate(now.getDate() - 30));
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const nextSevenDays = new Date(new Date().setDate(now.getDate() + 7));
+
+        const clientesAtivosPromise = Cliente.countDocuments({ contaId: contaObjId });
+        const novosClientesPromise = Cliente.countDocuments({ contaId: contaObjId, createdAt: { $gte: startOfMonth } });
+        
+        const faturasAtrasadasKpiPromise = Orcamento.aggregate([
+             { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: now } } },
+             { $group: { _id: null, total: { $sum: '$valorProposto' }, count: { $sum: 1 } } }
         ]);
         
-        const saldoDevedorPromise = Orcamento.aggregate([
-             { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: new Date() } } },
-             {
-                 $group: {
-                     _id: null,
-                     total: { $sum: '$valorProposto' }
-                 }
-             }
+        const valorMedioPromise = Orcamento.aggregate([
+            { $match: { contaId: contaObjId, statusPagamento: { $in: ['Pago', 'Pago Parcial'] }, data: { $gte: thirtyDaysAgo } } },
+            { $group: { _id: null, media: { $avg: '$valorProposto' } } }
+        ]);
+        
+        const proximoAgendamentosPromise = Agendamento.countDocuments({
+            contaId: contaObjId,
+            dataHoraInicio: { $gte: now, $lte: nextSevenDays }
+        });
+
+        const [clientes, clientesAtivos, novosClientes, faturasAtrasadasKpi, valorMedioResult, proximoAgendamentos] = await Promise.all([
+            clientesPromise,
+            clientesAtivosPromise,
+            novosClientesPromise,
+            faturasAtrasadasKpiPromise,
+            valorMedioPromise,
+            proximoAgendamentosPromise
         ]);
 
-
-        const [clientes, kpisResult, saldoDevedorResult] = await Promise.all([clientesPromise, kpisPromise, saldoDevedorPromise]);
-
-        const kpisData = kpisResult[0] || {};
-        const saldoDevedor = saldoDevedorResult[0]?.total || 0;
-
         const kpis = {
-            clientesAtivos: kpisData.clientesAtivos || 0,
-            saldoDevedorTotal: saldoDevedor,
-            valorMedioPorPedido: (kpisData.somaTotalPedidos > 0) ? (kpisData.somaValorTotalGasto / kpisData.somaTotalPedidos) : 0
+            clientesAtivos,
+            novosClientesEsteMes: novosClientes,
+            saldoDevedorTotal: faturasAtrasadasKpi[0]?.total || 0,
+            faturasAtrasadasCount: faturasAtrasadasKpi[0]?.count || 0,
+            valorMedioPorServico: valorMedioResult[0]?.media || 0,
+            proximosAgendamentos
         };
 
-        // GARANTIA: Assegura que 'clientes' seja sempre um array na resposta.
-        // Isso previne que a API retorne um status 204 (No Content) em vez de 200 OK com uma lista vazia.
-        const responsePayload = {
-            clientes: clientes || [],
-            kpis
-        };
-
-        res.status(200).json(responsePayload);
+        res.status(200).json({ clientes, kpis });
     } catch (error) {
         console.error("Erro ao buscar clientes:", error);
         res.status(500).json({ message: "Erro ao buscar dados dos clientes." });
     }
 };
 
-// Função para buscar um cliente por ID
 const buscarClientePorId = async (req, res) => {
     try {
         const cliente = await Cliente.findById(req.params.id);
@@ -146,7 +151,6 @@ const buscarClientePorId = async (req, res) => {
     }
 };
 
-// Função para criar um novo cliente (será usada pelo painel no futuro)
 const criarCliente = async (req, res) => {
     try {
         const novoCliente = new Cliente(req.body);
@@ -162,7 +166,6 @@ const criarCliente = async (req, res) => {
     }
 };
 
-// Função para atualizar um cliente
 const atualizarCliente = async (req, res) => {
     try {
         const clienteAtualizado = await Cliente.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -175,7 +178,6 @@ const atualizarCliente = async (req, res) => {
     }
 };
 
-// Função para deletar um cliente
 const deletarCliente = async (req, res) => {
     try {
         const clienteDeletado = await Cliente.findByIdAndDelete(req.params.id);
@@ -253,9 +255,6 @@ const gerarConvitePortal = async (req, res) => {
     }
 };
 
-
-
-// CORREÇÃO: Exporta TODAS as funções que as rotas precisam.
 module.exports = {
     getAllClientes,
     buscarClientePorId,
