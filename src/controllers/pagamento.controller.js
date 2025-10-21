@@ -16,7 +16,7 @@ exports.createOneTimePayment = async (req, res) => {
         for (const plan of PLANS) {
             const found = plan.oneTime.find(p => p.id === planId);
             if (found) {
-                selectedPlan = { ...found, name: plan.name };
+                selectedPlan = { ...found, name: plan.name }; // Correctly associate the plan name
                 break;
             }
         }
@@ -44,6 +44,12 @@ exports.createOneTimePayment = async (req, res) => {
 
         if (paymentMethod.toLowerCase() === 'pix') {
             const pixData = await mercadoPagoService.createPixPayment(paymentData);
+            
+            if (!pixData.point_of_interaction?.transaction_data) {
+                console.error("Resposta do MP para PIX não contém transaction_data:", pixData);
+                return res.status(500).json({ message: 'Falha ao obter os dados do QR Code do PIX.' });
+            }
+
             return res.status(201).json({
                 message: 'Cobrança PIX criada com sucesso.',
                 type: 'pix',
