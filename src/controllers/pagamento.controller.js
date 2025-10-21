@@ -16,7 +16,7 @@ const createOneTimePayment = async (req, res) => {
         for (const plan of PLANS) {
             const found = plan.oneTime.find(p => p.id === planId);
             if (found) {
-                selectedPlan = { ...found, name: plan.name };
+                selectedPlan = { ...found, name: plan.name }; // Correctly associate the plan name
                 break;
             }
         }
@@ -39,7 +39,7 @@ const createOneTimePayment = async (req, res) => {
                 first_name: userName,
             },
             external_reference: `${contaId}_${planId}`, // Unique reference for webhook
-            notification_url: `${process.env.API_URL}/pagamentos/mercado-pago-webhook`,
+            notification_url: `${process.env.API_URL}/api/mercado-pago/webhook`,
         };
 
         if (paymentMethod.toLowerCase() === 'pix') {
