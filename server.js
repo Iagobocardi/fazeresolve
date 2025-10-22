@@ -72,6 +72,7 @@ const cors = require('cors');
 const allowedOrigins = [
     'https://app.fazeresolve.com',
     'https://fazeresolve.onrender.com',
+    'http://localhost:3001', // Adicionado para desenvolvimento local do frontend
     /^https:\/\/(www\.)?fazeresolve\.onrender\.com$/, // Permite com e sem 'www'
     /^http:\/\/localhost(:\d+)?$/,                 // Permite qualquer porta em localhost
     'https://accounts.google.com',
