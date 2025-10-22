@@ -10,7 +10,7 @@ const getAllClientes = async (req, res) => {
     try {
         const { contaId } = req.user;
         const { search } = req.query;
-        const contaObjId = new mongoose.Types.ObjectId(contaId);
+        const contaObjId = contaId._id;
 
         let pipeline = [
             { $match: { contaId: contaObjId } },
