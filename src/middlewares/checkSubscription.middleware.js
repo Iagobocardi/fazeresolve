@@ -15,7 +15,7 @@ const checkSubscription = async (req, res, next) => {
         }
 
         // Busca a conta para verificar o status da assinatura
-        const conta = await Conta.findById(contaId);
+        const conta = await Conta.findById(contaId._id);
 
         if (!conta) {
             return res.status(403).json({ message: 'Acesso negado. Conta não encontrada.' });
