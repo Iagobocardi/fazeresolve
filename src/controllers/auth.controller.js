@@ -1,7 +1,6 @@
 // Arquivo: src/controllers/auth.controller.js
 const Usuario = require('../models/usuario.model');
 const Conta = require('../models/conta.model');
-const Orcamento = require('../models/orcamento.model');
 const PasswordReset = require('../models/passwordReset.model');
 const authService = require('../services/auth.service');
 const mercadoPagoService = require('../services/mercadoPago.service');
@@ -128,40 +127,53 @@ const login = async (req, res) => {
             return res.status(404).json({ message: 'Conta associada não encontrada.' });
         }
 
-        // 4. VERIFICAÇÃO DE PAGAMENTO PENDENTE
+        // 4. VERIFICAÇÃO DE PAGAMENTO PENDENTE COM PERÍODO DE CARÊNCIA
         if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
-            console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente. Buscando orçamento associado.`);
-            
-            // Procura o orçamento pendente associado a esta conta
-            const orcamentoPendente = await Orcamento.findOne({ 
-                contaId: conta._id, 
-                status: 'Pendente' // Ou o status que indica um pagamento aguardado
-            }).sort({ data: -1 }); // Pega o mais recente
+            const now = new Date();
+            // Se o período de carência expirou, force o pagamento.
+            if (!conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt) {
+                console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente e o período de carência expirou.`);
+                const payload = {
+                    id: usuario._id,
+                    contaId: conta._id,
+                    statusAssinatura: conta.statusAssinatura
+                };
+                const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-            let pedidoId = null;
-            if (orcamentoPendente) {
-                pedidoId = orcamentoPendente.shortId; // Usando o shortId que é público
-                console.log(`[Login] Orçamento pendente encontrado: ${pedidoId}`);
+                return res.status(202).json({
+                    message: 'Pagamento pendente. Por favor, complete sua assinatura para continuar.',
+                    needs_payment: true,
+                    token: token,
+                    usuario: { id: usuario._id, email: usuario.email },
+                    conta: conta
+                });
             } else {
-                console.log(`[Login] Nenhum orçamento pendente específico foi encontrado para a conta ${conta._id}.`);
+                // Se ainda estiver no período de carência, permita o login, mas envie um aviso.
+                console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente, mas ainda está no período de carência.`);
+                // O login continua normalmente, mas com uma flag de aviso.
+                const payload = { id: usuario._id };
+                const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+                return res.status(200).json({
+                    message: 'Login bem-sucedido!',
+                    token,
+                    userType: 'provider',
+                    usuario: {
+                        id: usuario._id,
+                        nome: usuario.nome,
+                        email: usuario.email,
+                        role: usuario.role,
+                        plano: conta.plano,
+                        statusAssinatura: conta.statusAssinatura,
+                        permissoes: usuario.permissoes
+                    },
+                    conta: conta,
+                    payment_status_warning: { // NOVA FLAG PARA O FRONT-END
+                        status: 'PENDING',
+                        expires_at: conta.gracePeriodExpiresAt
+                    }
+                });
             }
-
-            const payload = {
-                id: usuario._id,
-                contaId: conta._id,
-                statusAssinatura: conta.statusAssinatura
-            };
-            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
-
-            // Retorna uma resposta especial para o frontend, agora com o ID do pedido
-            return res.status(202).json({
-                message: 'Pagamento pendente. Por favor, complete sua assinatura.',
-                needs_payment: true,
-                token: token,
-                usuario: { id: usuario._id, email: usuario.email },
-                conta: conta,
-                pedidoId: pedidoId // <--- A CHAVE DA CORREÇÃO ESTÁ AQUI
-            });
         }
 
         // 5. Gera um token JWT definitivo para o usuário com assinatura ativa
@@ -250,17 +262,19 @@ const register = async (req, res) => {
                 if (existingConta.statusAssinatura !== 'AGUARDANDO_PAGAMENTO') {
                     return res.status(409).json({ message: 'Um usuário com este email ou telefone já possui uma assinatura ativa.' });
                 }
-                // Atualiza o plano da conta pendente.
+                // Atualiza o plano da conta pendente e renova o período de carência.
                 existingConta.plano = planName;
                 existingConta.planId = planId;
                 existingConta.paymentType = paymentType;
+                existingConta.gracePeriodExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 dias a partir de agora
                 await existingConta.save();
                 conta = existingConta;
             } else {
                 // Cenário 2: Usuário existe mas está órfão (sem conta). Cria uma nova conta e associa.
                 const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
                 if (cnpj) companyInfo.cnpj = cnpj;
-                const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo });
+                const gracePeriodExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+                const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo, gracePeriodExpiresAt });
                 await novaConta.save();
                 
                 usuario.contaId = novaConta._id;
@@ -271,7 +285,8 @@ const register = async (req, res) => {
             // Cenário 3: Usuário e Conta não existem. Cria ambos do zero.
             const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
             if (cnpj) companyInfo.cnpj = cnpj;
-            const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo });
+            const gracePeriodExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+            const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo, gracePeriodExpiresAt });
             await novaConta.save();
             conta = novaConta;
 
