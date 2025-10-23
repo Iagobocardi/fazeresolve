@@ -144,8 +144,21 @@ const login = async (req, res) => {
                     message: 'Pagamento pendente. Por favor, complete sua assinatura para continuar.',
                     needs_payment: true,
                     token: token,
-                    usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
-                    conta: conta
+                    usuario: {
+                        id: usuario._id,
+                        nome: usuario.nome,
+                        email: usuario.email,
+                        telefone: usuario.telefone,
+                        cpf: usuario.cpf
+                    },
+                    conta: {
+                        id: conta._id,
+                        nome: conta.nome,
+                        plano: conta.plano,
+                        planId: conta.planId,
+                        paymentType: conta.paymentType,
+                        companyInfo: conta.companyInfo
+                    }
                 });
             } else {
                 // Se ainda estiver no período de carência, permita o login, mas envie um aviso.
