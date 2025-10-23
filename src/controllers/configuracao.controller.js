@@ -478,7 +478,7 @@ exports.getAllData = async (req, res) => {
 
         // 1. Obter dados do Perfil e Integrações (a partir do modelo Conta)
         const contaPromise = Conta.findById(contaId)
-            .select('nome companyInfo metodoRecebimento chavePixManual googleCalendarConnected googleAccountEmail isWhatsappConnected focusNFeConnected plano statusAssinatura')
+            .select('nome companyInfo metodoRecebimento chavePixManual googleCalendarConnected googleAccountEmail isWhatsappConnected focusNFeConnected plano statusAssinatura gracePeriodExpiresAt')
             .lean();
 
         // 2. Obter dados da Assinatura
@@ -540,6 +540,14 @@ exports.getAllData = async (req, res) => {
                 mercadoPago: { conectado: conta.metodoRecebimento === 'MERCADOPAGO' }
             }
         };
+
+        // Adiciona o status de "LOCKED" se a assinatura estiver pendente e o período de carência expirado
+        const isPaymentPending = ['AGUARDANDO_PAGAMENTO', 'EM_ATRASO', 'CANCELADO'].includes(conta.statusAssinatura);
+        const gracePeriodExpired = conta.gracePeriodExpiresAt && new Date() > new Date(conta.gracePeriodExpiresAt);
+
+        if (isPaymentPending && gracePeriodExpired) {
+            response.account_status = 'LOCKED';
+        }
 
         res.status(200).json(response);
 
