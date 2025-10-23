@@ -25,6 +25,11 @@ const contaSchema = new Schema({
         default: null,
     },
     planId: { type: String },
+    paymentType: {
+        type: String,
+        enum: ['subscription', 'onetime'],
+        default: 'subscription'
+    },
     mercadoPagoSubscriptionId: { type: String },
 
     // Informações da Empresa para Nota Fiscal
