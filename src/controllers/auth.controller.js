@@ -98,7 +98,8 @@ const handleGoogleCallback = async (req, res) => {
 // MUDANÇA: Função de Login agora para Usuario
 const login = async (req, res) => {
     try {
-        const { identifier, password } = req.body;
+        const identifier = req.body.identifier || req.body.login;
+        const { password } = req.body;
 
         if (!identifier || !password) {
             return res.status(400).json({ message: 'Identificador (email ou telefone) e senha são obrigatórios.' });
