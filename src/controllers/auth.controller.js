@@ -237,13 +237,14 @@ const register = async (req, res) => {
                 // Atualiza o plano da conta pendente.
                 existingConta.plano = planName;
                 existingConta.planId = planId;
+                existingConta.paymentType = paymentType;
                 await existingConta.save();
                 conta = existingConta;
             } else {
                 // Cenário 2: Usuário existe mas está órfão (sem conta). Cria uma nova conta e associa.
                 const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
                 if (cnpj) companyInfo.cnpj = cnpj;
-                const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, companyInfo: companyInfo });
+                const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo });
                 await novaConta.save();
                 
                 usuario.contaId = novaConta._id;
@@ -254,7 +255,7 @@ const register = async (req, res) => {
             // Cenário 3: Usuário e Conta não existem. Cria ambos do zero.
             const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
             if (cnpj) companyInfo.cnpj = cnpj;
-            const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, companyInfo: companyInfo });
+            const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo });
             await novaConta.save();
             conta = novaConta;
 
