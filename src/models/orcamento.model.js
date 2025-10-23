@@ -29,12 +29,40 @@ const materialUsadoSchema = new Schema({
 const orcamentoSchema = new mongoose.Schema({
     status: {
         type: String,
-        enum: ['Aceito', 'Pendente', 'Rejeitado', 'Agendado', 'Finalizado'],
-        default: 'Pendente',
+        enum: [
+            'SOLICITADO',
+            'ORCAMENTO_ENVIADO_SEM_VISITA',
+            'VISITA_SUGERIDA',
+            'VISITA_CONFIRMADA',
+            'ORCAMENTO_ENVIADO',
+            'ORCAMENTO_APROVADO',
+            'SINAL_EM_ANALISE',
+            'SINAL_PAGO',
+            'SERVICO_CONCLUIDO',
+            'PEDIDO_FINALIZADO',
+            'RECUSADO',
+            'CANCELADO'
+        ],
+        default: 'SOLICITADO',
         trim: true
     },
     data: { type: Date, default: Date.now },
     valorProposto: { type: Number, min: 0, default: 0 },
+    sinalPercent: { type: Number, default: 50 },
+    dataAprovacao: { type: Date },
+    itens: [{
+        descricao: { type: String, required: true },
+        valor: { type: Number, required: true }
+    }],
+    pagamento: {
+        prestadorTemMercadoPago: { type: Boolean, default: false },
+        chavePix: { type: String, trim: true },
+        statusSinal: {
+            type: String,
+            enum: ['PENDENTE', 'EM_ANALISE', 'PAGO'],
+            default: 'PENDENTE'
+        }
+    },
     cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
     contaId: {
         type: mongoose.Schema.Types.ObjectId,
