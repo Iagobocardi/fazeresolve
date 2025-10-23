@@ -130,6 +130,8 @@ app.use(session({
 // Rotas Públicas ou com Autenticação Própria
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
+const portalRoutes = require('./src/routes/portal.routes.js');
+app.use('/api/portal', portalRoutes);
 app.use('/api/portal-cliente', portalClienteRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/mercado-pago', mercadoPagoRoutes);
