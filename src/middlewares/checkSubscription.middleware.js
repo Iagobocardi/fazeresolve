@@ -21,14 +21,17 @@ const checkSubscription = async (req, res, next) => {
             return res.status(403).json({ message: 'Acesso negado. Conta não encontrada.' });
         }
 
-        const allowedStatus = ['ATIVO', 'EM_ATRASO', 'AGUARDANDO_PAGAMENTO'];
-        if (allowedStatus.includes(conta.statusAssinatura)) {
-            return next(); // Assinatura recorrente está OK.
-        }
-
-        // Se não for pela assinatura, verifica se há um acesso único válido.
-        if (conta.acessoValidoAte && conta.acessoValidoAte > new Date()) {
-            return next(); // Acesso único está OK.
+        // Se for um plano de pagamento único, verifica a data de validade.
+        if (conta.paymentType === 'onetime') {
+            if (conta.acessoValidoAte && conta.acessoValidoAte > new Date()) {
+                return next(); // Acesso único está OK.
+            }
+        } else {
+            // Se for uma assinatura, verifica o status.
+            const allowedStatus = ['ATIVO', 'EM_ATRASO', 'AGUARDANDO_PAGAMENTO'];
+            if (allowedStatus.includes(conta.statusAssinatura)) {
+                return next(); // Assinatura recorrente está OK.
+            }
         }
 
         // Se nenhuma das condições for atendida, nega o acesso.
