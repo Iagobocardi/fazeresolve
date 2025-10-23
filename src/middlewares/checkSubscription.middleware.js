@@ -21,16 +21,27 @@ const checkSubscription = async (req, res, next) => {
             return res.status(403).json({ message: 'Acesso negado. Conta não encontrada.' });
         }
 
-        // Se for um plano de pagamento único, verifica a data de validade.
-        if (conta.paymentType === 'onetime') {
-            if (conta.acessoValidoAte && conta.acessoValidoAte > new Date()) {
-                return next(); // Acesso único está OK.
-            }
-        } else {
-            // Se for uma assinatura, verifica o status.
-            const allowedStatus = ['ATIVO', 'EM_ATRASO', 'AGUARDANDO_PAGAMENTO'];
-            if (allowedStatus.includes(conta.statusAssinatura)) {
-                return next(); // Assinatura recorrente está OK.
+        const now = new Date();
+
+        // 1. Acesso totalmente permitido
+        if (
+            (conta.paymentType === 'onetime' && conta.acessoValidoAte && conta.acessoValidoAte > now) ||
+            (conta.statusAssinatura === 'ATIVO') ||
+            (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO' && conta.gracePeriodExpiresAt && conta.gracePeriodExpiresAt > now)
+        ) {
+            return next();
+        }
+
+        // 2. Acesso em modo "Soft Block" (apenas leitura)
+        if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO' && (!conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt)) {
+            if (req.method === 'GET') {
+                return next(); // Permite carregar os dados
+            } else {
+                // Bloqueia ações de escrita
+                return res.status(403).json({
+                    message: 'A sua assinatura expirou. Por favor, regularize o pagamento para reativar todas as funcionalidades.',
+                    subscription_status: 'LOCKED'
+                });
             }
         }
 
