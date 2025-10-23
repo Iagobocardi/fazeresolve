@@ -1,6 +1,7 @@
 // Arquivo: src/controllers/auth.controller.js
 const Usuario = require('../models/usuario.model');
 const Conta = require('../models/conta.model');
+const Orcamento = require('../models/orcamento.model');
 const PasswordReset = require('../models/passwordReset.model');
 const authService = require('../services/auth.service');
 const mercadoPagoService = require('../services/mercadoPago.service');
@@ -129,8 +130,22 @@ const login = async (req, res) => {
 
         // 4. VERIFICAÇÃO DE PAGAMENTO PENDENTE
         if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
-            console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente. Gerando token provisório.`);
-            // Gera um token provisório para que o usuário possa completar o pagamento
+            console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente. Buscando orçamento associado.`);
+            
+            // Procura o orçamento pendente associado a esta conta
+            const orcamentoPendente = await Orcamento.findOne({ 
+                contaId: conta._id, 
+                status: 'Pendente' // Ou o status que indica um pagamento aguardado
+            }).sort({ data: -1 }); // Pega o mais recente
+
+            let pedidoId = null;
+            if (orcamentoPendente) {
+                pedidoId = orcamentoPendente.shortId; // Usando o shortId que é público
+                console.log(`[Login] Orçamento pendente encontrado: ${pedidoId}`);
+            } else {
+                console.log(`[Login] Nenhum orçamento pendente específico foi encontrado para a conta ${conta._id}.`);
+            }
+
             const payload = {
                 id: usuario._id,
                 contaId: conta._id,
@@ -138,13 +153,14 @@ const login = async (req, res) => {
             };
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-            // Retorna uma resposta especial para o frontend
+            // Retorna uma resposta especial para o frontend, agora com o ID do pedido
             return res.status(202).json({
                 message: 'Pagamento pendente. Por favor, complete sua assinatura.',
                 needs_payment: true,
                 token: token,
                 usuario: { id: usuario._id, email: usuario.email },
-                conta: conta
+                conta: conta,
+                pedidoId: pedidoId // <--- A CHAVE DA CORREÇÃO ESTÁ AQUI
             });
         }
 
