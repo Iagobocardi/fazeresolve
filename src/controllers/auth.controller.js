@@ -266,14 +266,14 @@ const register = async (req, res) => {
                 existingConta.plano = planName;
                 existingConta.planId = planId;
                 existingConta.paymentType = paymentType;
-                existingConta.gracePeriodExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 dias a partir de agora
+                existingConta.gracePeriodExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 dias a partir de agora
                 await existingConta.save();
                 conta = existingConta;
             } else {
                 // Cenário 2: Usuário existe mas está órfão (sem conta). Cria uma nova conta e associa.
                 const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
                 if (cnpj) companyInfo.cnpj = cnpj;
-                const gracePeriodExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+                const gracePeriodExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
                 const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo, gracePeriodExpiresAt });
                 await novaConta.save();
                 
@@ -285,7 +285,7 @@ const register = async (req, res) => {
             // Cenário 3: Usuário e Conta não existem. Cria ambos do zero.
             const companyInfo = { nomeFantasia: nomeEmpresa || nome, razaoSocial: nomeEmpresa || nome };
             if (cnpj) companyInfo.cnpj = cnpj;
-            const gracePeriodExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+            const gracePeriodExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
             const novaConta = new Conta({ nome: nomeEmpresa || nome, plano: planName, planId: planId, paymentType: paymentType, companyInfo: companyInfo, gracePeriodExpiresAt });
             await novaConta.save();
             conta = novaConta;
