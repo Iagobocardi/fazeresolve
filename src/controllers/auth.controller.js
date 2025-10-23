@@ -130,7 +130,7 @@ const login = async (req, res) => {
         // 4. VERIFICAÇÃO DE PAGAMENTO PENDENTE COM PERÍODO DE CARÊNCIA
         if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
             const now = new Date();
-            // Se o período de carência expirou, permita o login mas em modo "bloqueado".
+            // Se o período de carência expirou, permita o login mas em modo "bloqueado" (Soft Block).
             if (!conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt) {
                 console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente e período de carência expirado. Permitindo login em modo bloqueado.`);
                 const payload = { id: usuario._id };
@@ -159,12 +159,11 @@ const login = async (req, res) => {
                         statusAssinatura: conta.statusAssinatura,
                         gracePeriodExpiresAt: conta.gracePeriodExpiresAt
                     },
-                    account_status: 'LOCKED' // <-- NOVA FLAG PARA O FRONT-END
+                    account_status: 'LOCKED'
                 });
             } else {
                 // Se ainda estiver no período de carência, permita o login, mas envie um aviso.
                 console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente, mas ainda está no período de carência.`);
-                // O login continua normalmente, mas com uma flag de aviso.
                 const payload = { id: usuario._id };
                 const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
@@ -182,7 +181,7 @@ const login = async (req, res) => {
                         permissoes: usuario.permissoes
                     },
                     conta: conta,
-                    payment_status_warning: { // NOVA FLAG PARA O FRONT-END
+                    payment_status_warning: {
                         status: 'PENDING',
                         expires_at: conta.gracePeriodExpiresAt
                     }
