@@ -144,7 +144,7 @@ const login = async (req, res) => {
                     message: 'Pagamento pendente. Por favor, complete sua assinatura para continuar.',
                     needs_payment: true,
                     token: token,
-                    usuario: { id: usuario._id, email: usuario.email },
+                    usuario: { id: usuario._id, nome: usuario.nome, email: usuario.email },
                     conta: conta
                 });
             } else {
