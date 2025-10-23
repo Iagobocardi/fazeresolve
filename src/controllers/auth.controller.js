@@ -130,26 +130,24 @@ const login = async (req, res) => {
         // 4. VERIFICAÇÃO DE PAGAMENTO PENDENTE COM PERÍODO DE CARÊNCIA
         if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO') {
             const now = new Date();
-            // Se o período de carência expirou, force o pagamento.
+            // Se o período de carência expirou, permita o login mas em modo "bloqueado".
             if (!conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt) {
-                console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente e o período de carência expirou.`);
-                const payload = {
-                    id: usuario._id,
-                    contaId: conta._id,
-                    statusAssinatura: conta.statusAssinatura
-                };
-                const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
+                console.log(`[Login] Usuário ${usuario.email} tem pagamento pendente e período de carência expirado. Permitindo login em modo bloqueado.`);
+                const payload = { id: usuario._id };
+                const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-                return res.status(202).json({
-                    message: 'Pagamento pendente. Por favor, complete sua assinatura para continuar.',
-                    needs_payment: true,
-                    token: token,
+                return res.status(200).json({
+                    message: 'Login bem-sucedido!',
+                    token,
+                    userType: 'provider',
                     usuario: {
                         id: usuario._id,
                         nome: usuario.nome,
                         email: usuario.email,
-                        telefone: usuario.telefone,
-                        cpf: usuario.cpf
+                        role: usuario.role,
+                        plano: conta.plano,
+                        statusAssinatura: conta.statusAssinatura,
+                        permissoes: usuario.permissoes
                     },
                     conta: {
                         id: conta._id,
@@ -157,8 +155,11 @@ const login = async (req, res) => {
                         plano: conta.plano,
                         planId: conta.planId,
                         paymentType: conta.paymentType,
-                        companyInfo: conta.companyInfo
-                    }
+                        companyInfo: conta.companyInfo,
+                        statusAssinatura: conta.statusAssinatura,
+                        gracePeriodExpiresAt: conta.gracePeriodExpiresAt
+                    },
+                    account_status: 'LOCKED' // <-- NOVA FLAG PARA O FRONT-END
                 });
             } else {
                 // Se ainda estiver no período de carência, permita o login, mas envie um aviso.
