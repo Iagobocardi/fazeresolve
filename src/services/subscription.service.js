@@ -328,23 +328,33 @@ const updateSubscriptionCard = async (gatewaySubscriptionId, cardTokenId) => {
         throw new Error('O ID da assinatura do gateway é obrigatório para atualizar o cartão.');
     }
 
-    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
-    const preapproval = new PreApproval(client);
+    try {
+        const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+        const preapproval = new PreApproval(client);
 
-    const body = {
-        card_token_id: cardTokenId,
-    };
+        const body = {
+            card_token_id: cardTokenId,
+        };
 
-    const result = await preapproval.update({
-        preapprovalId: gatewaySubscriptionId,
-        body,
-    });
+        const result = await preapproval.update({
+            preapprovalId: gatewaySubscriptionId,
+            body,
+        });
 
-    // Após a atualização, a assinatura pode voltar ao status 'authorized'
-    // e o webhook de pagamento tratará a reativação da conta, se necessário.
-    console.log(`[Service] Cartão da assinatura ${gatewaySubscriptionId} atualizado. Novo status: ${result.status}`);
+        console.log(`[Service] Cartão da assinatura ${gatewaySubscriptionId} atualizado com sucesso. Novo status: ${result.status}`);
+        return result;
 
-    return result;
+    } catch (error) {
+        console.error("Erro ao atualizar o cartão da assinatura no Mercado Pago:", error.message);
+        const apiError = error.cause?.body || error.response?.data || error.data;
+
+        if (apiError) {
+            console.error("Detalhes do erro da API Mercado Pago (updateSubscriptionCard):", JSON.stringify(apiError, null, 2));
+        }
+
+        // Re-throw a more generic error to be caught by the controller.
+        throw new Error('Ocorreu um erro interno ao se comunicar com o gateway de pagamento.');
+    }
 };
 
 const mercadoPagoService = require('./mercadoPago.service.js');
