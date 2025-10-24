@@ -378,7 +378,7 @@ exports.cancelarAssinatura = async (req, res) => {
     }
 };
 
-// Função para atualizar o método de pagamento ou regularizar uma assinatura pendente
+// Função para atualizar o método de pagamento ou regularizar uma assinatura pendente (Refatorada)
 exports.atualizarMetodoPagamento = async (req, res) => {
     try {
         const { contaId, id: userId, email: userEmail, nome: userName } = req.user;
@@ -393,40 +393,48 @@ exports.atualizarMetodoPagamento = async (req, res) => {
             return res.status(404).json({ message: 'Conta não encontrada.' });
         }
 
-        // Cenário 1: O usuário já tem uma assinatura ativa e só quer trocar o cartão.
-        if (conta.mercadoPagoSubscriptionId) {
-            console.log(`[Pagamento] Atualizando cartão para a assinatura existente: ${conta.mercadoPagoSubscriptionId}`);
-            const resultado = await subscriptionService.updateSubscriptionCard(conta.mercadoPagoSubscriptionId, cardTokenId);
-            return res.status(200).json({ message: 'Método de pagamento atualizado com sucesso.', data: resultado });
-        } 
-        
-        // Cenário 2: O usuário está com pagamento pendente e não tem assinatura no gateway.
-        // Vamos criar uma nova assinatura para regularizar a situação.
-        else {
+        // Função auxiliar para criar uma nova assinatura
+        const criarNovaAssinatura = async () => {
             console.log(`[Pagamento] Criando nova assinatura para regularizar conta: ${contaId}`);
             if (!conta.planId) {
-                return res.status(400).json({ message: 'ID do plano não encontrado na conta. Não é possível criar a assinatura.' });
+                throw new Error('ID do plano não encontrado na conta. Não é possível criar a assinatura.');
+            }
+            const planoConfig = PLANS.find(p => p.id === conta.planId);
+            if (!planoConfig || !planoConfig.mercadoPagoPlanId) {
+                throw new Error('Configuração do plano ou ID do plano no Mercado Pago não encontrado.');
             }
 
-            // O serviço de criação de assinatura precisa de um objeto de usuário com email
             const userForSubscription = { id: userId, email: userEmail, nome: userName, contaId: contaId };
-
-            const novaAssinatura = await subscriptionService.createSubscription(conta.planId, userForSubscription, cardTokenId);
-
-            // Se a criação da assinatura no MP for bem-sucedida, atualizamos a conta localmente.
+            const novaAssinatura = await subscriptionService.createSubscription(planoConfig.mercadoPagoPlanId, userForSubscription, cardTokenId);
+            
             if (novaAssinatura.id) {
                 conta.mercadoPagoSubscriptionId = novaAssinatura.id;
-                conta.statusAssinatura = 'ATIVO'; // A assinatura foi criada com sucesso, então está ativa.
+                conta.statusAssinatura = 'ATIVO';
+                conta.gracePeriodExpiresAt = null; // Limpa o período de carência
                 await conta.save();
-
                 console.log(`[Pagamento] Nova assinatura ${novaAssinatura.id} criada e conta ${contaId} regularizada.`);
-                return res.status(200).json({ message: 'Pagamento regularizado e assinatura ativada com sucesso!', data: novaAssinatura });
+                return novaAssinatura;
             } else {
-                // Se a API do Mercado Pago retornar um erro, ele será propagado pelo serviço.
-                console.error('[Pagamento] Falha ao criar a nova assinatura no Mercado Pago durante a regularização.');
-                return res.status(500).json({ message: 'Falha ao processar o pagamento com o novo cartão.' });
+                throw new Error('Falha ao criar a nova assinatura no Mercado Pago durante a regularização.');
             }
+        };
+
+        // Se a conta não tiver um ID de assinatura ou o status for CANCELADO, crie uma nova.
+        if (!conta.mercadoPagoSubscriptionId || conta.statusAssinatura === 'CANCELADO') {
+            const resultado = await criarNovaAssinatura();
+            return res.status(200).json({ message: 'Pagamento regularizado e assinatura ativada com sucesso!', data: resultado });
         }
+        
+        // Se a assinatura existir e não estiver cancelada, tente atualizar o cartão.
+        console.log(`[Pagamento] Atualizando cartão para a assinatura existente: ${conta.mercadoPagoSubscriptionId}`);
+        const resultado = await subscriptionService.updateSubscriptionCard(conta.mercadoPagoSubscriptionId, cardTokenId);
+        
+        // Após a atualização bem-sucedida, reativamos a conta localmente
+        conta.statusAssinatura = 'ATIVO';
+        conta.gracePeriodExpiresAt = null;
+        await conta.save();
+
+        return res.status(200).json({ message: 'Método de pagamento atualizado e assinatura reativada com sucesso.', data: resultado });
 
     } catch (error) {
         console.error("Erro em atualizarMetodoPagamento:", error);
@@ -620,6 +628,12 @@ exports.comprarPacote = async (req, res) => {
             auto_return: 'approved',
             external_reference: `${contaId}_${planoId}`,
             notification_url: `${process.env.API_URL}/mercado-pago/webhook`,
+            payment_methods: {
+                excluded_payment_types: [
+                    { id: 'ticket' } // Exclui boleto para agilizar a confirmação
+                ],
+                installments: 1 // Força uma única parcela para pacotes
+            },
         };
         
         const preferenceResult = await mercadoPagoService.createOnetimePreference(preferenceData);
