@@ -267,35 +267,60 @@ const upgradeSubscription = async (contaId, newPlanName) => {
 
 
 const getSubscriptionDetails = async (contaId) => {
-    const conta = await Conta.findById(contaId);
+    const conta = await Conta.findById(contaId).lean();
 
     if (!conta) {
-        throw new Error('Conta não encontrada.');
+        // Retorna null em vez de lançar um erro para não quebrar a Promise.all no controller.
+        console.warn(`[Sub Service] getSubscriptionDetails: Conta ${contaId} não encontrada.`);
+        return null;
     }
 
     if (!conta.mercadoPagoSubscriptionId) {
         return {
             statusLocal: conta.statusAssinatura,
             plano: conta.plano,
-            message: 'Nenhuma assinatura ativa encontrada no gateway de pagamento.'
+            message: 'Nenhuma assinatura ativa encontrada no gateway de pagamento.',
+            metodoPagamento: null,
         };
     }
 
-    const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
-    const preapproval = new PreApproval(client);
+    try {
+        const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+        const preapproval = new PreApproval(client);
 
-    const mpSubscription = await preapproval.get({ id: conta.mercadoPagoSubscriptionId });
+        const mpSubscription = await preapproval.get({ id: conta.mercadoPagoSubscriptionId });
+        
+        // Log detalhado para depuração da resposta da API
+        console.log(`[Sub Service] Resposta completa da API MP para getSubscriptionDetails (conta ${contaId}):`, JSON.stringify(mpSubscription, null, 2));
 
-    // TODO: Buscar os detalhes do cartão (bandeira, últimos 4 dígitos) pode exigir uma chamada adicional à API de cartões.
-    // Por enquanto, retornamos o que temos de forma segura.
-    return {
-        statusLocal: conta.statusAssinatura,
-        statusGateway: mpSubscription.status,
-        plano: conta.plano,
-        proximaCobranca: mpSubscription.next_payment_date,
-        metodoPagamento: mpSubscription.payment_method_id,
-        // Adicionar detalhes do cartão se a API retornar
-    };
+        let metodoPagamento = null;
+        // Estrutura de dados da API confirmada: o cartão está dentro de `card_info`
+        if (mpSubscription.card_info) {
+            metodoPagamento = {
+                last4: mpSubscription.card_info.last_four_digits,
+                brand: mpSubscription.card_info.payment_method.name,
+            };
+        } else {
+             console.warn(`[Sub Service] Não foi possível encontrar 'card_info' na resposta da assinatura ${conta.mercadoPagoSubscriptionId}.`);
+        }
+
+        return {
+            statusLocal: conta.statusAssinatura,
+            statusGateway: mpSubscription.status,
+            plano: conta.plano,
+            proximaCobranca: mpSubscription.next_payment_date,
+            metodoPagamento: metodoPagamento,
+        };
+    } catch (error) {
+        console.error(`[Sub Service] Erro ao buscar detalhes da assinatura ${conta.mercadoPagoSubscriptionId} no MP:`, error.message);
+        // Retorna um objeto parcial para não quebrar o frontend em caso de falha na API do MP
+        return {
+            statusLocal: conta.statusAssinatura,
+            plano: conta.plano,
+            message: 'Falha ao comunicar com o gateway de pagamento.',
+            metodoPagamento: null,
+        };
+    }
 };
 
 const updateSubscriptionCard = async (gatewaySubscriptionId, cardTokenId) => {
