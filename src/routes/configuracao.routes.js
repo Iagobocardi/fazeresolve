@@ -27,6 +27,9 @@ router.post('/assinatura/alterar-plano', needsAuth, configuracaoController.alter
 router.post('/assinatura/cancelar', needsAuth, configuracaoController.cancelarAssinatura);
 router.post('/assinatura/atualizar-pagamento', needsAuth, configuracaoController.atualizarMetodoPagamento);
 
+// Nova rota para comprar pacotes pré-pagos
+router.post('/pacote/comprar', needsAuth, configuracaoController.comprarPacote);
+
 // Rota para ATUALIZAR as configurações de recebimento
 router.put('/recebimentos', needsAuth, configuracaoController.updateRecebimentos);
 
