@@ -584,7 +584,7 @@ exports.getAllData = async (req, res) => {
     }
 };
 
-// Nova função para comprar um pacote pré-pago
+// Nova função para comprar um pacote pré-pago (Refatorada para usar Preferências)
 exports.comprarPacote = async (req, res) => {
     try {
         const { contaId, email: userEmail, nome: userName } = req.user;
@@ -599,29 +599,38 @@ exports.comprarPacote = async (req, res) => {
             return res.status(404).json({ message: 'Pacote não encontrado ou inválido.' });
         }
 
-        const paymentData = {
-            transaction_amount: pacote.precoValor,
-            description: `Pacote ${pacote.nome} - ${pacote.meses} Meses`,
-            payment_method_id: 'pix',
+        const preferenceData = {
+            items: [
+                {
+                    id: pacote.id,
+                    title: `Pacote ${pacote.nome} - ${pacote.meses} Meses`,
+                    quantity: 1,
+                    unit_price: pacote.precoValor,
+                }
+            ],
             payer: {
+                name: userName,
                 email: userEmail,
-                first_name: userName,
             },
-            external_reference: `${contaId}_${planoId}`, // Referência para o webhook
+            back_urls: {
+                success: `${process.env.FRONTEND_URL}/billing?payment_status=success`,
+                failure: `${process.env.FRONTEND_URL}/billing?payment_status=failure`,
+                pending: `${process.env.FRONTEND_URL}/billing?payment_status=pending`,
+            },
+            auto_return: 'approved',
+            external_reference: `${contaId}_${planoId}`,
             notification_url: `${process.env.API_URL}/mercado-pago/webhook`,
         };
         
-        const paymentResult = await mercadoPagoService.createPixPayment(paymentData);
+        const preferenceResult = await mercadoPagoService.createOnetimePreference(preferenceData);
 
         res.status(201).json({
-            paymentId: paymentResult.id,
-            qrCode: paymentResult.point_of_interaction.transaction_data.qr_code,
-            qrCodeBase64: paymentResult.point_of_interaction.transaction_data.qr_code_base64,
+            preferenceId: preferenceResult.id,
         });
 
     } catch (error) {
         console.error("Erro em comprarPacote:", error);
-        res.status(500).json({ message: error.message || "Erro ao iniciar a compra do pacote." });
+        res.status(500).json({ message: error.message || "Erro ao criar a preferência de pagamento." });
     }
 };
 
