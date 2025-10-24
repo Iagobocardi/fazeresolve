@@ -297,14 +297,14 @@ exports.updatePerfil = async (req, res) => {
     }
 };
 
-// Função para alterar o plano do usuário
+// Função para alterar o plano do usuário (Refatorada)
 exports.alterarPlano = async (req, res) => {
     try {
         const { contaId } = req.user;
-        const { novoPlano: newPlanName } = req.body; // ex: 'Premium'
+        const { planoId } = req.body; // Recebe o ID do plano (ex: 'prof_anual')
 
-        if (!newPlanName) {
-            return res.status(400).json({ message: 'O nome do novo plano é obrigatório.' });
+        if (!planoId) {
+            return res.status(400).json({ message: 'O ID do novo plano é obrigatório.' });
         }
 
         const conta = await Conta.findById(contaId);
@@ -312,38 +312,34 @@ exports.alterarPlano = async (req, res) => {
             return res.status(404).json({ message: 'Conta não encontrada.' });
         }
 
-        const newPlanConfig = PLANS.find(p => p.name === newPlanName);
-        if (!newPlanConfig) {
-            return res.status(400).json({ message: 'Novo plano inválido.' });
+        const newPlanConfig = PLANS.find(p => p.id === planoId);
+        if (!newPlanConfig || newPlanConfig.tipo !== 'assinatura') {
+            return res.status(400).json({ message: 'Novo plano de assinatura inválido.' });
         }
         
         // Se a assinatura estiver ativa, tenta fazer o upgrade no gateway
         if (conta.statusAssinatura === 'ATIVO') {
-            const resultado = await subscriptionService.upgradeSubscription(contaId, newPlanName);
+            // O serviço de upgrade espera o nome do plano ('Profissional'), não o ID ('prof_anual')
+            const resultado = await subscriptionService.upgradeSubscription(contaId, newPlanConfig.nome);
 
-            // Se o serviço indicar que uma nova assinatura precisa ser criada (ex: upgrade do Essencial sem ID de gateway)
+            // O serviço pode indicar que uma nova assinatura é necessária
             if (resultado.needsCreation) {
                 return res.status(409).json({
                     message: 'É necessário criar uma nova assinatura para este plano.',
                     code: 'NEEDS_NEW_SUBSCRIPTION',
-                    data: {
-                        newPlanId: resultado.newPlanId
-                    }
+                    data: { newPlanId: resultado.newPlanId }
                 });
             }
             
-            res.status(200).json({ message: `Plano alterado para ${newPlanName} com sucesso!`, data: resultado });
+            res.status(200).json({ message: `Plano alterado para ${newPlanConfig.nome} com sucesso!`, data: resultado });
 
         } 
         // Se a assinatura não estiver ativa (ex: aguardando pagamento), apenas atualiza o plano localmente
         else {
-            console.log(`[Plano] Alterando plano localmente para a conta ${contaId} para ${newPlanName}.`);
+            console.log(`[Plano] Alterando plano localmente para a conta ${contaId} para ${newPlanConfig.nome}.`);
             
-            const isAnnual = conta.planId && PLANS.some(p => p.annual.id === conta.planId);
-            const newPlanId = isAnnual ? newPlanConfig.annual.id : newPlanConfig.monthly.id;
-
-            conta.plano = newPlanName;
-            conta.planId = newPlanId;
+            conta.plano = newPlanConfig.nome;
+            conta.planId = newPlanConfig.id; // Salva o ID correto ('prof_anual')
             await conta.save();
 
             // Atualiza as permissões de todos os usuários da conta
@@ -353,10 +349,10 @@ exports.alterarPlano = async (req, res) => {
             );
 
             res.status(200).json({ 
-                message: `Plano alterado para ${newPlanName}. Prossiga para a tela de pagamento para ativar sua assinatura.`,
+                message: `Plano alterado para ${newPlanConfig.nome}. Prossiga para a tela de pagamento para ativar sua assinatura.`,
                 data: {
-                    newPlan: newPlanName,
-                    newPlanId: newPlanId
+                    newPlan: newPlanConfig.nome,
+                    newPlanId: newPlanConfig.id
                 }
             });
         }
