@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { MercadoPagoConfig, Payment } = require('mercadopago');
+const { MercadoPagoConfig, Payment, Preference } = require('mercadopago');
 const axios = require('axios');
 const mercadoPagoConfig = require('../config/mercadoPago.config.js');
 const PLANS = require('../config/plans.config.js');
@@ -201,6 +201,26 @@ module.exports = {
         } catch (error) {
             console.error("Erro detalhado ao criar pagamento com Cartão no serviço:", error?.cause ?? error.message);
             throw new Error("Falha ao criar cobrança com Cartão de Crédito no Mercado Pago.");
+        }
+    },
+    createOnetimePreference: async (preferenceData) => {
+        const client = new MercadoPagoConfig({ accessToken: mercadoPagoConfig.accessToken });
+        const preference = new Preference(client);
+
+        try {
+            console.log("Criando preferência de pagamento com os seguintes dados:", JSON.stringify(preferenceData, null, 2));
+            const result = await preference.create({ body: preferenceData });
+            
+            console.log("Resposta completa da API do Mercado Pago (Preference):", JSON.stringify(result, null, 2));
+
+            if (!result.id) {
+                throw new Error("A resposta da API do Mercado Pago não incluiu um ID de preferência.");
+            }
+
+            return result;
+        } catch (error) {
+            console.error("Erro detalhado ao criar preferência de pagamento no serviço:", error?.cause ?? error.message);
+            throw error;
         }
     },
 };
