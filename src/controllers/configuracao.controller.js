@@ -471,63 +471,92 @@ exports.updateRecebimentos = async (req, res) => {
     }
 };
 
-// Função unificada para obter todos os dados da página de configurações
+// Função unificada para obter todos os dados da página de configurações (Refatorada para o novo design)
 exports.getAllData = async (req, res) => {
     try {
         const { contaId } = req.user;
 
-        // 1. Obter dados do Perfil e Integrações (a partir do modelo Conta)
+        // 1. Obter dados da Conta com todos os campos necessários
         const contaPromise = Conta.findById(contaId)
-            .select('nome companyInfo metodoRecebimento chavePixManual googleCalendarConnected googleAccountEmail isWhatsappConnected focusNFeConnected plano statusAssinatura gracePeriodExpiresAt')
+            .select(
+                'nome companyInfo metodoRecebimento chavePixManual ' +
+                'googleCalendarConnected googleAccountEmail isWhatsappConnected focusNFeConnected ' +
+                'plano planId paymentType statusAssinatura gracePeriodExpiresAt acessoValidoAte'
+            )
             .lean();
 
-        // 2. Obter dados da Assinatura
+        // 2. Obter detalhes da assinatura do gateway (se existir)
         const subscriptionDetailsPromise = subscriptionService.getSubscriptionDetails(contaId).catch(err => {
             console.warn(`Aviso: Não foi possível obter detalhes da assinatura para a conta ${contaId}. Erro: ${err.message}`);
-            return null; // Retorna nulo se houver erro, para não quebrar a Promise.all
+            return null;
         });
 
-        // 3. Obter Histórico de Faturas (últimas 5)
-        const faturasPromise = Transacao.find({ contaId, tipo: 'FATURA_ASSINATURA' })
+        // 3. Obter Histórico de Faturas
+        const faturasPromise = Transacao.find({ contaId, tipo: { $in: ['FATURA_ASSINATURA', 'FATURA_PACOTE'] } })
             .sort({ createdAt: -1 })
-            .limit(5)
-            .select('createdAt valor status linkBoleto')
+            .limit(10)
+            .select('createdAt valor status linkBoleto notaFiscalId external_reference') // Adicionado external_reference
             .lean();
         
-        // 4. Obter todos os planos disponíveis para o modal de alteração
-        const planosDisponiveisPromise = Promise.resolve(PLANS);
-
-        // Executar todas as promessas em paralelo
-        const [conta, subscriptionDetails, faturas, planosDisponiveis] = await Promise.all([
+        const [conta, subscriptionDetails, faturas] = await Promise.all([
             contaPromise,
             subscriptionDetailsPromise,
-            faturasPromise,
-            planosDisponiveisPromise
+            faturasPromise
         ]);
 
         if (!conta) {
             return res.status(404).json({ message: 'Conta não encontrada.' });
         }
 
+        // --- Construir o novo objeto 'assinatura' ---
+
+        const planoAtual = PLANS.find(p => p.id === conta.planId);
+        
+        // Mapear status interno para um texto mais amigável
+        const statusMap = {
+            'ATIVO': 'Ativo',
+            'AGUARDANDO_PAGAMENTO': 'Pagamento Pendente',
+            'EM_ATRASO': 'Pagamento Atrasado',
+            'CANCELADO': 'Cancelado'
+        };
+
+        const assinaturaResponse = {
+            tipo: conta.paymentType === 'subscription' ? 'assinatura' : 'pacote',
+            planoAtualId: conta.planId,
+            planoAtualNome: planoAtual ? planoAtual.nome : conta.plano, // Fallback para o nome antigo
+            status: statusMap[conta.statusAssinatura] || conta.statusAssinatura,
+            metodoPagamento: subscriptionDetails?.metodoPagamento || null,
+            planosDisponiveis: PLANS, // Envia a lista completa de planos detalhados
+            faturas: faturas.map(f => {
+                const planoFatura = PLANS.find(p => p.id === f.external_reference);
+                let descricao = 'Não especificado';
+                if (planoFatura) {
+                    descricao = planoFatura.tipo === 'assinatura' 
+                        ? `Assinatura ${planoFatura.ciclo} ${planoFatura.nome}`
+                        : `Pacote ${planoFatura.nome} ${planoFatura.meses} Meses`;
+                }
+                return { ...f, descricao };
+            })
+        };
+
+        // Adicionar campos condicionais baseados no tipo de plano
+        if (assinaturaResponse.tipo === 'assinatura' && planoAtual) {
+            assinaturaResponse.planoAtualCiclo = planoAtual.ciclo;
+            assinaturaResponse.proximaCobranca = subscriptionDetails?.proximaCobranca;
+        } else if (assinaturaResponse.tipo === 'pacote' && planoAtual) {
+            assinaturaResponse.planoAtualMeses = planoAtual.meses;
+            assinaturaResponse.validade = conta.acessoValidoAte;
+        }
+
         // Montar o objeto de resposta final
         const response = {
-            perfil: {
+            assinatura: assinaturaResponse,
+            // Manter outros dados se necessário no futuro
+             perfil: {
                 nomeEmpresa: conta.nome,
                 cnpjCpf: conta.companyInfo?.cnpj,
-                telefone: conta.companyInfo?.telefone, // Supondo que o telefone esteja em companyInfo
+                telefone: conta.companyInfo?.telefone,
                 endereco: conta.companyInfo?.endereco
-            },
-            assinatura: {
-                planoAtual: conta.plano,
-                status: conta.statusAssinatura,
-                proximaCobranca: subscriptionDetails?.proximaCobranca,
-                metodoPagamento: subscriptionDetails?.metodoPagamento, // Ex: { brand: 'visa', last4: '4242' }
-                faturas: faturas,
-                planosDisponiveis: planosDisponiveis.map(p => ({
-                    nome: p.name,
-                    precoMensal: p.monthly.price,
-                    precoAnual: p.annual.price,
-                }))
             },
             recebimentos: {
                 metodo: conta.metodoRecebimento,
@@ -541,12 +570,14 @@ exports.getAllData = async (req, res) => {
             }
         };
 
-        // Adiciona o status de "LOCKED" se a assinatura estiver pendente e o período de carência expirado
+        // Adicionar status de conta bloqueada
         const isPaymentPending = ['AGUARDANDO_PAGAMENTO', 'EM_ATRASO', 'CANCELADO'].includes(conta.statusAssinatura);
         const gracePeriodExpired = conta.gracePeriodExpiresAt && new Date() > new Date(conta.gracePeriodExpiresAt);
 
         if (isPaymentPending && gracePeriodExpired) {
             response.account_status = 'LOCKED';
+        } else {
+            response.account_status = 'ACTIVE';
         }
 
         res.status(200).json(response);
@@ -556,6 +587,48 @@ exports.getAllData = async (req, res) => {
         res.status(500).json({ message: "Erro ao buscar os dados de configuração." });
     }
 };
+
+// Nova função para comprar um pacote pré-pago
+exports.comprarPacote = async (req, res) => {
+    try {
+        const { contaId, email: userEmail, nome: userName } = req.user;
+        const { planoId } = req.body;
+
+        if (!planoId) {
+            return res.status(400).json({ message: 'O ID do pacote é obrigatório.' });
+        }
+
+        const pacote = PLANS.find(p => p.id === planoId && p.tipo === 'pacote');
+        if (!pacote) {
+            return res.status(404).json({ message: 'Pacote não encontrado ou inválido.' });
+        }
+
+        const paymentData = {
+            transaction_amount: pacote.precoValor,
+            description: `Pacote ${pacote.nome} - ${pacote.meses} Meses`,
+            payment_method_id: 'pix',
+            payer: {
+                email: userEmail,
+                first_name: userName,
+            },
+            external_reference: `${contaId}_${planoId}`, // Referência para o webhook
+            notification_url: `${process.env.API_URL}/mercado-pago/webhook`,
+        };
+        
+        const paymentResult = await mercadoPagoService.createPixPayment(paymentData);
+
+        res.status(201).json({
+            paymentId: paymentResult.id,
+            qrCode: paymentResult.point_of_interaction.transaction_data.qr_code,
+            qrCodeBase64: paymentResult.point_of_interaction.transaction_data.qr_code_base64,
+        });
+
+    } catch (error) {
+        console.error("Erro em comprarPacote:", error);
+        res.status(500).json({ message: error.message || "Erro ao iniciar a compra do pacote." });
+    }
+};
+
 
 // Verifica o código de verificação do número de WhatsApp
 exports.verificarWhatsappSender = async (req, res) => {
