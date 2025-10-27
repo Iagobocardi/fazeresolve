@@ -1,46 +1,43 @@
 const Conta = require('../models/conta.model');
 
 const checkSubscription = async (req, res, next) => {
-    // Permite que as requisições OPTIONS passem sem verificar a assinatura (importante para o CORS)
+    // Permite que requisições OPTIONS passem sem verificação (essencial para CORS preflight)
     if (req.method === 'OPTIONS') {
         return next();
     }
 
     try {
-        // O auth.middleware já nos fornece o usuário completo, incluindo a contaId.
         const { contaId } = req.user;
-
-        if (!contaId) {
+        if (!contaId || !contaId._id) {
             return res.status(401).json({ message: 'Acesso negado. Usuário não está associado a uma conta.' });
         }
 
-        // Busca a conta para verificar o status da assinatura
-        const conta = await Conta.findById(contaId._id);
-
+        const conta = await Conta.findById(contaId._id).select('paymentType acessoValidoAte statusAssinatura gracePeriodExpiresAt').lean();
         if (!conta) {
             return res.status(403).json({ message: 'Acesso negado. Conta não encontrada.' });
         }
 
         const now = new Date();
+        const hasValidGracePeriod = conta.gracePeriodExpiresAt && new Date(conta.gracePeriodExpiresAt) > now;
+        const hasActiveSubscription = conta.statusAssinatura === 'ATIVO';
+        const hasValidOnetimePackage = conta.paymentType === 'onetime' && conta.acessoValidoAte && new Date(conta.acessoValidoAte) > now;
 
-        // 1. Acesso totalmente permitido
-        if (
-            (conta.paymentType === 'onetime' && conta.acessoValidoAte && conta.acessoValidoAte > now) ||
-            (conta.statusAssinatura === 'ATIVO') ||
-            (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO' && conta.gracePeriodExpiresAt && conta.gracePeriodExpiresAt > now)
-        ) {
+        // --- Lógica de Acesso Total ---
+        // Concede acesso total se a assinatura estiver ativa, se tiver um pacote único válido,
+        // ou se estiver aguardando pagamento mas ainda dentro do período de carência.
+        if (hasActiveSubscription || hasValidOnetimePackage || (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO' && hasValidGracePeriod)) {
             return next();
         }
 
-        // 2. Acesso em modo "Soft Block" (apenas leitura)
-        const isPaymentPending = ['AGUARDANDO_PAGAMENTO', 'EM_ATRASO', 'CANCELADO'].includes(conta.statusAssinatura);
-        const gracePeriodExpired = !conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt;
-
-        if (isPaymentPending && gracePeriodExpired) {
+        // --- Lógica de Acesso Parcial (Soft Block) ---
+        // Concede acesso de apenas leitura (GET) se a assinatura tiver algum problema de pagamento
+        // E o período de carência tiver expirado (ou nunca existiu).
+        const isPaymentIssue = ['AGUARDANDO_PAGAMENTO', 'EM_ATRASO', 'CANCELADO'].includes(conta.statusAssinatura);
+        if (isPaymentIssue && !hasValidGracePeriod) {
             if (req.method === 'GET') {
-                return next(); // Permite requisições de leitura (carregar dados)
+                return next(); // Permite requisições de leitura
             } else {
-                // Bloqueia ações de escrita (salvar, criar, deletar)
+                // Bloqueia requisições de escrita
                 return res.status(403).json({
                     message: 'Sua conta está bloqueada para novas ações. Por favor, regularize o pagamento para reativar todas as funcionalidades.',
                     subscription_status: 'LOCKED'
@@ -48,13 +45,14 @@ const checkSubscription = async (req, res, next) => {
             }
         }
 
-        // Se nenhuma das condições for atendida, nega o acesso.
+        // --- Bloqueio Total ---
+        // Se nenhuma das condições acima for atendida, o acesso é negado.
         return res.status(403).json({
-            message: 'Acesso negado. É necessária uma assinatura ativa ou um pacote de acesso válido para acessar este recurso.'
+            message: 'Acesso negado. É necessária uma assinatura ativa ou um pacote de acesso válido.'
         });
 
     } catch (error) {
-        console.error('Erro ao verificar a assinatura da conta:', error);
+        console.error('Erro crítico ao verificar a assinatura da conta:', error);
         return res.status(500).json({ message: 'Erro interno ao verificar a assinatura.' });
     }
 };
