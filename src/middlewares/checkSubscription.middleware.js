@@ -33,13 +33,16 @@ const checkSubscription = async (req, res, next) => {
         }
 
         // 2. Acesso em modo "Soft Block" (apenas leitura)
-        if (conta.statusAssinatura === 'AGUARDANDO_PAGAMENTO' && (!conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt)) {
+        const isPaymentPending = ['AGUARDANDO_PAGAMENTO', 'EM_ATRASO', 'CANCELADO'].includes(conta.statusAssinatura);
+        const gracePeriodExpired = !conta.gracePeriodExpiresAt || now > conta.gracePeriodExpiresAt;
+
+        if (isPaymentPending && gracePeriodExpired) {
             if (req.method === 'GET') {
-                return next(); // Permite carregar os dados
+                return next(); // Permite requisições de leitura (carregar dados)
             } else {
-                // Bloqueia ações de escrita
+                // Bloqueia ações de escrita (salvar, criar, deletar)
                 return res.status(403).json({
-                    message: 'A sua assinatura expirou. Por favor, regularize o pagamento para reativar todas as funcionalidades.',
+                    message: 'Sua conta está bloqueada para novas ações. Por favor, regularize o pagamento para reativar todas as funcionalidades.',
                     subscription_status: 'LOCKED'
                 });
             }
