@@ -53,12 +53,12 @@ const getAllClientes = async (req, res) => {
                             else: 'Cliente Recorrente'
                         }
                     },
-                    proximoAgendamento: '$proximoAgendamentoObj.dataHoraInicio',
+                    proximoAgendamento: { $ifNull: [ '$proximoAgendamentoObj.dataHoraInicio', null ] },
                     proximoAgendamentoDesc: { $ifNull: [ '$proximoAgendamentoObj.observacoes', 'N/A' ] },
-                    faturaAtrasadaValor: '$faturaAtrasada.valorProposto',
-                    faturaAtrasadaId: '$faturaAtrasada.shortId',
-                    faturaAbertaValor: '$faturaAberta.valorProposto',
-                    faturaAbertaId: '$faturaAberta.shortId',
+                    faturaAtrasadaValor: { $ifNull: [ '$faturaAtrasada.valorProposto', null ] },
+                    faturaAtrasadaId: { $ifNull: [ '$faturaAtrasada.shortId', null ] },
+                    faturaAbertaValor: { $ifNull: [ '$faturaAberta.valorProposto', null ] },
+                    faturaAbertaId: { $ifNull: [ '$faturaAberta.shortId', null ] },
                 }
             }
         ];
