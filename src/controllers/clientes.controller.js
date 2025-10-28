@@ -18,7 +18,18 @@ const getAllClientes = async (req, res) => {
             { $lookup: { from: 'agendamentos', localField: '_id', foreignField: 'cliente', as: 'agendamentos' } },
             {
                 $addFields: {
-                    valorTotalGasto: { $sum: '$pedidos.valorProposto' },
+                    valorTotalGasto: {
+                        $reduce: {
+                            input: '$pedidos',
+                            initialValue: 0,
+                            in: {
+                                $add: [
+                                    '$$value',
+                                    { $cond: { if: { $isNumber: '$$this.valorProposto' }, then: '$$this.valorProposto', else: 0 } }
+                                ]
+                            }
+                        }
+                    },
                     totalPedidos: { $size: '$pedidos' },
                     ultimoServico: { $max: '$pedidos.data' },
                     proximoAgendamentoObj: {
@@ -101,12 +112,14 @@ const getAllClientes = async (req, res) => {
         
         const faturasAtrasadasKpiPromise = Orcamento.aggregate([
              { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: now } } },
-             { $group: { _id: null, total: { $sum: '$valorProposto' }, count: { $sum: 1 } } }
+             { $addFields: { valorPropostoNumeric: { $cond: { if: { $isNumber: '$valorProposto' }, then: '$valorProposto', else: 0 } } } },
+             { $group: { _id: null, total: { $sum: '$valorPropostoNumeric' }, count: { $sum: 1 } } }
         ]);
         
         const valorMedioPromise = Orcamento.aggregate([
             { $match: { contaId: contaObjId, statusPagamento: { $in: ['Pago', 'Pago Parcial'] }, data: { $gte: thirtyDaysAgo } } },
-            { $group: { _id: null, media: { $avg: '$valorProposto' } } }
+            { $addFields: { valorPropostoNumeric: { $cond: { if: { $isNumber: '$valorProposto' }, then: '$valorProposto', else: 0 } } } },
+            { $group: { _id: null, media: { $avg: '$valorPropostoNumeric' } } }
         ]);
         
         const proximoAgendamentosPromise = Agendamento.countDocuments({
