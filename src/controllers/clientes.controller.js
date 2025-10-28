@@ -37,11 +37,28 @@ const getAllClientes = async (req, res) => {
                             $filter: {
                                 input: '$agendamentos',
                                 as: 'ag',
-                                cond: { $gte: ['$$ag.dataHoraInicio', new Date()] }
+                                cond: {
+                                    $and: [
+                                        { $isDate: '$$ag.dataHoraInicio' },
+                                        { $gte: ['$$ag.dataHoraInicio', new Date()] }
+                                    ]
+                                }
                             }
                         }
                     },
-                    faturasAtrasadas: { $filter: { input: '$pedidos', as: 'p', cond: { $and: [ { $eq: ['$$p.statusPagamento', 'Pendente'] }, { $lt: ['$$p.dataVencimento', new Date()] } ] } } },
+                    faturasAtrasadas: {
+                        $filter: {
+                            input: '$pedidos',
+                            as: 'p',
+                            cond: {
+                                $and: [
+                                    { $eq: ['$$p.statusPagamento', 'Pendente'] },
+                                    { $isDate: '$$p.dataVencimento' },
+                                    { $lt: ['$$p.dataVencimento', new Date()] }
+                                ]
+                            }
+                        }
+                    },
                     faturaAberta: { $first: { $filter: { input: '$pedidos', as: 'p', cond: { $eq: ['$$p.statusPagamento', 'Pendente'] } } } }
                 }
             },
