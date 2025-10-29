@@ -195,18 +195,18 @@ const getAllClientes = async (req, res) => {
             { $group: { _id: null, media: { $avg: '$valorPropostoNumeric' } } }
         ]);
         
-        const proximoAgendamentosPromise = Agendamento.countDocuments({
+        const proximosAgendamentosPromise = Agendamento.countDocuments({
             contaId: contaObjId,
             dataHoraInicio: { $gte: now, $lte: nextSevenDays }
         });
 
-        const [clientes, clientesAtivos, novosClientes, faturasAtrasadasKpi, valorMedioResult, proximoAgendamentos] = await Promise.all([
+        const [clientes, clientesAtivos, novosClientes, faturasAtrasadasKpi, valorMedioResult, proximosAgendamentos] = await Promise.all([
             clientesPromise,
             clientesAtivosPromise,
             novosClientesPromise,
             faturasAtrasadasKpiPromise,
             valorMedioPromise,
-            proximoAgendamentosPromise
+            proximosAgendamentosPromise
         ]);
 
         const kpis = {
