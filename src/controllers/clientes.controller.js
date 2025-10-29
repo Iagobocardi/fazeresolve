@@ -159,7 +159,7 @@ const getAllClientes = async (req, res) => {
             saldoDevedorTotal: faturasAtrasadasKpi[0]?.total || 0,
             faturasAtrasadasCount: faturasAtrasadasKpi[0]?.count || 0,
             valorMedioPorServico: valorMedioResult[0]?.media || 0,
-            proximosAgendamentos
+            proximoAgendamentos
         };
 
         res.status(200).json({ clientes, kpis });
