@@ -39,7 +39,7 @@ const getAllClientes = async (req, res) => {
                                 as: 'ag',
                                 cond: {
                                     $and: [
-                                        { $isDate: '$$ag.dataHoraInicio' },
+                                        { $eq: [{ $type: '$$ag.dataHoraInicio' }, 'date'] },
                                         { $gte: ['$$ag.dataHoraInicio', new Date()] }
                                     ]
                                 }
@@ -53,7 +53,7 @@ const getAllClientes = async (req, res) => {
                             cond: {
                                 $and: [
                                     { $eq: ['$$p.statusPagamento', 'Pendente'] },
-                                    { $isDate: '$$p.dataVencimento' },
+                                    { $eq: [{ $type: '$$p.dataVencimento' }, 'date'] },
                                     { $lt: ['$$p.dataVencimento', new Date()] }
                                 ]
                             }
