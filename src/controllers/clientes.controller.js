@@ -148,7 +148,17 @@ const getAllClientes = async (req, res) => {
         const novosClientesPromise = Cliente.countDocuments({ contaId: contaObjId, createdAt: { $gte: startOfMonth } });
         
         const faturasAtrasadasKpiPromise = Orcamento.aggregate([
-            { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: now } } },
+            {
+                $match: {
+                    contaId: contaObjId,
+                    statusPagamento: 'Pendente',
+                    $and: [
+                        { dataVencimento: { $exists: true } },
+                        { dataVencimento: { $ne: null } },
+                        { dataVencimento: { $lt: now } }
+                    ]
+                }
+            },
             {
                 $addFields: {
                     valorPropostoNumeric: {
