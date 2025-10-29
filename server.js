@@ -108,9 +108,19 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
 };
 
-// Lida com as requisições pre-flight OPTIONS para todas as rotas.
-// Deve ser o primeiro middleware a ser configurado.
-app.options('*', cors(corsOptions));
+// Garante que as requisições pre-flight (OPTIONS) sejam tratadas
+// corretamente antes de qualquer outra rota.
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma, Expires');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        return res.sendStatus(204); // No Content
+    }
+    next();
+});
+
 app.use(cors(corsOptions));
 
 // O restante dos middlewares essenciais
