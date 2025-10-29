@@ -194,88 +194,52 @@ const getFinancialOverview = async (req, res) => {
             startDate.setDate(startDate.getDate() - 30);
         }
 
-        const receitasPromise = Orcamento.aggregate([
-            { $match: { contaId: contaObjId } },
+        // 1. Cálculos baseados em Orçamentos e Despesas vinculadas
+        const receitasOrcamentosPromise = Orcamento.aggregate([
+            { $match: { contaId: contaObjId, 'pagamentos.data': { $gte: startDate } } },
             { $unwind: '$pagamentos' },
-            {
-                $match: {
-                    $and: [
-                        { 'pagamentos.data': { $exists: true } },
-                        { 'pagamentos.data': { $gte: startDate } }
-                    ]
-                }
-            },
-            {
-                $addFields: {
-                    valorPagamentoNumeric: {
-                        $cond: { if: { $isNumber: '$pagamentos.valor' }, then: '$pagamentos.valor', else: 0 }
-                    }
-                }
-            },
-            { $group: { _id: null, total: { $sum: '$valorPagamentoNumeric' } } }
+            { $match: { 'pagamentos.data': { $gte: startDate } } },
+            { $group: { _id: null, total: { $sum: '$pagamentos.valor' } } }
         ]);
 
-        const despesasPromise = Despesa.aggregate([
-            {
-                $match: {
-                    contaId: contaObjId,
-                    data: { $gte: startDate },
-                    valor: { $exists: true }
-                }
-            },
-            {
-                $addFields: {
-                    valorNumeric: {
-                        $cond: { if: { $isNumber: '$valor' }, then: '$valor', else: 0 }
-                    }
-                }
-            },
-            { $group: { _id: null, total: { $sum: '$valorNumeric' } } }
+        const despesasVinculadasPromise = Despesa.aggregate([
+            { $match: { contaId: contaObjId, data: { $gte: startDate } } },
+            { $group: { _id: null, total: { $sum: '$valor' } } }
         ]);
 
-        const transacoesPromise = Orcamento.aggregate([
+        // 2. Cálculo de Transações Manuais (Novas Receitas e Despesas)
+        const transacoesManuaisPromise = Transacao.aggregate([
+            { $match: { contaId: contaObjId, data: { $gte: startDate } } },
             {
-                $match: {
-                    contaId: contaObjId,
-                    data: { $gte: startDate }
+                $group: {
+                    _id: '$tipo',
+                    total: { $sum: '$valor' }
                 }
-            },
+            }
+        ]);
+
+        const transacoesAgrupadasPromise = Orcamento.aggregate([
+            { $match: { contaId: contaObjId, data: { $gte: startDate } } },
             { $lookup: { from: 'despesas', localField: '_id', foreignField: 'orcamentoId', as: 'despesasVinculadas' } },
             { $lookup: { from: 'clientes', localField: 'cliente', foreignField: '_id', as: 'clienteInfo' } },
             {
                 $addFields: {
-                    totalReceitas: {
-                        $reduce: {
-                            input: '$pagamentos',
-                            initialValue: 0,
-                            in: { $add: ['$$value', { $cond: { if: { $isNumber: '$$this.valor' }, then: '$$this.valor', else: 0 } }] }
-                        }
-                    },
-                    totalDespesas: {
-                        $reduce: {
-                            input: '$despesasVinculadas',
-                            initialValue: 0,
-                            in: { $add: ['$$value', { $cond: { if: { $isNumber: '$$this.valor' }, then: '$$this.valor', else: 0 } }] }
-                        }
-                    },
+                    totalReceitas: { $sum: '$pagamentos.valor' },
+                    totalDespesas: { $sum: '$despesasVinculadas.valor' },
                     clienteNome: { $ifNull: [{ $arrayElemAt: ['$clienteInfo.nome', 0] }, 'N/A'] }
                 }
             },
-            {
-                $addFields: {
-                    lucro: { $subtract: ['$totalReceitas', '$totalDespesas'] }
-                }
-            },
-            { $match: { $or: [ { totalReceitas: { $gt: 0 } }, { totalDespesas: { $gt: 0 } } ] } },
+            { $addFields: { lucro: { $subtract: ['$totalReceitas', '$totalDespesas'] } } },
+            { $match: { $or: [{ totalReceitas: { $gt: 0 } }, { totalDespesas: { $gt: 0 } }] } },
             { $sort: { data: -1 } },
-            {
-                $project: {
-                    _id: 1, shortId: 1, descricao: 1, data: 1, clienteNome: 1,
-                    totalReceitas: 1, totalDespesas: 1, lucro: 1,
-                    receitas: '$pagamentos', despesas: '$despesasVinculadas'
-                }
-            }
+            { $project: { _id: 1, shortId: 1, descricao: 1, data: 1, clienteNome: 1, totalReceitas: 1, totalDespesas: 1, lucro: 1 } }
         ]);
+        
+        // Adiciona transações manuais à lista de transações para exibição
+        const transacoesManuaisListPromise = Transacao.find({
+            contaId: contaObjId,
+            data: { $gte: startDate }
+        }).sort({ data: -1 });
 
         const contasAPagarPromise = Despesa.find({
             contaId: contaObjId,
@@ -288,27 +252,65 @@ const getFinancialOverview = async (req, res) => {
             statusPagamento: 'Pendente'
         }).populate('cliente', 'nome').sort({ dataVencimento: 1 });
 
-
-        const [receitasResult, despesasResult, transacoesAgrupadas, contasAPagar, recebimentosPendentes] = await Promise.all([
-            receitasPromise,
-            despesasPromise,
-            transacoesPromise,
+        // Executar todas as promessas
+        const [
+            receitasOrcamentosResult,
+            despesasVinculadasResult,
+            transacoesManuaisResult,
+            transacoesAgrupadasOrcamentos,
+            transacoesManuaisList,
+            contasAPagar,
+            recebimentosPendentes
+        ] = await Promise.all([
+            receitasOrcamentosPromise,
+            despesasVinculadasPromise,
+            transacoesManuaisPromise,
+            transacoesAgrupadasPromise,
+            transacoesManuaisListPromise,
             contasAPagarPromise,
             recebimentosPendentesPromise
         ]);
 
-        const faturamentoBruto = receitasResult[0]?.total || 0;
-        const totalDespesas = despesasResult[0]?.total || 0;
+        // Processar resultados das transações manuais
+        let receitasManuais = 0;
+        let despesasManuais = 0;
+        transacoesManuaisResult.forEach(item => {
+            if (item._id === 'Receita') {
+                receitasManuais = item.total;
+            } else if (item._id === 'Despesa') {
+                despesasManuais = item.total;
+            }
+        });
+
+        // Consolidar KPIs
+        const faturamentoBruto = (receitasOrcamentosResult[0]?.total || 0) + receitasManuais;
+        const totalDespesas = (despesasVinculadasResult[0]?.total || 0) + despesasManuais;
         const lucroLiquido = faturamentoBruto - totalDespesas;
         const margemDeLucro = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
-        
+
         const kpis = {
             faturamentoBruto,
             totalDespesas,
             lucroLiquido,
             margemDeLucro,
         };
-        
+
+        // Formatar e Unir listas de transações
+        const transacoesManuaisFormatadas = transacoesManuaisList.map(t => ({
+            _id: t._id,
+            tipo: t.tipo, // Adiciona o tipo para o frontend saber como exibir
+            descricao: t.descricao,
+            data: t.data,
+            clienteNome: 'Transação Manual',
+            totalReceitas: t.tipo === 'Receita' ? t.valor : 0,
+            totalDespesas: t.tipo === 'Despesa' ? t.valor : 0,
+            lucro: t.tipo === 'Receita' ? t.valor : -t.valor
+        }));
+
+        const transacoesAgrupadas = [...transacoesAgrupadasOrcamentos, ...transacoesManuaisFormatadas]
+            .sort((a, b) => new Date(b.data) - new Date(a.data));
+
+
         res.status(200).json({
             kpis,
             transacoesAgrupadas,
