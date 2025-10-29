@@ -153,8 +153,8 @@ const getAllClientes = async (req, res) => {
                     contaId: contaObjId,
                     statusPagamento: 'Pendente',
                     $and: [
-                        { dataVencimento: { $exists: true } },
-                        { dataVencimento: { $ne: null } },
+                        { dataVencimento: { $exists: true, $ne: null } },
+                        { $expr: { $eq: [{ $type: '$dataVencimento' }, 'date'] } },
                         { dataVencimento: { $lt: now } }
                     ]
                 }
@@ -182,7 +182,17 @@ const getAllClientes = async (req, res) => {
         ]);
         
         const valorMedioPromise = Orcamento.aggregate([
-            { $match: { contaId: contaObjId, statusPagamento: { $in: ['Pago', 'Pago Parcial'] }, data: { $gte: thirtyDaysAgo } } },
+            {
+                $match: {
+                    contaId: contaObjId,
+                    statusPagamento: { $in: ['Pago', 'Pago Parcial'] },
+                    $and: [
+                        { data: { $exists: true, $ne: null } },
+                        { $expr: { $eq: [{ $type: '$data' }, 'date'] } },
+                        { data: { $gte: thirtyDaysAgo } }
+                    ]
+                }
+            },
             {
                 $addFields: {
                     valorPropostoNumeric: {
