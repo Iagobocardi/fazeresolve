@@ -18,7 +18,18 @@ const getAllClientes = async (req, res) => {
             { $lookup: { from: 'agendamentos', localField: '_id', foreignField: 'cliente', as: 'agendamentos' } },
             {
                 $addFields: {
-                    valorTotalGasto: { $sum: '$pedidos.valorProposto' },
+                    valorTotalGasto: {
+                        $reduce: {
+                            input: '$pedidos',
+                            initialValue: 0,
+                            in: {
+                                $add: [
+                                    '$$value',
+                                    { $cond: { if: { $isNumber: '$$this.valorProposto' }, then: '$$this.valorProposto', else: 0 } }
+                                ]
+                            }
+                        }
+                    },
                     totalPedidos: { $size: '$pedidos' },
                     ultimoServico: { $max: '$pedidos.data' },
                     proximoAgendamentoObj: {
@@ -26,11 +37,28 @@ const getAllClientes = async (req, res) => {
                             $filter: {
                                 input: '$agendamentos',
                                 as: 'ag',
-                                cond: { $gte: ['$$ag.dataHoraInicio', new Date()] }
+                                cond: {
+                                    $and: [
+                                        { $isDate: '$$ag.dataHoraInicio' },
+                                        { $gte: ['$$ag.dataHoraInicio', new Date()] }
+                                    ]
+                                }
                             }
                         }
                     },
-                    faturasAtrasadas: { $filter: { input: '$pedidos', as: 'p', cond: { $and: [ { $eq: ['$$p.statusPagamento', 'Pendente'] }, { $lt: ['$$p.dataVencimento', new Date()] } ] } } },
+                    faturasAtrasadas: {
+                        $filter: {
+                            input: '$pedidos',
+                            as: 'p',
+                            cond: {
+                                $and: [
+                                    { $eq: ['$$p.statusPagamento', 'Pendente'] },
+                                    { $isDate: '$$p.dataVencimento' },
+                                    { $lt: ['$$p.dataVencimento', new Date()] }
+                                ]
+                            }
+                        }
+                    },
                     faturaAberta: { $first: { $filter: { input: '$pedidos', as: 'p', cond: { $eq: ['$$p.statusPagamento', 'Pendente'] } } } }
                 }
             },
@@ -53,12 +81,12 @@ const getAllClientes = async (req, res) => {
                             else: 'Cliente Recorrente'
                         }
                     },
-                    proximoAgendamento: '$proximoAgendamentoObj.dataHoraInicio',
+                    proximoAgendamento: { $ifNull: [ '$proximoAgendamentoObj.dataHoraInicio', null ] },
                     proximoAgendamentoDesc: { $ifNull: [ '$proximoAgendamentoObj.observacoes', 'N/A' ] },
-                    faturaAtrasadaValor: '$faturaAtrasada.valorProposto',
-                    faturaAtrasadaId: '$faturaAtrasada.shortId',
-                    faturaAbertaValor: '$faturaAberta.valorProposto',
-                    faturaAbertaId: '$faturaAberta.shortId',
+                    faturaAtrasadaValor: { $ifNull: [ '$faturaAtrasada.valorProposto', null ] },
+                    faturaAtrasadaId: { $ifNull: [ '$faturaAtrasada.shortId', null ] },
+                    faturaAbertaValor: { $ifNull: [ '$faturaAberta.valorProposto', null ] },
+                    faturaAbertaId: { $ifNull: [ '$faturaAberta.shortId', null ] },
                 }
             }
         ];
@@ -101,12 +129,14 @@ const getAllClientes = async (req, res) => {
         
         const faturasAtrasadasKpiPromise = Orcamento.aggregate([
              { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: now } } },
-             { $group: { _id: null, total: { $sum: '$valorProposto' }, count: { $sum: 1 } } }
+             { $addFields: { valorPropostoNumeric: { $cond: { if: { $isNumber: '$valorProposto' }, then: '$valorProposto', else: 0 } } } },
+             { $group: { _id: null, total: { $sum: '$valorPropostoNumeric' }, count: { $sum: 1 } } }
         ]);
         
         const valorMedioPromise = Orcamento.aggregate([
             { $match: { contaId: contaObjId, statusPagamento: { $in: ['Pago', 'Pago Parcial'] }, data: { $gte: thirtyDaysAgo } } },
-            { $group: { _id: null, media: { $avg: '$valorProposto' } } }
+            { $addFields: { valorPropostoNumeric: { $cond: { if: { $isNumber: '$valorProposto' }, then: '$valorProposto', else: 0 } } } },
+            { $group: { _id: null, media: { $avg: '$valorPropostoNumeric' } } }
         ]);
         
         const proximoAgendamentosPromise = Agendamento.countDocuments({

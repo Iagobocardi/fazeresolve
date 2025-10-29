@@ -1,4 +1,6 @@
 const Transacao = require('../models/transacao.model.js');
+const Despesa = require('../models/despesa.model.js');
+const Orcamento = require('../models/orcamento.model.js');
 const mongoose = require('mongoose');
 
 /**
@@ -193,26 +195,70 @@ const getFinancialOverview = async (req, res) => {
         }
 
         const receitasPromise = Orcamento.aggregate([
-            { $match: { contaId: contaObjId, 'pagamentos.data': { $gte: startDate } } },
+            { $match: { contaId: contaObjId } },
             { $unwind: '$pagamentos' },
-            { $match: { 'pagamentos.data': { $gte: startDate } } },
-            { $group: { _id: null, total: { $sum: '$pagamentos.valor' } } }
+            {
+                $match: {
+                    $and: [
+                        { 'pagamentos.data': { $exists: true } },
+                        { 'pagamentos.data': { $gte: startDate } }
+                    ]
+                }
+            },
+            {
+                $addFields: {
+                    valorPagamentoNumeric: {
+                        $cond: { if: { $isNumber: '$pagamentos.valor' }, then: '$pagamentos.valor', else: 0 }
+                    }
+                }
+            },
+            { $group: { _id: null, total: { $sum: '$valorPagamentoNumeric' } } }
         ]);
 
         const despesasPromise = Despesa.aggregate([
-            { $match: { contaId: contaObjId, data: { $gte: startDate } } },
-            { $group: { _id: null, total: { $sum: '$valor' } } }
+            {
+                $match: {
+                    contaId: contaObjId,
+                    data: { $gte: startDate },
+                    valor: { $exists: true }
+                }
+            },
+            {
+                $addFields: {
+                    valorNumeric: {
+                        $cond: { if: { $isNumber: '$valor' }, then: '$valor', else: 0 }
+                    }
+                }
+            },
+            { $group: { _id: null, total: { $sum: '$valorNumeric' } } }
         ]);
 
         const transacoesPromise = Orcamento.aggregate([
-            { $match: { contaId: contaObjId, data: { $gte: startDate } } },
+            {
+                $match: {
+                    contaId: contaObjId,
+                    data: { $gte: startDate }
+                }
+            },
             { $lookup: { from: 'despesas', localField: '_id', foreignField: 'orcamentoId', as: 'despesasVinculadas' } },
             { $lookup: { from: 'clientes', localField: 'cliente', foreignField: '_id', as: 'clienteInfo' } },
             {
                 $addFields: {
-                    totalReceitas: { $sum: '$pagamentos.valor' },
-                    totalDespesas: { $sum: '$despesasVinculadas.valor' },
-                    clienteNome: { $arrayElemAt: ['$clienteInfo.nome', 0] }
+                    totalReceitas: {
+                        $reduce: {
+                            input: '$pagamentos',
+                            initialValue: 0,
+                            in: { $add: ['$$value', { $cond: { if: { $isNumber: '$$this.valor' }, then: '$$this.valor', else: 0 } }] }
+                        }
+                    },
+                    totalDespesas: {
+                        $reduce: {
+                            input: '$despesasVinculadas',
+                            initialValue: 0,
+                            in: { $add: ['$$value', { $cond: { if: { $isNumber: '$$this.valor' }, then: '$$this.valor', else: 0 } }] }
+                        }
+                    },
+                    clienteNome: { $ifNull: [{ $arrayElemAt: ['$clienteInfo.nome', 0] }, 'N/A'] }
                 }
             },
             {
