@@ -1,7 +1,7 @@
 const Transacao = require('../models/transacao.model.js');
-const Despesa = require('../models/despesa.model.js');
-const Orcamento = require('../models/orcamento.model.js');
 const mongoose = require('mongoose');
+const Orcamento = require('../models/orcamento.model.js');
+const Despesa = require('../models/despesa.model.js');
 
 /**
  * Calcula e retorna um resumo financeiro para um determinado período.
@@ -191,34 +191,34 @@ const getFinancialOverview = async (req, res) => {
         if (period === '7d') {
             startDate.setDate(startDate.getDate() - 7);
         } else {
+            // Default to 30 days
             startDate.setDate(startDate.getDate() - 30);
         }
 
-        // 1. Cálculos baseados em Orçamentos e Despesas vinculadas
-        const receitasOrcamentosPromise = Orcamento.aggregate([
+        // --- PROMISES DE DADOS ---
+
+        // 1. Receitas de Orçamentos
+        const receitasPromise = Orcamento.aggregate([
             { $match: { contaId: contaObjId, 'pagamentos.data': { $gte: startDate } } },
             { $unwind: '$pagamentos' },
             { $match: { 'pagamentos.data': { $gte: startDate } } },
             { $group: { _id: null, total: { $sum: '$pagamentos.valor' } } }
         ]);
 
-        const despesasVinculadasPromise = Despesa.aggregate([
+        // 2. Despesas Vinculadas a Orçamentos
+        const despesasPromise = Despesa.aggregate([
             { $match: { contaId: contaObjId, data: { $gte: startDate } } },
             { $group: { _id: null, total: { $sum: '$valor' } } }
         ]);
 
-        // 2. Cálculo de Transações Manuais (Novas Receitas e Despesas)
-        const transacoesManuaisPromise = Transacao.aggregate([
+        // 3. Transações Manuais (para KPIs)
+        const manualTransacoesKpiPromise = Transacao.aggregate([
             { $match: { contaId: contaObjId, data: { $gte: startDate } } },
-            {
-                $group: {
-                    _id: '$tipo',
-                    total: { $sum: '$valor' }
-                }
-            }
+            { $group: { _id: '$tipo', total: { $sum: '$valor' } } }
         ]);
-
-        const transacoesAgrupadasPromise = Orcamento.aggregate([
+        
+        // 4. Lista de Transações de Orçamentos
+        const transacoesOrcamentoPromise = Orcamento.aggregate([
             { $match: { contaId: contaObjId, data: { $gte: startDate } } },
             { $lookup: { from: 'despesas', localField: '_id', foreignField: 'orcamentoId', as: 'despesasVinculadas' } },
             { $lookup: { from: 'clientes', localField: 'cliente', foreignField: '_id', as: 'clienteInfo' } },
@@ -226,91 +226,116 @@ const getFinancialOverview = async (req, res) => {
                 $addFields: {
                     totalReceitas: { $sum: '$pagamentos.valor' },
                     totalDespesas: { $sum: '$despesasVinculadas.valor' },
-                    clienteNome: { $ifNull: [{ $arrayElemAt: ['$clienteInfo.nome', 0] }, 'N/A'] }
+                    clienteNome: { $ifNull: [{ $arrayElemAt: ['$clienteInfo.nome', 0] }, 'Cliente não encontrado'] }
                 }
             },
-            { $addFields: { lucro: { $subtract: ['$totalReceitas', '$totalDespesas'] } } },
-            { $match: { $or: [{ totalReceitas: { $gt: 0 } }, { totalDespesas: { $gt: 0 } }] } },
+            {
+                $addFields: {
+                    lucro: { $subtract: ['$totalReceitas', '$totalDespesas'] }
+                }
+            },
+            { $match: { $or: [ { totalReceitas: { $gt: 0 } }, { totalDespesas: { $gt: 0 } } ] } },
             { $sort: { data: -1 } },
-            { $project: { _id: 1, shortId: 1, descricao: 1, data: 1, clienteNome: 1, totalReceitas: 1, totalDespesas: 1, lucro: 1 } }
+            {
+                $project: {
+                    _id: 1, shortId: 1, descricao: 1, data: 1, clienteNome: 1,
+                    totalReceitas: 1, totalDespesas: 1, lucro: 1,
+                    receitas: '$pagamentos', despesas: '$despesasVinculadas'
+                }
+            }
         ]);
-        
-        // Adiciona transações manuais à lista de transações para exibição
-        const transacoesManuaisListPromise = Transacao.find({
+
+        // 5. Lista de Transações Manuais
+        const manualTransacoesListPromise = Transacao.find({
             contaId: contaObjId,
             data: { $gte: startDate }
-        }).sort({ data: -1 });
+        }).lean();
 
+        // 6. Contas a Pagar
         const contasAPagarPromise = Despesa.find({
             contaId: contaObjId,
             pago: false,
             dataVencimento: { $exists: true, $ne: null }
         }).sort({ dataVencimento: 1 });
 
+        // 7. Recebimentos Pendentes
         const recebimentosPendentesPromise = Orcamento.find({
             contaId: contaObjId,
             statusPagamento: 'Pendente'
         }).populate('cliente', 'nome').sort({ dataVencimento: 1 });
 
-        // Executar todas as promessas
+        // --- EXECUÇÃO DAS PROMISES ---
         const [
-            receitasOrcamentosResult,
-            despesasVinculadasResult,
-            transacoesManuaisResult,
-            transacoesAgrupadasOrcamentos,
-            transacoesManuaisList,
+            receitasOrcamentoResult,
+            despesasOrcamentoResult,
+            manualKpisResult,
+            transacoesOrcamento,
+            manualList,
             contasAPagar,
             recebimentosPendentes
         ] = await Promise.all([
-            receitasOrcamentosPromise,
-            despesasVinculadasPromise,
-            transacoesManuaisPromise,
-            transacoesAgrupadasPromise,
-            transacoesManuaisListPromise,
+            receitasPromise,
+            despesasPromise,
+            manualTransacoesKpiPromise,
+            transacoesOrcamentoPromise,
+            manualTransacoesListPromise,
             contasAPagarPromise,
             recebimentosPendentesPromise
         ]);
 
-        // Processar resultados das transações manuais
-        let receitasManuais = 0;
-        let despesasManuais = 0;
-        transacoesManuaisResult.forEach(item => {
-            if (item._id === 'Receita') {
-                receitasManuais = item.total;
-            } else if (item._id === 'Despesa') {
-                despesasManuais = item.total;
-            }
-        });
+        // --- CÁLCULO DOS KPIs ---
+        let faturamentoBruto = receitasOrcamentoResult[0]?.total || 0;
+        let totalDespesas = despesasOrcamentoResult[0]?.total || 0;
+        
+        const manualReceitas = manualKpisResult.find(t => t._id === 'Receita')?.total || 0;
+        const manualDespesas = manualKpisResult.find(t => t._id === 'Despesa')?.total || 0;
 
-        // Consolidar KPIs
-        const faturamentoBruto = (receitasOrcamentosResult[0]?.total || 0) + receitasManuais;
-        const totalDespesas = (despesasVinculadasResult[0]?.total || 0) + despesasManuais;
+        faturamentoBruto += manualReceitas;
+        totalDespesas += manualDespesas;
+
         const lucroLiquido = faturamentoBruto - totalDespesas;
         const margemDeLucro = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
-
+        
         const kpis = {
             faturamentoBruto,
             totalDespesas,
             lucroLiquido,
             margemDeLucro,
         };
+        
+        // --- FORMATAÇÃO E UNIÃO DAS TRANSAÇÕES ---
+        const formattedManualTransacoes = manualList.map(transacao => {
+            const isReceita = transacao.tipo === 'Receita';
+            return {
+                _id: transacao._id,
+                shortId: 'MANUAL',
+                descricao: transacao.descricao,
+                data: transacao.data,
+                clienteNome: 'Transação Manual',
+                totalReceitas: isReceita ? transacao.valor : 0,
+                totalDespesas: !isReceita ? transacao.valor : 0,
+                lucro: isReceita ? transacao.valor : -transacao.valor,
+                receitas: isReceita ? [{
+                    _id: transacao._id,
+                    valor: transacao.valor,
+                    data: transacao.data,
+                    metodoPagamento: transacao.metodoPagamento,
+                    descricao: `Receita: ${transacao.descricao}`
+                }] : [],
+                despesas: !isReceita ? [{
+                    _id: transacao._id,
+                    valor: transacao.valor,
+                    data: transacao.data,
+                    descricao: `Despesa: ${transacao.descricao}`,
+                    categoria: transacao.categoria
+                }] : [],
+            };
+        });
 
-        // Formatar e Unir listas de transações
-        const transacoesManuaisFormatadas = transacoesManuaisList.map(t => ({
-            _id: t._id,
-            tipo: t.tipo, // Adiciona o tipo para o frontend saber como exibir
-            descricao: t.descricao,
-            data: t.data,
-            clienteNome: 'Transação Manual',
-            totalReceitas: t.tipo === 'Receita' ? t.valor : 0,
-            totalDespesas: t.tipo === 'Despesa' ? t.valor : 0,
-            lucro: t.tipo === 'Receita' ? t.valor : -t.valor
-        }));
+        const transacoesAgrupadas = [...transacoesOrcamento, ...formattedManualTransacoes];
+        transacoesAgrupadas.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-        const transacoesAgrupadas = [...transacoesAgrupadasOrcamentos, ...transacoesManuaisFormatadas]
-            .sort((a, b) => new Date(b.data) - new Date(a.data));
-
-
+        // --- RESPOSTA FINAL ---
         res.status(200).json({
             kpis,
             transacoesAgrupadas,
