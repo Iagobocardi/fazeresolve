@@ -25,7 +25,27 @@ const getAllClientes = async (req, res) => {
                             in: {
                                 $add: [
                                     '$$value',
-                                    { $cond: { if: { $isNumber: '$$this.valorProposto' }, then: '$$this.valorProposto', else: 0 } }
+                                    {
+                                        $cond: {
+                                            if: { $ifNull: ['$$this.valorProposto', false] },
+                                            then: {
+                                                $toDouble: {
+                                                    $replaceOne: {
+                                                        input: {
+                                                            $replaceAll: {
+                                                                input: { $ltrim: { input: { $toString: "$$this.valorProposto" }, chars: "R$ " } },
+                                                                find: ".",
+                                                                replacement: ""
+                                                            }
+                                                        },
+                                                        find: ",",
+                                                        replacement: "."
+                                                    }
+                                                }
+                                            },
+                                            else: 0
+                                        }
+                                    }
                                 ]
                             }
                         }
@@ -128,14 +148,50 @@ const getAllClientes = async (req, res) => {
         const novosClientesPromise = Cliente.countDocuments({ contaId: contaObjId, createdAt: { $gte: startOfMonth } });
         
         const faturasAtrasadasKpiPromise = Orcamento.aggregate([
-             { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: now } } },
-             { $addFields: { valorPropostoNumeric: { $cond: { if: { $isNumber: '$valorProposto' }, then: '$valorProposto', else: 0 } } } },
-             { $group: { _id: null, total: { $sum: '$valorPropostoNumeric' }, count: { $sum: 1 } } }
+            { $match: { contaId: contaObjId, statusPagamento: 'Pendente', dataVencimento: { $lt: now } } },
+            {
+                $addFields: {
+                    valorPropostoNumeric: {
+                        $cond: {
+                            if: { $ifNull: ['$valorProposto', false] },
+                            then: {
+                                $toDouble: {
+                                    $replaceOne: {
+                                        input: { $replaceAll: { input: { $ltrim: { input: { $toString: "$valorProposto" }, chars: "R$ " } }, find: ".", replacement: "" } },
+                                        find: ",",
+                                        replacement: "."
+                                    }
+                                }
+                            },
+                            else: 0
+                        }
+                    }
+                }
+            },
+            { $group: { _id: null, total: { $sum: '$valorPropostoNumeric' }, count: { $sum: 1 } } }
         ]);
         
         const valorMedioPromise = Orcamento.aggregate([
             { $match: { contaId: contaObjId, statusPagamento: { $in: ['Pago', 'Pago Parcial'] }, data: { $gte: thirtyDaysAgo } } },
-            { $addFields: { valorPropostoNumeric: { $cond: { if: { $isNumber: '$valorProposto' }, then: '$valorProposto', else: 0 } } } },
+            {
+                $addFields: {
+                    valorPropostoNumeric: {
+                        $cond: {
+                            if: { $ifNull: ['$valorProposto', false] },
+                            then: {
+                                $toDouble: {
+                                    $replaceOne: {
+                                        input: { $replaceAll: { input: { $ltrim: { input: { $toString: "$valorProposto" }, chars: "R$ " } }, find: ".", replacement: "" } },
+                                        find: ",",
+                                        replacement: "."
+                                    }
+                                }
+                            },
+                            else: 0
+                        }
+                    }
+                }
+            },
             { $group: { _id: null, media: { $avg: '$valorPropostoNumeric' } } }
         ]);
         
