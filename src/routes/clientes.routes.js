@@ -23,6 +23,7 @@ const updateClienteRules = [
 
 // --- Rotas com Validação e Permissões Aplicadas ---
 router.get('/', checkPermission('ver_clientes'), clientesController.getAllClientes);
+router.get('/novo', checkPermission('editar_clientes'), clientesController.paginaCriarCliente); // Rota para a página de criação
 router.get('/:id', checkPermission('ver_clientes'), clientesController.buscarClientePorId);
 router.post('/', checkPermission('editar_clientes'), createClienteRules, validate, clientesController.criarCliente);
 router.put('/:id', checkPermission('editar_clientes'), updateClienteRules, validate, clientesController.atualizarCliente);
