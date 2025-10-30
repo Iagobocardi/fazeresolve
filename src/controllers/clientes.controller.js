@@ -361,6 +361,11 @@ const gerarConvitePortal = async (req, res) => {
     }
 };
 
+// Adiciona a função para a página de criação de cliente
+const paginaCriarCliente = (req, res) => {
+    res.status(200).json({ message: "Página para criar novo cliente." });
+};
+
 module.exports = {
     getAllClientes,
     buscarClientePorId,
@@ -368,5 +373,6 @@ module.exports = {
     atualizarCliente,
     deletarCliente,
     getClienteComPedidos,
-    gerarConvitePortal
+    gerarConvitePortal,
+    paginaCriarCliente // Exporta a nova função
 };
