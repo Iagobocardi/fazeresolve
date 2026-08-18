@@ -1,0 +1,127 @@
+/* src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 96%; /* #F0F2F5 */
+    --foreground: 220 28% 17%; /* #1F2937 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 220 28% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 28% 17%;
+    --primary: 217 91% 60%; /* #3B82F6 */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 220 15% 90%;
+    --secondary-foreground: 220 28% 17%;
+    --muted: 220 15% 90%;
+    --muted-foreground: 215 14% 47%; /* #6B7280 */
+    --accent: 220 15% 90%;
+    --accent-foreground: 220 28% 17%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 13% 91%; /* #E5E7EB */
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
+    --radius: 0.75rem;
+  }
+  .dark {
+    --background: 220 15% 15%;
+    --foreground: 210 40% 98%;
+    --card: 220 15% 20%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 15% 15%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%; /* Manter o mesmo azul vibrante */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 220 15% 25%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 220 15% 25%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 220 15% 25%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 15% 30%;
+    --input: 220 15% 30%;
+    --ring: 217 91% 60%;
+  }
+}
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Estilos para o novo checklist do pedido */
+.checklist-item input:checked + label .checklist-icon {
+    background-color: #2563eb; /* Cor similar ao azul primário */
+    border-color: #2563eb;
+    color: white;
+}
+.checklist-item input:checked + label span {
+    text-decoration: line-through;
+    color: #64748b; /* Cor similar ao muted-foreground */
+}
+
+.area-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    background-color: white;
+}
+.area-option:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.area-option.selected {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+.area-option .icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+    transition: color 0.2s;
+}
+.area-option.selected .icon {
+    color: white;
+}
+.area-option .text {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.price-input-container {
+    position: relative;
+}
+.price-input-container .currency-symbol {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    color: #6b7280;
+    font-weight: 500;
+}
+.price-input-container .input-field {
+    padding-left: 38px;
+}
