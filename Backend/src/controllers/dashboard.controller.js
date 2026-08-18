@@ -1,0 +1,307 @@
+const mongoose = require('mongoose');
+const Orcamento = require('../models/orcamento.model');
+const Servico = require('../models/servico.model');
+const Cliente = require('../models/cliente.model.js');
+const NodeGeocoder = require('node-geocoder');
+const financeiroService = require('../services/financeiro.service.js');
+const relatoriosService = require('../services/relatorios.service.js');
+
+// Configuração do Geocoder
+const options = {
+  provider: 'google',
+  apiKey: process.env.GOOGLE_MAPS_API_KEY, // Use variável de ambiente
+  formatter: null
+};
+const geocoder = NodeGeocoder(options);
+
+// Scopes all queries to the user's contaId
+const getBaseQuery = (req) => ({ contaId: req.user.contaId });
+
+exports.getDashboardData = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const baseQuery = getBaseQuery(req);
+        const umMesAtras = new Date();
+        umMesAtras.setMonth(umMesAtras.getMonth() - 1);
+
+        const novasSolicitacoes = await Orcamento.countDocuments({ ...baseQuery, data: { $gte: umMesAtras } });
+        const novosClientes = await Cliente.countDocuments({ contaId: contaId, createdAt: { $gte: umMesAtras } });
+
+        // Utiliza o serviço financeiro centralizado
+        const resumoFinanceiro = await financeiroService.getResumoFinanceiro(contaId, 'mes_atual');
+        const faturamento = resumoFinanceiro.faturamentoBruto;
+        const lucro = resumoFinanceiro.lucroLiquido;
+        const receitasFuturas = await financeiroService.getReceitasFuturas(contaId);
+
+        const satisfacaoResult = await Orcamento.aggregate([
+            { $match: { ...baseQuery, status: 'Finalizado', notaSatisfacao: { $exists: true, $ne: null } } },
+            { $group: { _id: null, media: { $avg: '$notaSatisfacao' } } }
+        ]);
+        const satisfacaoMedia = satisfacaoResult[0]?.media || 0;
+
+        const orcamentosRecentes = await Orcamento.find({ ...baseQuery, cliente: { $exists: true } })
+            .sort({ data: -1 })
+            .limit(15)
+            .populate('cliente', 'nome telefone');
+
+        const clientesUnicos = new Map();
+        orcamentosRecentes.forEach(orcamento => {
+            if (orcamento.cliente && !clientesUnicos.has(orcamento.cliente._id.toString())) {
+                clientesUnicos.set(orcamento.cliente._id.toString(), {
+                    _id: orcamento.cliente._id,
+                    nome: orcamento.cliente.nome,
+                    telefone: orcamento.cliente.telefone,
+                    ultimoPedido: orcamento.data
+                });
+            }
+        });
+        const recentesClientes = Array.from(clientesUnicos.values()).slice(0, 5);
+
+        res.status(200).json({
+            stats: { novasSolicitacoes, novosClientes, faturamento, lucro, receitasFuturas, satisfacaoMedia },
+            recentesClientes
+        });
+
+    } catch (error) {
+        console.error("Erro ao buscar dados do dashboard:", error);
+        res.status(500).json({ error: 'Erro ao buscar dados do dashboard.' });
+    }
+};
+
+exports.getProximosAgendamentos = async (req, res) => {
+  try {
+    const baseQuery = getBaseQuery(req);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const proximosAgendamentos = await Orcamento.find({
+      ...baseQuery,
+      status: 'Agendado',
+      dataAgendamento: { $gte: hoje } // Filtro movido para a query do banco de dados
+    })
+    .sort({ dataAgendamento: 1 })
+    .limit(5) // Limite aplicado pelo banco de dados
+    .populate('cliente', 'nome');
+
+    res.json(proximosAgendamentos);
+
+  } catch (error) {
+    console.error('Erro ao buscar próximos agendamentos:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+
+exports.getPedidosPendentes = async (req, res) => {
+  try {
+    const baseQuery = getBaseQuery(req);
+    const tresDiasAtras = new Date();
+    tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
+
+    const pedidosPendentes = await Orcamento.find({
+      ...baseQuery,
+      status: 'Pendente',
+      data: { $lte: tresDiasAtras } // Apenas pedidos com mais de 3 dias
+    })
+    .sort({ data: 1 }) // Mais antigos primeiro
+    .limit(5)
+    .populate('cliente', 'nome');
+    res.json(pedidosPendentes);
+  } catch (error) {
+    console.error('Erro ao buscar pedidos pendentes:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+
+exports.getPagamentosAtrasados = async (req, res) => {
+  try {
+    const baseQuery = getBaseQuery(req);
+    const pagamentosAtrasados = await Orcamento.find({
+      ...baseQuery,
+      status: 'Finalizado',
+      statusPagamento: { $ne: 'Pago' }
+    })
+    .sort({ dataFinalizacao: 1 })
+    .limit(5)
+    .populate('cliente', 'nome');
+    res.json(pagamentosAtrasados);
+  } catch (error) {
+    console.error('Erro ao buscar pagamentos em atraso:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+
+exports.getTopRegioes = async (req, res) => {
+  try {
+    const baseQuery = getBaseQuery(req);
+    const topRegioes = await Orcamento.aggregate([
+      // Estágio 1: Filtrar os orçamentos da conta correta e com status Finalizado
+      { $match: { ...baseQuery, status: 'Finalizado' } },
+      // Estágio 2: Juntar com a coleção de clientes para obter detalhes do endereço
+      {
+        $lookup: {
+          from: 'clientes', // O nome da coleção de clientes
+          localField: 'cliente',
+          foreignField: '_id',
+          as: 'clienteInfo'
+        }
+      },
+      // Estágio 3: Desconstruir o array para trabalhar com cada cliente individualmente
+      { $unwind: '$clienteInfo' },
+      // Estágio 4: Filtrar para garantir que temos um bairro para agrupar
+      { $match: { 'clienteInfo.endereco.bairro': { $exists: true, $ne: null, $ne: "" } } },
+      // Estágio 5: Agrupar pelo bairro do cliente e contar os pedidos
+      {
+        $group: {
+          _id: '$clienteInfo.endereco.bairro',
+          pedidos: { $sum: 1 }
+        }
+      },
+      // Estágio 6: Ordenar para mostrar os bairros com mais pedidos primeiro
+      { $sort: { pedidos: -1 } },
+      // Estágio 7: Limitar aos 5 primeiros resultados
+      { $limit: 5 },
+      // Estágio 8: Formatar o resultado final
+      {
+        $project: {
+          _id: 0,
+          regiao: '$_id',
+          pedidos: '$pedidos'
+        }
+      }
+    ]);
+    res.status(200).json(topRegioes || []);
+  } catch (error) {
+    console.error('Erro ao buscar top regiões:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+
+exports.getPedidosCoordenadas = async (req, res) => {
+  try {
+    const baseQuery = getBaseQuery(req);
+    // 1. Find orders and populate the client's address
+    const pedidos = await Orcamento.find(baseQuery)
+      .populate({
+        path: 'cliente',
+        select: 'endereco.cep', // Select only the cep from the endereco object
+        match: { 'endereco.cep': { $exists: true, $ne: null, $ne: "" } } // Ensure the client has a CEP
+      })
+      .select('shortId cliente'); // Select shortId from Orcamento and the populated cliente
+
+    // Filter out orders where the client didn't have a CEP (or didn't exist)
+    const pedidosComCep = pedidos.filter(p => p.cliente && p.cliente.endereco && p.cliente.endereco.cep);
+
+    if (pedidosComCep.length === 0) {
+      return res.json([]);
+    }
+
+    // 2. Extract the CEPs
+    const ceps = pedidosComCep.map(p => p.cliente.endereco.cep);
+
+    // 3. Call the geocoder
+    const geocodedData = await geocoder.batchGeocode(ceps);
+
+    // 4. Format the response
+    const resultados = pedidosComCep.map((pedido, index) => {
+      const geo = geocodedData[index];
+      if (geo.value && geo.value.length > 0) {
+        return {
+          _id: pedido._id,
+          shortId: pedido.shortId,
+          lat: geo.value[0].latitude,
+          lng: geo.value[0].longitude,
+        };
+      }
+      return null;
+    }).filter(Boolean); // Filter out any null results from failed geocoding
+
+    res.json(resultados);
+  } catch (error) {
+    console.error('Erro ao geocodificar endereços:', error);
+    res.status(500).json({ message: 'Erro ao processar as coordenadas dos pedidos' });
+  }
+};
+
+exports.getTopServicosPorCategoria = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        const topServicos = await Servico.aggregate([
+            { $match: { contaId: contaId } },
+            {
+                $group: {
+                    _id: '$categoria',
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 7 },
+            {
+                $project: {
+                    _id: 0,
+                    categoria: '$_id',
+                    quantidade: '$count'
+                }
+            }
+        ]);
+        res.json(topServicos);
+    } catch (error) {
+        console.error('Erro ao buscar top serviços por categoria:', error);
+        res.status(500).json({ message: 'Erro interno do servidor' });
+    }
+};
+
+exports.getVisibilidadeData = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+        // Valida o período, usando '30dias' como padrão
+        const periodo = ['7dias', '30dias', 'mes_atual'].includes(req.query.periodo) ? req.query.periodo : '30dias';
+
+        const dadosVisibilidade = await relatoriosService.getVisibilidadeMetrics(contaId, periodo);
+
+        res.status(200).json(dadosVisibilidade);
+
+    } catch (error) {
+        console.error('Erro ao buscar dados de visibilidade:', error);
+        res.status(500).json({ message: 'Erro interno ao processar dados de visibilidade.' });
+    }
+};
+
+exports.getFaturamentoPorCategoria = async (req, res) => {
+    try {
+        const { contaId } = req.user;
+
+        const faturamento = await Orcamento.aggregate([
+            {
+                $match: {
+                    contaId: new mongoose.Types.ObjectId(contaId),
+                    status: 'Finalizado',
+                    categoria: { $exists: true, $ne: null, $ne: "" }
+                }
+            },
+            {
+                $group: {
+                    _id: '$categoria',
+                    total: { $sum: '$valorProposto' },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    categoria: '$_id',
+                    faturamento: '$total',
+                    pedidos: '$count'
+                }
+            },
+            {
+                $sort: { faturamento: -1 }
+            }
+        ]);
+
+        res.status(200).json(faturamento);
+
+    } catch (error) {
+        console.error('Erro ao buscar faturamento por categoria:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar dados.' });
+    }
+};

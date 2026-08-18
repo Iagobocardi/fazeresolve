@@ -1,0 +1,101 @@
+/* src/components/agenda/MiniCalendar.css */
+
+/* Remove a borda padrão e adiciona um estilo mais limpo */
+.react-calendar {
+  width: 100%;
+  border: none;
+  background-color: transparent;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Estilo do cabeçalho de navegação (Mês, Ano, Setas) */
+.react-calendar__navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  height: auto;
+}
+
+.react-calendar__navigation button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 9999px;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280; /* text-gray-500 */
+}
+
+.react-calendar__navigation button:hover {
+  background-color: #f3f4f6; /* bg-gray-100 */
+}
+
+.react-calendar__navigation__label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #1f2937; /* text-gray-800 */
+}
+
+/* Dias da semana (D, S, T, Q, Q, S, S) */
+.react-calendar__month-view__weekdays {
+  text-align: center;
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500;
+  color: #6b7280; /* text-gray-500 */
+  margin-bottom: 0.5rem;
+}
+
+.react-calendar__month-view__weekdays__weekday abbr {
+  text-decoration: none;
+}
+
+/* Estilo dos dias do mês */
+.react-calendar__tile {
+  background-color: transparent;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  height: 32px;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto; /* Para centralizar o tile */
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+.react-calendar__tile:hover {
+  background-color: #e5e7eb; /* bg-gray-200 */
+}
+
+/* Dia ativo/selecionado */
+.react-calendar__tile--active {
+  background-color: #3b82f6; /* bg-blue-500 */
+  color: white;
+}
+.react-calendar__tile--active:hover {
+  background-color: #2563eb; /* bg-blue-600 */
+}
+
+
+/* Dia de hoje */
+.react-calendar__tile--now {
+  background-color: #dbeafe; /* bg-blue-100 */
+  color: #1d4ed8; /* text-blue-700 */
+  font-weight: bold;
+}
+.react-calendar__tile--now:hover {
+    background-color: #bfdbfe; /* bg-blue-200 */
+}
+
+
+/* Dias fora do mês atual */
+.react-calendar__month-view__days__day--neighboringMonth {
+  color: #d1d5db; /* text-gray-300 */
+}

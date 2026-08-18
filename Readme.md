@@ -1,19 +1,16 @@
-ara o Relatório de Serviços:
+# Faz & Resolve — demonstração local
 
-    Método: GET
-    URL: http://localhost:3000/api/relatorios/servicos/pdf
+Este diretório reúne o frontend React e a API Node/Express do Faz & Resolve. A forma mais simples de executá-los para uma apresentação é pelo Docker:
 
-Para o Relatório Financeiro:
+```powershell
+docker compose up --build
+```
 
-    Método: GET
-    URL: http://localhost:3000/api/relatorios/financeiro/pdf
+Depois da primeira inicialização, abra `http://localhost:3001` e entre com:
 
-Para o Relatório de Orçamentos:
+- E-mail: `demo@fazeresolve.local`
+- Senha: `FazResolve123!`
 
-    Método: GET
-    URL: http://localhost:3000/api/relatorios/orcamentos/pdf
+O compose inicia MongoDB, API e frontend; também carrega dados seguros de demonstração, sem integrar pagamentos, WhatsApp ou Google. Verifique a API em `http://localhost:3000/api/health`.
 
-Para o Relatório de Agendamentos:
-
-    Método: GET
-    URL: http://localhost:3000/api/relatorios/agendamentos/pdf
+Para encerrar sem apagar os dados: `docker compose down`. Para reiniciar do zero, remova o volume apenas se desejar apagar os dados: `docker compose down -v`.

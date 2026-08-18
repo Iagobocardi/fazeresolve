@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Orçamento - {{orcamento.shortId}}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; color: #333; }
+        .container { max-width: 800px; margin: 20px auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .05); }
+        .header { text-align: center; margin-bottom: 30px; }
+        
+        /* --- CSS Adicionado para a Logo --- */
+        .logo {
+            max-width: 200px;
+            max-height: 80px;
+            margin-bottom: 15px;
+        }
+        /* ---------------------------------- */
+
+        .header h1 { margin: 0; color: #0056b3; font-size: 24px; }
+        .details { margin-bottom: 30px; width: 100%; border-collapse: collapse; }
+        .details td { padding: 8px; vertical-align: top; font-size: 14px; }
+        .items { width: 100%; border-collapse: collapse; }
+        .items th, .items td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+        .items th { background-color: #f2f2f2; }
+        .total { text-align: right; margin-top: 20px; font-size: 1.2em; font-weight: bold; }
+        .footer { text-align: center; margin-top: 40px; font-size: 0.8em; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            {{{logoHtml}}}
+
+            <h1>PROPOSTA DE SERVIÇO</h1>
+            <p>Proposta N°: {{orcamento.shortId}} | Data: {{dataEmissao}}</p>
+        </div>
+
+        <table class="details">
+            <tr>
+                <td style="width: 50%;">
+                    <strong>CLIENTE:</strong><br>
+                    {{orcamento.cliente.nome}}<br>
+                    Telefone: {{orcamento.cliente.telefone}}
+                </td>
+                <td style="width: 50%; text-align: right;">
+                    <strong>PRESTADOR:</strong><br>
+                    {{config.nomeEmpresa}}<br>
+                    Telefone: {{config.telefoneEmpresa}}<br>
+                    Email: {{config.emailEmpresa}}
+                </td>
+            </tr>
+        </table>
+        
+        <h3 style="margin-top: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 5px;">DESCRIÇÃO DO SERVIÇO</h3>
+        <p style="white-space: pre-wrap;">{{orcamento.descricao}}</p>
+
+        <h3 style="margin-top: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 5px;">VALORES</h3>
+        <table class="items">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th style="text-align: right;">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Valor Proposto para o Serviço</td>
+                    <td style="text-align: right;">{{valorPropostoFormatado}}</td>
+                </tr>
+                </tbody>
+        </table>
+
+        <div class="total">
+            VALOR TOTAL: {{valorPropostoFormatado}}
+        </div>
+
+        <div class="footer">
+            <p><strong>Validade da Proposta:</strong> 15 dias.</p>
+            <p>Em caso de dúvidas, entre em contato.</p>
+        </div>
+    </div>
+</body>
+</html>
