@@ -13,7 +13,7 @@ services:
       retries: 12
 
   api:
-    build: ./fazeresolve-fix-api-errors-and-update-landing-page
+    build: ./Backend
     restart: unless-stopped
     environment:
       PORT: 3000
@@ -38,7 +38,7 @@ services:
 
   frontend:
     build:
-      context: ./az-e-resolve-frontend-bug-saldo-devedor-investigation
+      context: ./frontend
       args:
         REACT_APP_API_URL: http://localhost:3000/api
     restart: unless-stopped

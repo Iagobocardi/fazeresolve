@@ -1,84 +1,62 @@
-# Faz & Resolve — Demonstração local
+# Faz & Resolve — Frontend
 
-Para iniciar a demonstração completa (MongoDB, API e painel), use o arquivo `docker-compose.yml` na pasta pai dos dois projetos:
+## Sobre
+
+Esta é a aplicação web do Faz & Resolve. Ela oferece a interface para os fluxos administrativos e operacionais atendidos pela API: autenticação, painel, clientes, pedidos/orçamentos, agenda, financeiro e demais módulos disponíveis conforme permissões e plano da conta.
+
+## Tecnologias
+
+- React 18 com Create React App.
+- React Router para rotas da aplicação.
+- Axios e TanStack React Query para comunicação e estado de dados remotos.
+- Bootstrap, Tailwind CSS, Chart.js e ApexCharts para interface e visualizações.
+- Integrações de interface com Mercado Pago e Google Maps/Google OAuth, condicionadas à configuração de ambiente.
+
+## Principais telas e módulos
+
+- Dashboard, pedidos, clientes, membros e agenda.
+- Financeiro, relatórios e notas fiscais.
+- Fornecedores, estoque, catálogo e modelos de serviço.
+- Configurações, cobrança/assinaturas e pagamentos.
+- Portal do cliente, páginas públicas de orçamento/status e recuperação de senha.
+- Templates de WhatsApp, inbox e visibilidade de mercado, quando liberados para a conta.
+
+## Configuração
+
+Crie o arquivo local de variáveis a partir do exemplo:
 
 ```powershell
-docker compose up --build
+Copy-Item .env.example .env
 ```
 
-Abra `http://localhost:3001` e entre com `demo@fazeresolve.local` / `FazResolve123!`. A API estará em `http://localhost:3000/api/health` e os dados de apresentação são criados automaticamente, sem chamadas a Google, WhatsApp ou gateways de pagamento.
+Variáveis disponíveis no exemplo:
 
-Para desenvolvimento sem Docker, copie `.env.example` para `.env`, execute `npm ci` e inicie o frontend em outra porta: `$env:PORT=3001; npm start`. A API local usa `http://localhost:3000/api` por padrão.
+```text
+REACT_APP_API_URL=http://localhost:3000/api
+REACT_APP_GOOGLE_CLIENT_ID=             # opcional
+REACT_APP_MERCADO_PAGO_PUBLIC_KEY=      # opcional
+```
 
----
+A API local é o valor padrão de `REACT_APP_API_URL`. As chaves opcionais só são necessárias para os respectivos fluxos de Google e Mercado Pago.
 
-# Getting Started with Create React App
+## Executando localmente
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Com a API e o MongoDB em execução, instale as dependências e inicie o servidor de desenvolvimento na porta 3001:
 
-## Available Scripts
+```powershell
+npm ci
+$env:PORT = 3001
+npm start
+```
 
-In the project directory, you can run:
+Abra [http://localhost:3001](http://localhost:3001). Para gerar a build estática, use:
 
-### `npm start`
+```powershell
+npm run build
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Comunicação com a API
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+O cliente HTTP usa `REACT_APP_API_URL`; sem configuração explícita, o fallback também é `http://localhost:3000/api`. A API deve estar disponível nessa origem e ter `FRONTEND_URL=http://localhost:3001` no ambiente local para os fluxos que dependem de redirecionamento.
 
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Para a configuração da API, dados de demonstração e health check, consulte o [README do backend](../Backend/README.md).
